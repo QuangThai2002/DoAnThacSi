@@ -11,6 +11,10 @@ data/processed/chat_conversations*.json
 data/processed/chat_conversations*.bak
 data/processed/_legacy_before_shopee_*/
 data/simple_vector_db/
+data/processed/gold_benchmark_*_audit.json
+data/processed/gold_benchmark_*_review_queue.jsonl
+data/processed/agent_plan_eval_results.csv
+data/processed/agent_plan_eval_summary.csv
 thesis_review_package_*/
 
 .streamlit/

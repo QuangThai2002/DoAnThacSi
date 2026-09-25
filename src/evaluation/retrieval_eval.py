@@ -42,12 +42,14 @@ VARIANTS = [
 class EvalItem:
     id: str
     question: str
+    split: str
     category: str
     query_type: str
     expected_documents: list[str]
     expected_pages: list[str]
     answerable: bool
     requires_private_shop_data: bool
+    gold_verified: bool
 
 
 def load_dataset(path: Path) -> list[EvalItem]:
@@ -64,6 +66,7 @@ def load_dataset(path: Path) -> list[EvalItem]:
                 EvalItem(
                     id=str(raw["id"]),
                     question=str(raw["question"]),
+                    split=str(raw.get("split", "")).strip().lower(),
                     category=str(raw.get("category", "")),
                     query_type=str(raw.get("query_type", "")),
                     expected_documents=[
@@ -76,6 +79,7 @@ def load_dataset(path: Path) -> list[EvalItem]:
                     requires_private_shop_data=bool(
                         raw.get("requires_private_shop_data", False)
                     ),
+                    gold_verified=bool(raw.get("gold_verified", False)),
                 )
             )
 
@@ -262,9 +266,28 @@ def evaluate(
     output_path: Path,
     summary_path: Path,
     repetitions: int,
+    selected_splits: set[str] | None,
+    require_verified: bool,
 ) -> None:
     all_items = load_dataset(dataset_path)
-    items = [item for item in all_items if item.answerable]
+    items = [
+        item
+        for item in all_items
+        if item.answerable and (not selected_splits or item.split in selected_splits)
+    ]
+
+    if not items:
+        raise ValueError("No answerable evaluation items match the selected split(s).")
+
+    if require_verified:
+        unverified = [item.id for item in items if not item.gold_verified]
+        if unverified:
+            preview = ", ".join(unverified[:10])
+            raise ValueError(
+                "Refusing official evaluation because "
+                f"{len(unverified)} selected item(s) have gold_verified=false. "
+                f"Examples: {preview}"
+            )
 
     embedding_model, collection, chunks, bm25_index, _chunk_id_to_index = (
         retrieval.load_resources()
@@ -306,6 +329,7 @@ def evaluate(
                 {
                     "id": item.id,
                     "variant": variant,
+                    "split": item.split,
                     "category": item.category,
                     "query_type": item.query_type,
                     "hit_at_1": hit_at(results, expected_documents, 1),
@@ -430,7 +454,7 @@ def build_group_summary(
                 ),
                 "latency_p95_seconds": round(
                     percentile(
-                        [float(row["latency_median_seconds"]) for row in subset],
+                        [float(row["latency_p95_seconds"]) for row in subset],
                         0.95,
                     ),
                     6,
@@ -444,8 +468,10 @@ def build_group_summary(
 def build_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     summary_rows = build_group_summary(rows, "overall", "all")
 
-    for field in ["category", "query_type"]:
+    for field in ["split", "category", "query_type"]:
         for value in sorted({str(row[field]) for row in rows}):
+            if not value:
+                continue
             subset = [row for row in rows if row[field] == value]
             summary_rows.extend(build_group_summary(subset, field, value))
 
@@ -479,6 +505,17 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY_PATH)
     parser.add_argument("--repetitions", type=int, default=3)
+    parser.add_argument(
+        "--split",
+        action="append",
+        choices=["dev", "test", "challenge"],
+        help="Evaluate only one or more benchmark splits. Repeat this flag as needed.",
+    )
+    parser.add_argument(
+        "--require-verified",
+        action="store_true",
+        help="Fail if any selected item has gold_verified=false.",
+    )
     args = parser.parse_args()
 
     evaluate(
@@ -486,6 +523,8 @@ def main() -> None:
         output_path=args.output,
         summary_path=args.summary,
         repetitions=max(1, args.repetitions),
+        selected_splits=set(args.split) if args.split else None,
+        require_verified=args.require_verified,
     )
 
 
