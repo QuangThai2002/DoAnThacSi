@@ -15,6 +15,7 @@ data/processed/gold_benchmark_*_audit.json
 data/processed/gold_benchmark_*_review_queue.jsonl
 data/processed/agent_plan_eval_results.csv
 data/processed/agent_plan_eval_summary.csv
+data/processed/*error_analysis*.md
 thesis_review_package_*/
 
 .streamlit/

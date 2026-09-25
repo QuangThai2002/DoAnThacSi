@@ -106,6 +106,14 @@ Kết quả được ghi vào `data/processed/*_eval_results.csv` và `data/proc
 
 **Lưu ý khoa học:** toàn bộ 120 câu của `gold_benchmark_v1.jsonl` hiện có `gold_verified=false`. Các câu được sinh từ chunk nên có thể thiên vị BM25; không được dùng các điểm số smoke test để kết luận hiệu quả của hệ thống trong luận văn.
 
+Chạy health check không làm thay đổi các kết quả chính thức trong repository:
+
+```powershell
+.\scripts\verify_baseline.ps1
+# Thêm retrieval smoke test (chậm hơn):
+.\scripts\verify_baseline.ps1 -RunRetrieval
+```
+
 ## Lộ trình đến bản bảo vệ
 
 1. Kiểm chứng thủ công Gold Benchmark v1 theo PDF/trang, viết lại câu hỏi và khóa tập TEST.

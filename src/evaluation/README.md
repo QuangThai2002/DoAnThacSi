@@ -121,3 +121,16 @@ not `gold_verified`, or the audit still raises a quality flag. The manifest
 stores SHA-256 values for both dataset and `chunks.jsonl`; save its Git commit
 hash with the final TEST result. Existing locked output is never overwritten
 unless `--force` is explicitly supplied.
+
+## Error analysis after an experiment
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\error_analysis.py `
+  --input data\processed\official_dev_results.csv `
+  --variant hybrid_without_query_bonus `
+  --output data\processed\official_dev_error_analysis.md
+```
+
+The report classifies misses as not retrieved in top 10, relevant but below top
+5, partial multi-document retrieval, wrong page, or top-1 ranking error. Use
+the report to decide a DEV-only intervention, then rerun all variants.
