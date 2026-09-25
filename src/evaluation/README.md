@@ -89,6 +89,13 @@ Do not treat those smoke-test scores as final experimental results. Because the
 draft questions are automatically derived from evidence snippets, lexical
 methods such as BM25 may be advantaged.
 
+## Verified annotation pilot
+
+`gold_pilot_verified.jsonl` contains six records manually checked against
+rendered source PDF pages. It demonstrates the intended annotation standard and
+the lock workflow, but it is deliberately too small and narrow to report as a
+thesis experiment. Use it only for tooling smoke checks and reviewer training.
+
 ## Audit before annotation
 
 Run the audit before reviewing or locking a benchmark split:

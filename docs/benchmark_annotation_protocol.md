@@ -15,6 +15,10 @@ Question -> expected_documents -> expected_pages -> evidence -> reference_answer
 Một mắt xích sai thì record chưa đạt, kể cả khi retrieval tình cờ trả về đúng
 tài liệu.
 
+`src/evaluation/gold_pilot_verified.jsonl` là sáu record ví dụ đã được kiểm tra
+trực quan với PDF nguồn. Nó minh họa format/tiêu chí đúng, nhưng không đủ lớn
+hoặc đa dạng để dùng làm số liệu thực nghiệm.
+
 ## Quy trình cho từng record
 
 1. Mở tài liệu gốc, đến đúng trang được ghi trong record.

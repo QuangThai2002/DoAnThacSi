@@ -106,6 +106,8 @@ Kết quả được ghi vào `data/processed/*_eval_results.csv` và `data/proc
 
 **Lưu ý khoa học:** toàn bộ 120 câu của `gold_benchmark_v1.jsonl` hiện có `gold_verified=false`. Các câu được sinh từ chunk nên có thể thiên vị BM25; không được dùng các điểm số smoke test để kết luận hiệu quả của hệ thống trong luận văn.
 
+`src/evaluation/gold_pilot_verified.jsonl` có 6 câu đã kiểm tra PDF/trang để minh họa quy trình annotation/lock. Bộ pilot quá nhỏ để báo cáo hiệu quả hệ thống.
+
 Chạy health check không làm thay đổi các kết quả chính thức trong repository:
 
 ```powershell

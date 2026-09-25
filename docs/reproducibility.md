@@ -142,6 +142,16 @@ Khóa một benchmark chỉ sau khi audit không còn flag:
 Manifest lưu SHA-256 của dataset và `chunks.jsonl`. Ghi kèm manifest và Git
 commit hash vào phụ lục thực nghiệm.
 
+Để kiểm tra cơ chế lock trước khi có benchmark lớn, có thể chạy thử bộ pilot 6
+record đã verified (chỉ là kiểm tra tooling, không phải thí nghiệm):
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\lock_gold_benchmark.py `
+  --dataset src\evaluation\gold_pilot_verified.jsonl `
+  --output $env:TEMP\gold_pilot_locked.jsonl `
+  --manifest $env:TEMP\gold_pilot_locked_manifest.json
+```
+
 ## 6. Kết quả cần lưu cho mỗi lần chạy chính thức
 
 - Git commit hash và `git status --short` rỗng.
