@@ -1,0 +1,44 @@
+﻿document_id,title,source_group,text_length,chunk_count,avg_chunk_length,status,created_at,note
+MARKET_VN_001,Sach trang tmdt 2020,ecommerce_market_reports,98967,111,875.8,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+MARKET_VN_002,Sach trang tmdt 2021,ecommerce_market_reports,87115,93,928.66,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+MARKET_VN_003,Ebi 2025,ecommerce_market_reports,207265,141,1508.5,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+MARKET_VN_004,Ebi 2026,ecommerce_market_reports,159565,112,1467.71,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+ELECTRONICS_VN_001,Diem sang san xuat cong nghiep 2021,electronics_market,11257,8,1453.75,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+ELECTRONICS_VN_002,Xnk may tinh linh kien fdi 2022,electronics_market,7056,5,1444.6,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+ELECTRONICS_VN_003,Tao vi the nganh dien tu 2023,electronics_market,6839,4,1756.25,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+ELECTRONICS_VN_004,Customs trade 2025,electronics_market,26537,16,1654.25,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+LAW_QUALITY_001,Vbhn luat chat luong san pham hang hoa,legal_ecommerce,95572,56,1752.0,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+LAW_TRANSACTION_001,Luat giao dich dien tu 2023,legal_ecommerce,57064,30,1880.5,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+VECOM_PLAN_001,Ke hoach cong tac 2024,research_papers,14610,10,1496.1,success,2026-07-14 13:50:41,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SEA_REP_001,Form 20f 2025,sea_shopee_reports,814841,506,1722.74,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SEA_REP_002,Q4 fy2025 results deck,sea_shopee_reports,18379,22,814.36,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SEA_REP_003,Q4 fy2025 results,sea_shopee_reports,44021,31,1439.52,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_API_001,Platform introduction 2024,shopee_api,4208,3,1471.33,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_API_002,Api calls v2 2025,shopee_api,14642,8,1809.5,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_API_003,Shop authorization 2026,shopee_api,47891,31,1558.26,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_API_004,Order management 2025,shopee_api,17979,14,1281.57,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_ADS_001,Quang cao nang cao 2025,shopee_policy,27615,46,559.39,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_DATA_001,Dieu khoan tong hop luot ban,shopee_policy,11713,6,2024.33,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_DATA_002,Quy dinh luu tru du lieu san pham 2026,shopee_policy,3161,3,1033.33,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FEE_001,Tong quan phi ban hang 2026,shopee_policy,4860,4,1261.25,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FEE_002,Phi co dinh non mall 2026,shopee_policy,4056,3,1331.67,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FEE_003,Phi co dinh mall 2026,shopee_policy,4745,3,1561.33,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FEE_004,Phi xu ly giao dich 2026,shopee_policy,3852,3,1353.67,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FEE_005,Cap nhat phi non mall 2026,shopee_policy,7180,5,1415.4,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FEE_006,Bieu phi co dinh theo nganh hang 2026,shopee_policy,102696,62,1677.92,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FIN_001,Huong dan xem doanh thu 2025,shopee_policy,4880,4,1199.5,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_FIN_002,Huong dan xuat bao cao doanh thu 2026,shopee_policy,8118,7,1135.57,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_IP_001,Quy trinh phoi hop quyen so huu tri tue,shopee_policy,16655,11,1595.0,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_LOG_001,Chinh sach van chuyen,shopee_policy,24836,17,1551.0,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_MKT_001,Nganh hang han che khuyen mai 2026,shopee_policy,8392,6,1422.67,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_MKT_002,Gioi thieu kenh marketing 2025,shopee_policy,4462,5,871.8,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_001,Chinh sach bao mat,shopee_policy,43632,27,1744.26,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_002,Chinh sach cam han che san pham,shopee_policy,13261,7,1987.43,success,2026-07-14 13:50:42,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_003,Quy che hoat dong san,shopee_policy,77797,44,1865.36,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_004,Quy trinh giai quyet tranh chap khieu nai,shopee_policy,5623,3,1944.33,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_005,Dieu khoan dich vu,shopee_policy,84038,53,1688.02,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_006,Dieu khoan dich vu shopee mall,shopee_policy,34101,21,1713.81,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_POL_007,Quy dinh dang ban san pham,shopee_policy,21926,13,1810.23,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_RET_001,Phi van chuyen tra hang hoan tien 2025,shopee_policy,5788,4,1494.25,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_RET_002,Chinh sach tra hang hoan tien,shopee_policy,20029,12,1781.42,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.
+SHP_RET_003,Quy trinh tra hang hoan tien nguoi ban 2025,shopee_policy,8676,7,1257.43,success,2026-07-14 13:50:43,Chunk không vượt qua ranh giới trang/sheet; overlap chỉ nằm trong cùng location.

@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+
+data/vector_db/
+data/raw/
+*.rar
+*.zip
+
+data/processed/chat_conversations*.json
+data/processed/chat_conversations*.bak
+data/processed/_legacy_before_shopee_*/
+data/simple_vector_db/
+thesis_review_package_*/
+
+.streamlit/

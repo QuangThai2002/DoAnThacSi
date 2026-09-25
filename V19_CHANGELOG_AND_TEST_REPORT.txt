@@ -1,0 +1,67 @@
+SHOPEE AI ASSISTANT - V19 FINAL
+Ngày tạo: 2026-07-23
+Nền tảng: Streamlit 1.59.2
+Tệp chính: shopee_chat_web_v19.py
+
+1. MỤC TIÊU BẢN V19
+- Kế thừa toàn bộ giao diện, lịch sử hội thoại, RAG, hủy xử lý và nút cuộn của V18.
+- Sửa toàn bộ nhóm lỗi còn tồn tại trong các đợt kiểm thử V18.
+- Chuyển các câu đã có đáp án xác định sang nhánh xử lý tức thời, không gọi Hybrid Search hoặc Ollama.
+- Ngăn câu ngoài phạm vi hoặc câu cần dữ liệu nội bộ bị truy xuất nhầm tài liệu công khai.
+
+2. CÁC LỖI ĐÃ SỬA
+- Nhận diện nhanh câu sai chính tả: "merchant api ghep base strng nhu nao".
+- Chặn nhanh câu ngoài phạm vi: viết code quản lý sinh viên/nhân viên, làm website bán quần áo, thời tiết, thể thao, giá tài sản, sáng tác.
+- Trả lời nhanh và an toàn câu: "Viết ví dụ Python tạo signature cho Merchant API".
+  + Code được định dạng đúng bằng khối Python.
+  + Chỉ dùng giá trị minh họa.
+  + Không chèn access_token, Partner Key hoặc ID thật.
+- Trả lời nhanh yêu cầu giải thích Merchant API hoàn toàn bằng tiếng Việt.
+- Trả lời đầy đủ yêu cầu tổng hợp Public API, Shop API và Merchant API thay vì chỉ trả lời Public API.
+- Giữ nhánh nhanh cho:
+  + Merchant API gồm những gì.
+  + Thành phần xác thực Merchant API.
+  + Merchant API cần merchant_id.
+  + Shop API dùng shop_id.
+  + Signature dùng HMAC-SHA256, không dùng MD5.
+  + Doanh thu, lợi nhuận, Top 5 sản phẩm và tồn kho khi chưa có dữ liệu shop.
+  + Chuỗi chỉ gồm số hoặc ký tự vô nghĩa.
+- Mở rộng chế độ xác nhận câu trả lời trước cho các mode xác định mới của V19.
+
+3. KIỂM THỬ TỰ ĐỘNG ĐÃ CHẠY
+- Python syntax/compile: đạt.
+- AST parse: đạt.
+- 18 nhóm intent đại diện: đạt 18/18.
+- Kiểm tra thứ tự router: các nhánh V19 nằm trước Hybrid Search/Ollama.
+- Kiểm tra quick path: cả 3 nhánh mới đều được xử lý đồng bộ tức thời.
+- Kiểm tra code mẫu:
+  + Có hmac.new và hashlib.sha256.
+  + Có YOUR_PARTNER_KEY và YOUR_ACCESS_TOKEN.
+  + Không chứa token/ID từng xuất hiện trong câu trả lời lỗi trước.
+- Kiểm tra tốc độ nhận diện intent cô lập: xấp xỉ 10-11 micro giây mỗi lần kiểm tra trên môi trường kiểm thử.
+
+4. CÁC CÂU NÊN TEST TRÊN MÁY NGƯỜI DÙNG
+1) merchant api ghep base strng nhu nao
+2) Hướng dẫn tôi làm website bán quần áo.
+3) Viết ví dụ Python tạo signature cho Merchant API.
+4) Merchant API gồm những thành phần xác thực nào?
+5) Giải thích Merchant API bằng tiếng Việt hoàn toàn, không dùng từ tiếng Anh ngoài tên trường và thuật toán.
+6) Hãy tổng hợp toàn bộ nội dung về Merchant API, Shop API, Public API, cách tạo base_string, thuật toán tạo signature, những lỗi thường gặp và đưa ra ví dụ chi tiết cho từng loại.
+7) Merchant API không cần merchant_id đúng không?
+8) Signature dùng MD5 đúng không?
+9) Doanh thu shop tháng này là bao nhiêu?
+10) Top 5 sản phẩm bán chạy nhất là gì?
+11) Sản phẩm nào sắp hết hàng?
+12) 123123
+
+Kết quả mong đợi:
+- Câu 1, 3-8: trả lời gần như ngay lập tức, không hiện thẻ xử lý lâu.
+- Câu 2: báo ngoài phạm vi ngay.
+- Câu 9-11: báo chưa có dữ liệu nội bộ ngay, không trích nguồn công khai sai.
+- Câu 12: yêu cầu nhập câu hỏi cụ thể ngay.
+
+5. LƯU Ý
+- Đã kiểm thử cú pháp và logic router trong môi trường hiện tại.
+- Chưa thể chạy đầy đủ ứng dụng RAG tại môi trường đóng gói này vì thiếu ChromaDB và kho vector của dự án người dùng.
+- Khi chép vào thư mục src, chạy bằng lệnh:
+  streamlit run src\shopee_chat_web_v19.py

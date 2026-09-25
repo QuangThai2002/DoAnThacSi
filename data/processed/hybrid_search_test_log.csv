@@ -1,0 +1,20 @@
+﻿query,mode,chunk_id,document_id,title,page,source_group,vector_score,bm25_score,hybrid_score,elapsed_seconds
+Phí cố định đối với cáp sạc là bao nhiêu?,hybrid,SHP_POL_005_CHUNK_0038,SHP_POL_005,Dieu khoan dich vu,17,shopee_policy,0.431584,28.881841,0.775323,0.0929
+Phí xử lý giao dịch trên Shopee được tính như thế nào?,hybrid,SHP_FEE_004_CHUNK_0002,SHP_FEE_004,Phi xu ly giao dich 2026,1,shopee_policy,0.718946,83.853762,0.6273,0.0605
+Cách ký chữ ký khi gọi Shopee API là gì?,hybrid,SHP_API_002_CHUNK_0003,SHP_API_002,Api calls v2 2025,3,shopee_api,0.640108,14.192506,0.992639,0.0466
+Shop API tạo base_string gồm những tham số nào?,hybrid,SHP_API_002_CHUNK_0003,SHP_API_002,Api calls v2 2025,3,shopee_api,0.672364,30.250744,1.05,0.0528
+Shopee đạt GMV bao nhiêu trong quý 4 năm 2025?,hybrid,SEA_REP_003_CHUNK_0002,SEA_REP_003,Q4 fy2025 results,1,sea_shopee_reports,0.794613,0.0,0.62,0.0747
+Shopee đạt GMV bao nhiêu trong quý 4 năm 2025?,hybrid,SEA_REP_003_CHUNK_0002,SEA_REP_003,Q4 fy2025 results,1,sea_shopee_reports,0.794613,0.0,0.62,0.0951
+Phí cố định đối với cáp sạc là bao nhiêu?,hybrid,SHP_POL_005_CHUNK_0038,SHP_POL_005,Dieu khoan dich vu,17,shopee_policy,0.431584,28.881841,0.775323,0.0815
+Người bán phải phản hồi yêu cầu trả hàng trong bao lâu?,hybrid,SHP_RET_003_CHUNK_0005,SHP_RET_003,Quy trinh tra hang hoan tien nguoi ban 2025,4,shopee_policy,0.872666,0.0,0.62,0.0617
+Những sản phẩm nào bị cấm đăng bán trên Shopee?,hybrid,SHP_MKT_001_CHUNK_0004,SHP_MKT_001,Nganh hang han che khuyen mai 2026,3,shopee_policy,0.671387,37.489939,0.722375,0.0569
+Merchant API tạo base_string gồm những tham số nào?,hybrid,SHP_API_002_CHUNK_0003,SHP_API_002,Api calls v2 2025,3,shopee_api,0.664537,32.967356,1.05,0.0505
+Người bán trực tuyến có trách nhiệm gì với người tiêu dùng?,hybrid,SHP_POL_003_CHUNK_0013,SHP_POL_003,Quy che hoat dong san,7,shopee_policy,0.670771,32.546392,0.797462,0.0588
+Doanh nghiệp phải bảo vệ dữ liệu cá nhân của khách hàng như thế nào?,hybrid,SHP_POL_003_CHUNK_0018,SHP_POL_003,Quy che hoat dong san,9,shopee_policy,0.652341,59.263505,0.937308,0.0662
+Doanh thu tháng 6 của shop tôi là bao nhiêu?,hybrid,SHP_RET_001_CHUNK_0002,SHP_RET_001,Phi van chuyen tra hang hoan tien 2025,1,shopee_policy,0.583168,0.0,0.62,0.0609
+Phí cố định đối với cáp sạc là bao nhiêu?,hybrid,SHP_FEE_006_CHUNK_0007,SHP_FEE_006,Bieu phi co dinh theo nganh hang 2026,7,shopee_policy,0.461094,22.731345,1.658363,0.1535
+Những sản phẩm nào bị cấm đăng bán trên Shopee?,hybrid,SHP_POL_002_CHUNK_0002,SHP_POL_002,Chinh sach cam han che san pham,1,shopee_policy,0.688626,31.911356,1.204949,0.1127
+Người bán phải phản hồi yêu cầu trả hàng trong bao lâu?,hybrid,SHP_RET_003_CHUNK_0005,SHP_RET_003,Quy trinh tra hang hoan tien nguoi ban 2025,4,shopee_policy,0.872666,0.0,0.9,0.1309
+Người bán trực tuyến có trách nhiệm gì với người tiêu dùng?,hybrid,SHP_POL_003_CHUNK_0013,SHP_POL_003,Quy che hoat dong san,7,shopee_policy,0.670771,32.546392,0.997462,0.1295
+Doanh nghiệp phải bảo vệ dữ liệu cá nhân của khách hàng như thế nào?,hybrid,SHP_POL_003_CHUNK_0018,SHP_POL_003,Quy che hoat dong san,9,shopee_policy,0.652341,59.263505,1.117308,0.1325
+Doanh thu tháng 6 của shop tôi là bao nhiêu?,answerability_reject,,,,,,,,,0.0

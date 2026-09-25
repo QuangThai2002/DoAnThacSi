@@ -1,0 +1,23 @@
+﻿timestamp,query,answer,mode,document_id,title,page,source_group,hybrid_score,retrieval_seconds,llm_seconds
+2026-07-21T10:47:40,Phí xử lý giao dịch trên Shopee được tính như thế nào?,"Phí Xử Lý Giao Dịch được tính theo công thức:
+
+Phí Xử Lý Giao Dịch = ( Giá sản phẩm trước Shopee trợ giá + Phí vận chuyển Người mua trả - Khuyến mãi Người bán đã áp dụng - Khuyến mãi từ Ngân hàng ) *6%
+
+Nguồn tham khảo: Phi xu ly giao dich 2026, trang 1.",fast,SHP_FEE_004,Phi xu ly giao dich 2026,1,shopee_policy,0.6273,0.0941,0.0
+2026-07-21T10:51:42,Phí cố định đối với cáp sạc là bao nhiêu?,"Phí Cố Định đối với nhóm cáp, sạc và bộ chuyển đổi là 12%.
+
+Nguồn tham khảo: Bieu phi co dinh theo nganh hang 2026, trang 7.",fast,SHP_FEE_006,Bieu phi co dinh theo nganh hang 2026,7,shopee_policy,1.658363,0.0607,0.0
+2026-07-21T10:51:44,Merchant API tạo base_string gồm những tham số nào?,"Merchant API tạo base_string theo thứ tự:
+
+partner_id + api_path + timestamp + access_token + merchant_id
+
+Nguồn tham khảo: Api calls v2 2025, trang 3.",fast,SHP_API_002,Api calls v2 2025,3,shopee_api,1.29,0.0494,0.0
+2026-07-21T10:52:01,Shop API và Merchant API khác nhau thế nào khi tạo base_string?,"Khi tạo base_string, Shop API và Merchant API giống nhau ở các tham số partner_id, api_path, timestamp và access_token.
+
+Điểm khác nhau là:
+1. Shop API dùng shop_id.
+2. Merchant API dùng merchant_id.
+
+Các tham số phải được ghép đúng thứ tự trước khi tính signature. Tài liệu hiện tại không cung cấp đủ thông tin để kết luận thêm các khác biệt ngoài nội dung trên.
+
+Nguồn tham khảo: Api calls v2 2025, trang 3.",deterministic,SHP_API_002,Api calls v2 2025,3,shopee_api,1.53,0.1185,0.0

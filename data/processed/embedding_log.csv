@@ -1,0 +1,2 @@
+﻿collection_name,model_name,vector_db_path,total_chunks,success_count,failed_count,collection_count,created_at,note
+shopee_rag_v1,sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2,C:\Users\Powder\Desktop\DoAnThacSi\master-thesis-rag-agent\data\vector_db\chroma_shopee_v1,1577,1577,0,1577,2026-07-14 13:54:52,Thành công.

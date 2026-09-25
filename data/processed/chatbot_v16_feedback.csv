@@ -1,0 +1,44 @@
+﻿timestamp,conversation_id,message_id,rating,answer_mode,answer
+2026-07-22T11:16:39,550a7ba2ef0944c09405981e2652014e,3af3f46fa7624e0bb7af794a572dd1a0,up,deterministic,"Khi tạo base_string, Shop API và Merchant API giống nhau ở các tham số partner_id, api_path, timestamp và access_token.
+
+Điểm khác nhau là:
+1. Shop API dùng shop_id.
+2. Merchant API dùng merchant_id.
+
+Các tham số phải được ghép đúng thứ tự trước khi tính signature. Tài liệu hiện tại không cung cấp đủ thông tin để kết luận thêm các khác biệt ngoài nội dung trên."
+2026-07-22T11:16:41,550a7ba2ef0944c09405981e2652014e,3af3f46fa7624e0bb7af794a572dd1a0,down,deterministic,"Khi tạo base_string, Shop API và Merchant API giống nhau ở các tham số partner_id, api_path, timestamp và access_token.
+
+Điểm khác nhau là:
+1. Shop API dùng shop_id.
+2. Merchant API dùng merchant_id.
+
+Các tham số phải được ghép đúng thứ tự trước khi tính signature. Tài liệu hiện tại không cung cấp đủ thông tin để kết luận thêm các khác biệt ngoài nội dung trên."
+2026-07-22T11:16:42,550a7ba2ef0944c09405981e2652014e,3af3f46fa7624e0bb7af794a572dd1a0,clear,deterministic,"Khi tạo base_string, Shop API và Merchant API giống nhau ở các tham số partner_id, api_path, timestamp và access_token.
+
+Điểm khác nhau là:
+1. Shop API dùng shop_id.
+2. Merchant API dùng merchant_id.
+
+Các tham số phải được ghép đúng thứ tự trước khi tính signature. Tài liệu hiện tại không cung cấp đủ thông tin để kết luận thêm các khác biệt ngoài nội dung trên."
+2026-07-22T11:16:42,550a7ba2ef0944c09405981e2652014e,3af3f46fa7624e0bb7af794a572dd1a0,up,deterministic,"Khi tạo base_string, Shop API và Merchant API giống nhau ở các tham số partner_id, api_path, timestamp và access_token.
+
+Điểm khác nhau là:
+1. Shop API dùng shop_id.
+2. Merchant API dùng merchant_id.
+
+Các tham số phải được ghép đúng thứ tự trước khi tính signature. Tài liệu hiện tại không cung cấp đủ thông tin để kết luận thêm các khác biệt ngoài nội dung trên."
+2026-07-22T14:57:06,7631b763fcc743ed931066d9a687d50f,1ad260377ad84ae389c70e84d3de64ab,up,global_fee_lookup,"Phí Xử Lý Giao Dịch được tính theo công thức:
+
+Phí Xử Lý Giao Dịch = ( Giá sản phẩm trước Shopee trợ giá + Phí vận chuyển Người mua trả - Khuyến mãi Người bán đã áp dụng - Khuyến mãi từ Ngân hàng ) *6%."
+2026-07-22T14:57:06,7631b763fcc743ed931066d9a687d50f,1ad260377ad84ae389c70e84d3de64ab,down,global_fee_lookup,"Phí Xử Lý Giao Dịch được tính theo công thức:
+
+Phí Xử Lý Giao Dịch = ( Giá sản phẩm trước Shopee trợ giá + Phí vận chuyển Người mua trả - Khuyến mãi Người bán đã áp dụng - Khuyến mãi từ Ngân hàng ) *6%."
+2026-07-22T14:57:08,7631b763fcc743ed931066d9a687d50f,1ad260377ad84ae389c70e84d3de64ab,up,global_fee_lookup,"Phí Xử Lý Giao Dịch được tính theo công thức:
+
+Phí Xử Lý Giao Dịch = ( Giá sản phẩm trước Shopee trợ giá + Phí vận chuyển Người mua trả - Khuyến mãi Người bán đã áp dụng - Khuyến mãi từ Ngân hàng ) *6%."
+2026-07-22T14:57:11,7631b763fcc743ed931066d9a687d50f,1ad260377ad84ae389c70e84d3de64ab,down,global_fee_lookup,"Phí Xử Lý Giao Dịch được tính theo công thức:
+
+Phí Xử Lý Giao Dịch = ( Giá sản phẩm trước Shopee trợ giá + Phí vận chuyển Người mua trả - Khuyến mãi Người bán đã áp dụng - Khuyến mãi từ Ngân hàng ) *6%."
+2026-07-22T14:57:13,7631b763fcc743ed931066d9a687d50f,1ad260377ad84ae389c70e84d3de64ab,up,global_fee_lookup,"Phí Xử Lý Giao Dịch được tính theo công thức:
+
+Phí Xử Lý Giao Dịch = ( Giá sản phẩm trước Shopee trợ giá + Phí vận chuyển Người mua trả - Khuyến mãi Người bán đã áp dụng - Khuyến mãi từ Ngân hàng ) *6%."

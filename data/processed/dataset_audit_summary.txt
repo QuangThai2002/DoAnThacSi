@@ -1,0 +1,38 @@
+﻿BAO CAO KIEM TRA DU LIEU
+============================================================
+Thoi gian: 2026-07-14T09:52:27
+
+SO LUONG FILE THEO NHOM
+- shopee_policy: 25 file
+- shopee_api: 0 file
+- legal_ecommerce: 16 file
+- ecommerce_market_reports: 0 file
+- sea_shopee_reports: 3 file
+- electronics_market: 0 file
+- customer_review_dataset: 0 file
+- news_trends: 0 file
+- research_papers: 0 file
+
+THU MUC VUA TAO
+- Khong co
+
+KIEM TRA BO LUAT COT LOI
+[DA CO] law_ecom_001_luat_thuong_mai_dien_tu_2025.pdf
+[DA CO] law_ecom_002_nghi_dinh_248_2026.pdf
+[DA CO] law_transaction_001_luat_giao_dich_dien_tu_2023.pdf
+[DA CO] law_consumer_001_luat_bao_ve_quyen_loi_nguoi_tieu_dung_2023.pdf
+[DA CO] law_consumer_002_nghi_dinh_55_2024.pdf
+[DA CO] law_data_001_luat_bao_ve_du_lieu_ca_nhan_2025.pdf
+[DA CO] law_data_002_nghi_dinh_356_2025_bao_ve_du_lieu_ca_nhan.pdf
+[DA CO] law_promotion_001_vbhn_55_2026_xuc_tien_thuong_mai.pdf
+[DA CO] law_ads_001_vbhn_luat_quang_cao.pdf
+[DA CO] law_ads_002_nghi_dinh_342_2025_quang_cao.pdf
+[DA CO] law_quality_001_vbhn_luat_chat_luong_san_pham_hang_hoa.pdf
+[DA CO] law_quality_002_nghi_dinh_37_2026_chat_luong_san_pham.pdf
+[DA CO] law_label_001_nghi_dinh_43_2017_nhan_hang_hoa.pdf
+[DA CO] law_label_002_nghi_dinh_111_2021_sua_doi_nhan_hang_hoa.pdf
+
+NHAN XET
+- Shopee policy va Sea reports: du de bat dau MVP retrieval.
+- Con thieu: bao cao thi truong Viet Nam, review, Shopee API, du lieu shop thuc te.
+- Metadata va bo cau hoi danh gia chua hoan thien.

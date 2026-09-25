@@ -1,0 +1,30 @@
+{
+  "total": 120,
+  "split": {
+    "dev": 72,
+    "test": 24,
+    "challenge": 24
+  },
+  "query_type": {
+    "exact": 25,
+    "paraphrase": 25,
+    "multi_document": 20,
+    "ambiguous_evidence_weak": 10,
+    "numerical_fee": 10,
+    "typo_noisy": 15,
+    "technical_api": 15
+  },
+  "category": {
+    "shopee_api": 20,
+    "policy_listing": 15,
+    "vietnamese_law": 15,
+    "logistics_return_refund": 15,
+    "market_sea_reports": 15,
+    "fee_seller_cost": 20,
+    "privacy_dispute": 10,
+    "cross_domain_synthesis": 10
+  },
+  "gold_verified": {
+    "False": 120
+  }
+}

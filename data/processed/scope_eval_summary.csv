@@ -1,0 +1,14 @@
+﻿label,support,precision,recall,f1,accuracy
+overall,20,,,,0.95
+answerable,16,1.0,0.9375,0.967742,
+private_data,2,1.0,1.0,1.0,
+out_of_scope,2,0.666667,1.0,0.8,
+confusion:answerable->answerable,15,,,,
+confusion:answerable->private_data,0,,,,
+confusion:answerable->out_of_scope,1,,,,
+confusion:private_data->answerable,0,,,,
+confusion:private_data->private_data,2,,,,
+confusion:private_data->out_of_scope,0,,,,
+confusion:out_of_scope->answerable,0,,,,
+confusion:out_of_scope->private_data,0,,,,
+confusion:out_of_scope->out_of_scope,2,,,,
