@@ -51,6 +51,14 @@ phải được kiểm tra qua RAG evidence.
 
 ## Chạy demo Agent
 
+Giao diện demo tách biệt với RAG V19:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run src\agent_demo.py
+```
+
+CLI dùng khi cần trình bày trace JSON nguyên vẹn hoặc làm phương án dự phòng:
+
 ```powershell
 cd C:\Users\Powder\Desktop\DoAnThacSi\master-thesis-rag-agent
 .\.venv\Scripts\python.exe src\agent\run_agent.py `
@@ -87,7 +95,7 @@ annotation độc lập và gắn `gold_verified=true`.
 
 - Planner là rule-based để có baseline dễ audit, chưa phải LLM planner.
 - Agent trả tóm tắt có cấu trúc, không dùng Ollama để tổng hợp đa tool.
-- Agent chưa được gắn vào Streamlit V19; giữ tách biệt cho đến khi evaluation
-  đạt yêu cầu để tránh làm nhiễu RAG baseline.
+- Agent có Streamlit demo tách biệt (`src/agent_demo.py`), không thay đổi
+  Streamlit V19; giữ tách biệt để tránh làm nhiễu RAG baseline.
 - RAG evidence phụ thuộc chất lượng index/benchmark hiện tại. Không dùng output
   đó để khẳng định chính sách nếu chưa kiểm tra citation.

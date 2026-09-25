@@ -126,6 +126,10 @@ Lộ trình kỹ thuật cụ thể: [docs/roadmap.md](docs/roadmap.md).
 
 Agent baseline và cách chạy demo: [docs/agent_baseline.md](docs/agent_baseline.md).
 
+```powershell
+.\.venv\Scripts\streamlit.exe run src\agent_demo.py --server.port 8502
+```
+
 ## Dữ liệu và quyền riêng tư
 
 - `data/raw/`, `data/vector_db/`, các bản sao hội thoại và file nén bị loại khỏi Git qua `.gitignore`.

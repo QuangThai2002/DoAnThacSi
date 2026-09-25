@@ -33,7 +33,7 @@ try {
         "src\evaluation\retrieval_eval.py", "src\evaluation\scope_eval.py",
         "src\evaluation\audit_gold_benchmark.py", "src\evaluation\lock_gold_benchmark.py",
         "src\evaluation\agent_eval.py", "src\evaluation\error_analysis.py",
-        "src\agent\agent_runner.py"
+        "src\agent\agent_runner.py", "src\agent_demo.py"
     )
     Invoke-PythonChecked -Arguments @("-m", "unittest", "tests\test_agent.py")
     Invoke-PythonChecked -Arguments @("src\evaluation\scope_eval.py", "--output", (Join-Path $CheckDirectory "scope_results.csv"), "--summary", (Join-Path $CheckDirectory "scope_summary.csv"))
