@@ -19,6 +19,20 @@ tài liệu.
 trực quan với PDF nguồn. Nó minh họa format/tiêu chí đúng, nhưng không đủ lớn
 hoặc đa dạng để dùng làm số liệu thực nghiệm.
 
+## Workbench kiểm duyệt cục bộ
+
+Thay vì sửa `gold_benchmark_v1.jsonl` trực tiếp, dùng workbench để review:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run src\annotation_workbench.py
+```
+
+Workbench render PDF/trang nguồn của từng evidence, giữ nguyên file draft và
+ghi bản review riêng cùng audit trail vào `data/processed/benchmark_review/`.
+Nó không cho đặt `verified` nếu chưa nhập tên người kiểm duyệt, ghi chú, xác
+nhận đã xem PDF/trang; sau đó vẫn chặn nếu còn cờ audit tự động. Chỉ một người
+nên review một bản working copy tại một thời điểm để tránh ghi đè thay đổi.
+
 ## Quy trình cho từng record
 
 1. Mở tài liệu gốc, đến đúng trang được ghi trong record.

@@ -108,6 +108,20 @@ Kết quả được ghi vào `data/processed/*_eval_results.csv` và `data/proc
 
 `src/evaluation/gold_pilot_verified.jsonl` có 6 câu đã kiểm tra PDF/trang để minh họa quy trình annotation/lock. Bộ pilot quá nhỏ để báo cáo hiệu quả hệ thống.
 
+### Kiểm duyệt benchmark thủ công
+
+Không sửa trực tiếp file draft. Workbench cục bộ mở câu hỏi, evidence và trang
+PDF nguồn cạnh nhau; nó yêu cầu tên người kiểm duyệt, ghi chú và xác nhận đã
+xem trang nguồn trước khi một record có thể được đặt là `verified`:
+
+```powershell
+.\.venv\Scripts\streamlit.exe run src\annotation_workbench.py
+```
+
+Bản review và review journal được lưu riêng trong
+`data/processed/benchmark_review/`; draft gốc luôn được giữ nguyên. Xem thêm
+[protocol annotation](docs/benchmark_annotation_protocol.md).
+
 Chạy health check không làm thay đổi các kết quả chính thức trong repository:
 
 ```powershell
