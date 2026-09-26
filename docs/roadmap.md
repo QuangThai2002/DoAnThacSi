@@ -12,6 +12,10 @@ Mỗi phase dưới đây có điểm dừng rõ ràng. Không dùng TEST để 
 
 **Điều kiện hoàn thành:** working tree sạch, demo khởi động, evaluation chạy và tài liệu khớp mã nguồn.
 
+**Tiến độ:** nền tảng kỹ thuật đã hoàn thành: dependency, Git baseline, health
+check, tài liệu và canonical app đã được xác định. Cần chạy lại smoke test sau
+mỗi thay đổi lớn.
+
 ## Phase 2 — Chuẩn hóa Gold Benchmark
 
 **Mục tiêu:** tạo ground truth có thể bảo vệ trước hội đồng.
@@ -22,6 +26,10 @@ Mỗi phase dưới đây có điểm dừng rõ ràng. Không dùng TEST để 
 - Gán `gold_verified=true` sau kiểm chứng; khóa split TEST.
 
 **Đầu ra:** `gold_benchmark_v1_locked.jsonl`, audit table và biên bản quy tắc annotation.
+
+**Tiến độ:** đã có protocol, audit/lock guard, pilot 6 câu đã đối chiếu PDF và
+workbench render nguồn + lưu review trail. 120 câu draft vẫn chưa được xác thực
+và là blocker chính trước thực nghiệm chính thức.
 
 ## Phase 3 — Thực nghiệm RAG chính thức
 
@@ -74,6 +82,9 @@ Question
 
 **Điều kiện hoàn thành:** agent tự chọn đúng tool, không tự bịa dữ liệu nội bộ, và trả được ít nhất một tác vụ đa bước có thể đối chiếu.
 
+**Tiến độ:** đã triển khai Agent baseline, CLI, Streamlit demo, dữ liệu mock và
+trace. Agent không được mô tả là kết nối Seller Centre hay LLM planner.
+
 ## Phase 6 — Đánh giá Agent
 
 **Mục tiêu:** đo được lợi ích của Agent thay vì chỉ mô tả luồng.
@@ -81,6 +92,9 @@ Question
 - 30–50 câu gồm policy-only, shop-data-only, calculation-only, multi-tool, private-data và out-of-scope.
 - Đo tool-selection accuracy, task success, calculation exact match, evidence/citation correctness, refusal correctness và latency.
 - So sánh RAG-only với Agent ở nhóm multi-tool; định nghĩa rõ tiêu chí chấm.
+
+**Tiến độ:** đã có planner evaluation và end-to-end contract evaluator. Chờ bộ
+câu hỏi Agent được annotation độc lập trước khi ghi score vào luận văn.
 
 ## Phase 7 — Luận văn, slide và demo
 

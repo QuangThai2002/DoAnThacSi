@@ -140,6 +140,9 @@ Chạy health check không làm thay đổi các kết quả chính thức trong
 
 Lộ trình kỹ thuật cụ thể: [docs/roadmap.md](docs/roadmap.md).
 
+Nhật ký các run kỹ thuật (có nhãn regression-only/official rõ ràng):
+[docs/experiment_log.md](docs/experiment_log.md).
+
 Agent baseline và cách chạy demo: [docs/agent_baseline.md](docs/agent_baseline.md).
 
 ```powershell
