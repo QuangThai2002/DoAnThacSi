@@ -91,6 +91,22 @@ false và score từ nó chỉ là regression check, không phải kết quả l
 `--require-verified` sẽ từ chối chạy chính thức cho đến khi bộ câu hỏi được
 annotation độc lập và gắn `gold_verified=true`.
 
+### Đánh giá end-to-end
+
+Evaluation end-to-end thực thi Agent, thay vì chỉ kiểm tra planner. Nó đo intent
+và danh sách tool, việc tool có hoàn thành trong trace, citation của câu hỏi
+RAG, cảnh báo dữ liệu mock cho câu hỏi shop, refusal ngoài phạm vi, period
+parsing, lỗi trace và độ trễ:
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\agent_end_to_end_eval.py
+```
+
+Kết quả nằm trong `data/processed/agent_end_to_end_eval_*.csv`. Dataset hiện
+vẫn là seed regression chưa được annotation độc lập, vì vậy các score này không
+được dùng làm claim của luận văn. Khi toàn bộ nhãn được kiểm duyệt, thêm
+`--require-verified` cho lần chạy chính thức.
+
 ## Giới hạn trước khi tích hợp UI
 
 - Planner là rule-based để có baseline dễ audit, chưa phải LLM planner.

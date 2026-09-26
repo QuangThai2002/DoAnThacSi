@@ -3,30 +3,30 @@
 {"id":"agent_003","question":"Quy trình trả hàng hoàn tiền cần lưu ý gì?","expected_intent":"policy_rag","expected_tools":["rag"]}
 {"id":"agent_004","question":"Theo luật giao dịch điện tử, thông tin nào cần quan tâm?","expected_intent":"policy_rag","expected_tools":["rag"]}
 {"id":"agent_005","question":"Chính sách Shopee về phí xử lý giao dịch là gì?","expected_intent":"policy_rag","expected_tools":["rag"]}
-{"id":"agent_006","question":"Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
-{"id":"agent_007","question":"GMV tháng 8 của shop là bao nhiêu và chi phí nào lớn nhất?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
+{"id":"agent_006","question":"Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-08"}
+{"id":"agent_007","question":"GMV tháng 8 của shop là bao nhiêu và chi phí nào lớn nhất?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-08"}
 {"id":"agent_008","question":"Sản phẩm của tôi còn tồn kho nào dưới ngưỡng?","expected_intent":"shop_data","expected_tools":["shop_data"]}
-{"id":"agent_009","question":"ROAS quảng cáo tháng 8 của shop tôi là bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
-{"id":"agent_010","question":"Chi phí quảng cáo tháng 8 ảnh hưởng nhiều nhất ở đâu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
-{"id":"agent_011","question":"Đơn hàng tháng 7 của shop tôi có bao nhiêu và doanh thu sau phí là bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
-{"id":"agent_012","question":"Lợi nhuận shop tôi tháng 8 thế nào so với chiết khấu người bán?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
-{"id":"agent_013","question":"Theo chính sách Shopee, tháng 8 shop tôi cần đối chiếu các khoản phí nào?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"]}
-{"id":"agent_014","question":"Doanh thu shop tháng 8 là bao nhiêu và phí cố định Shopee cần kiểm tra ở đâu?","expected_intent":"multi_tool_policy_and_shop_analysis","expected_tools":["shop_data","rag","calculator"]}
+{"id":"agent_009","question":"ROAS quảng cáo tháng 8 của shop tôi là bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-08"}
+{"id":"agent_010","question":"Chi phí quảng cáo tháng 8 ảnh hưởng nhiều nhất ở đâu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-08"}
+{"id":"agent_011","question":"Đơn hàng tháng 7 của shop tôi có bao nhiêu và doanh thu sau phí là bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-07"}
+{"id":"agent_012","question":"Lợi nhuận shop tôi tháng 8 thế nào so với chiết khấu người bán?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-08"}
+{"id":"agent_013","question":"Theo chính sách Shopee, tháng 8 shop tôi cần đối chiếu các khoản phí nào?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"],"expected_period":"2026-08"}
+{"id":"agent_014","question":"Doanh thu shop tháng 8 là bao nhiêu và phí cố định Shopee cần kiểm tra ở đâu?","expected_intent":"multi_tool_policy_and_shop_analysis","expected_tools":["shop_data","rag","calculator"],"expected_period":"2026-08"}
 {"id":"agent_015","question":"Shop tôi có tồn kho thấp nào và chính sách đăng bán cần lưu ý gì?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"]}
 {"id":"agent_016","question":"Đơn hàng shop tôi có chi phí bao nhiêu, theo quy định Shopee cần đối chiếu những khoản nào?","expected_intent":"multi_tool_policy_and_shop_analysis","expected_tools":["shop_data","rag","calculator"]}
-{"id":"agent_017","question":"Quảng cáo của shop tôi tháng 8 ra sao và chính sách Shopee có nội dung phí nào liên quan?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"]}
-{"id":"agent_018","question":"GMV shop tháng 8 và điều khoản Shopee về hoàn tiền có liên quan gì?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"]}
-{"id":"agent_019","question":"Shop tôi cần xem doanh thu tháng 8 và quy định bảo mật dữ liệu nào?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"]}
-{"id":"agent_020","question":"Doanh số cửa hàng tháng 8 và tài liệu Merchant API cần xem gì?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"]}
+{"id":"agent_017","question":"Quảng cáo của shop tôi tháng 8 ra sao và chính sách Shopee có nội dung phí nào liên quan?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"],"expected_period":"2026-08"}
+{"id":"agent_018","question":"GMV shop tháng 8 và điều khoản Shopee về hoàn tiền có liên quan gì?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"],"expected_period":"2026-08"}
+{"id":"agent_019","question":"Shop tôi cần xem doanh thu tháng 8 và quy định bảo mật dữ liệu nào?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"],"expected_period":"2026-08"}
+{"id":"agent_020","question":"Doanh số cửa hàng tháng 8 và tài liệu Merchant API cần xem gì?","expected_intent":"multi_tool_policy_and_shop_retrieval","expected_tools":["shop_data","rag"],"expected_period":"2026-08"}
 {"id":"agent_021","question":"Thời tiết Hà Nội ngày mai thế nào?","expected_intent":"out_of_scope","expected_tools":[]}
 {"id":"agent_022","question":"Giá vàng hôm nay bao nhiêu?","expected_intent":"out_of_scope","expected_tools":[]}
 {"id":"agent_023","question":"Đội bóng nào vô địch World Cup?","expected_intent":"out_of_scope","expected_tools":[]}
 {"id":"agent_024","question":"Tôi bị sốt nên uống thuốc gì?","expected_intent":"out_of_scope","expected_tools":[]}
 {"id":"agent_025","question":"Phim nào đang hay nhất?","expected_intent":"out_of_scope","expected_tools":[]}
-{"id":"agent_026","question":"Shop tôi cần báo cáo số đơn hoàn tất tháng 8.","expected_intent":"shop_data","expected_tools":["shop_data"]}
+{"id":"agent_026","question":"Shop tôi cần báo cáo số đơn hoàn tất tháng 8.","expected_intent":"shop_data","expected_tools":["shop_data"],"expected_period":"2026-08"}
 {"id":"agent_027","question":"Tồn kho SKU nào cần nhập thêm cho cửa hàng?","expected_intent":"shop_data","expected_tools":["shop_data"]}
-{"id":"agent_028","question":"Tỷ lệ chi phí giao dịch của shop tôi tháng 8 là bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"]}
+{"id":"agent_028","question":"Tỷ lệ chi phí giao dịch của shop tôi tháng 8 là bao nhiêu?","expected_intent":"shop_analysis","expected_tools":["shop_data","calculator"],"expected_period":"2026-08"}
 {"id":"agent_029","question":"Theo chính sách Shopee, người bán bị cấm đăng bán sản phẩm nào?","expected_intent":"policy_rag","expected_tools":["rag"]}
 {"id":"agent_030","question":"Luật bảo vệ dữ liệu cá nhân có yêu cầu gì?","expected_intent":"policy_rag","expected_tools":["rag"]}
-{"id":"agent_031","question":"Shop tôi tháng 8 có doanh thu bao nhiêu, so sánh với chi phí quảng cáo và chính sách phí?","expected_intent":"multi_tool_policy_and_shop_analysis","expected_tools":["shop_data","rag","calculator"]}
+{"id":"agent_031","question":"Shop tôi tháng 8 có doanh thu bao nhiêu, so sánh với chi phí quảng cáo và chính sách phí?","expected_intent":"multi_tool_policy_and_shop_analysis","expected_tools":["shop_data","rag","calculator"],"expected_period":"2026-08"}
 {"id":"agent_032","question":"Shopee Open Platform cung cấp API nào?","expected_intent":"policy_rag","expected_tools":["rag"]}
