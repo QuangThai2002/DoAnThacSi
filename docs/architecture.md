@@ -22,7 +22,7 @@ flowchart LR
     K --> L[Hybrid ranking\nvector + BM25 + heuristic]
     L --> M[Context builder\nTop-1 + neighbouring chunks]
     M --> N[Ollama\nqwen3:1.7b mặc định]
-    N --> O[Câu trả lời tiếng Việt\nnguồn + confidence level]
+    N --> O[Câu trả lời tiếng Việt\nnguồn + mức đủ bằng chứng nội bộ]
     O --> I
 ```
 
@@ -68,7 +68,11 @@ Baseline có:
 - Phân luồng scope trong `scope_eval.py`: `answerable`, `private_shop_data`, `out_of_scope`.
 - Hàm `response_confidence` trong UI/back-end.
 
-Giá trị confidence hiện chỉ là điểm heuristic về mức đủ của bằng chứng retrieval và quy tắc; nó **không phải** xác suất đúng đã được calibration. Trong luận văn, gọi nó là *evidence sufficiency level* hoặc *confidence level nội bộ*, đồng thời đánh giá riêng bằng benchmark trước khi phát biểu về độ tin cậy.
+Giá trị `confidence` (tên key lịch sử) hiện chỉ là điểm heuristic 0--100 về
+mức đủ của evidence retrieval và quy tắc; nó **không phải** xác suất đúng đã
+được calibration. Trong luận văn, gọi nó là *evidence sufficiency level* / mức
+độ đầy đủ bằng chứng nội bộ, đồng thời đánh giá riêng bằng benchmark trước khi
+phát biểu về độ tin cậy.
 
 ## 4. Ranh giới hiện tại và Agent dự kiến
 

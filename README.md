@@ -32,7 +32,7 @@ Câu hỏi người dùng
   -> scope/private-data guard + rewrite follow-up
   -> BM25 + dense retrieval -> hybrid heuristic
   -> context có giới hạn kích thước -> Ollama
-  -> câu trả lời + nguồn + confidence level
+  -> câu trả lời + nguồn + mức đủ bằng chứng nội bộ
 ```
 
 Xem [kiến trúc chi tiết](docs/architecture.md) và [hướng dẫn tái tạo](docs/reproducibility.md).

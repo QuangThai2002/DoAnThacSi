@@ -664,8 +664,8 @@ def sanitize_model_answer(text: str) -> str:
 
 def confidence_label(score: float) -> tuple[str, int]:
     """
-    Chuyển hybrid score thành mức tin cậy để phục vụ demo.
-    Đây là chỉ báo kỹ thuật, không phải xác suất thống kê tuyệt đối.
+    Chuyển hybrid score thành mức đủ bằng chứng để phục vụ demo.
+    Đây là heuristic nội bộ theo thang 0--100, không phải xác suất đúng.
     """
     bounded = max(0.0, min(1.0, score))
     percent = int(round(bounded * 100))
@@ -2039,7 +2039,8 @@ def answer_query(
         print(
             f"\n[Chế độ nhanh | Retrieval: {retrieval_elapsed:.3f}s | "
             f"Context: {len(contexts)} chunk | "
-            f"Tin cậy kỹ thuật: {confidence_name} ({confidence_percent}%)]"
+            f"Mức đủ bằng chứng nội bộ: {confidence_name} "
+            f"(điểm {confidence_percent}/100, không phải xác suất đúng)]"
         )
         return
 
@@ -2095,7 +2096,8 @@ def answer_query(
         f"Context: {len(contexts)} chunk | "
         f"LLM: {llm_elapsed:.1f}s | "
         f"Tổng: {time.perf_counter() - retrieval_started:.1f}s | "
-        f"Tin cậy kỹ thuật: {confidence_name} ({confidence_percent}%)]"
+        f"Mức đủ bằng chứng nội bộ: {confidence_name} "
+        f"(điểm {confidence_percent}/100, không phải xác suất đúng)]"
     )
 
 

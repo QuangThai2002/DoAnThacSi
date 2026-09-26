@@ -5756,6 +5756,11 @@ def response_confidence(
     query: str = "",
     answer: str = "",
 ) -> int | None:
+    """Return an internal evidence-sufficiency heuristic on a 0--100 scale.
+
+    The value is not calibrated against answer correctness and must never be
+    presented as a probability that the answer is true.
+    """
     no_score_modes = {
         "clarification",
         "smalltalk",
@@ -6118,7 +6123,7 @@ def render_evidence(
         st.markdown(
             (
                 f'<div class="{css_class}">'
-                f'● Độ tin cậy dữ liệu: '
+                f'● Mức độ đầy đủ bằng chứng: '
                 f'{safe_html_text(label)}'
                 '</div>'
             ),
@@ -6127,9 +6132,9 @@ def render_evidence(
 
         if st.session_state.technical_mode:
             st.caption(
-                f"Chỉ báo kỹ thuật: {confidence_value}%. "
-                "Chỉ số phản ánh mức hỗ trợ của dữ liệu và "
-                "phương thức tạo câu trả lời, không phải xác suất tuyệt đối."
+                f"Điểm heuristic nội bộ: {confidence_value}/100. "
+                "Điểm phản ánh mức hỗ trợ của evidence và phương thức tạo câu "
+                "trả lời, không phải xác suất câu trả lời đúng."
             )
 
 
@@ -6796,14 +6801,14 @@ def conversation_to_markdown(
             lines.extend(
                 [
                     (
-                        "**Độ tin cậy dữ liệu:** "
+                        "**Mức độ đầy đủ bằng chứng:** "
                         + str(
                             message.get(
                                 "confidence_label",
                                 "",
                             )
                         )
-                        + f" ({int(confidence)}%)"
+                        + f" (điểm nội bộ {int(confidence)}/100, không phải xác suất đúng)"
                     ),
                     "",
                 ]
@@ -7627,7 +7632,7 @@ def render_message(
                     None,
                 )
                 confidence_text = (
-                    f"{int(confidence)}%"
+                    f"{int(confidence)}/100 (heuristic)"
                     if confidence is not None
                     else "—"
                 )
@@ -7637,7 +7642,7 @@ def render_message(
                     <div class="v9-technical">
                         Chế độ: {safe_html_text(metrics.get("mode", "—"))} ·
                         Thời gian: {float(metrics.get("elapsed", 0.0) or 0.0):.2f}s ·
-                        Tin cậy truy xuất: {safe_html_text(confidence_text)}
+                        Điểm đủ bằng chứng nội bộ: {safe_html_text(confidence_text)}
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -8159,7 +8164,7 @@ with st.sidebar:
     st.session_state.technical_mode = st.toggle(
         "Chế độ kỹ thuật",
         value=st.session_state.technical_mode,
-        help="Hiển thị thời gian, confidence và kết quả retrieval.",
+        help="Hiển thị thời gian, điểm đủ bằng chứng nội bộ và kết quả retrieval.",
     )
 
     allowed_styles = [
@@ -8259,7 +8264,7 @@ with st.sidebar:
     st.markdown(
         (
             '<div class="v13-export-note">'
-            'File gồm nội dung, nguồn và độ tin cậy; '
+            'File gồm nội dung, nguồn và mức đủ bằng chứng nội bộ; '
             'phù hợp lưu kết quả test hoặc đưa vào phụ lục.'
             '</div>'
         ),
@@ -8283,7 +8288,7 @@ with st.sidebar:
                 ↓<br>
                 Fast Answer / Qwen Local<br>
                 ↓<br>
-                Citation + Confidence + Feedback
+                Citation + Evidence Sufficiency + Feedback
                 </div>
                 """,
                 unsafe_allow_html=True,
