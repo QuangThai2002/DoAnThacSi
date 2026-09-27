@@ -85,7 +85,9 @@ Before an official TEST run, review the candidate in
 `src/agent_annotation_workbench.py`. The guarded flag then validates not only
 `gold_verified`, but reviewer/note, RAG reference-source confirmation and
 document IDs, and deterministic answer markers for mock-shop/calculation
-tasks. See [agent_annotation_protocol.md](../../docs/agent_annotation_protocol.md).
+tasks. `lock_agent_benchmark.py` can then write a TEST-only locked copy and
+snapshot the corpus plus all mock-shop CSV hashes. See
+[agent_annotation_protocol.md](../../docs/agent_annotation_protocol.md).
 
 ## Gold Benchmark v1 Draft
 

@@ -76,6 +76,23 @@ thiếu reviewer/note, citation document ID/xác nhận nguồn cho RAG, hoặc 
 marker cho task mock/tính toán. Manifest chỉ đánh dấu `official_test_candidate`
 khi TEST đã được review, cờ guard được bật và Git working tree sạch.
 
+## Khóa TEST và snapshot dữ liệu mock
+
+Sau khi review, tạo một file TEST-only tách biệt trước khi chạy final:
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\lock_agent_benchmark.py `
+  --dataset data\processed\agent_benchmark_review\agent_benchmark_candidate_v1_reviewed.jsonl `
+  --output src\evaluation\agent_benchmark_test_locked.jsonl `
+  --manifest src\evaluation\agent_benchmark_test_locked_manifest.json
+```
+
+Lệnh lock không ghi đè output cũ nếu thiếu `--force`. Nó kiểm tra toàn bộ nhãn
+TEST theo cùng guard, xác nhận mọi citation document ID đang tồn tại trong
+`chunks.jsonl`, rồi snapshot SHA-256 của corpus và mọi CSV trong
+`data/shop_mock/`. Khi thay đổi index/corpus hoặc dữ liệu mock, tạo manifest
+mới và chạy lại TEST; không dùng một score cũ với đầu vào đã đổi.
+
 ## Báo cáo luận văn
 
 Nêu rõ Agent là baseline planner rule-based, dữ liệu shop là mô phỏng và

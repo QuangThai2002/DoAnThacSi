@@ -101,7 +101,8 @@ Agent không được mô tả là kết nối Seller Centre hay LLM planner.
 
 **Tiến độ:** đã có planner evaluation, end-to-end contract evaluator, candidate
 32 câu có split DEV 16 / TEST 10 / CHALLENGE 6, workbench kiểm duyệt và guard
-cho citation document/answer marker. Candidate vẫn hoàn toàn unverified; cần
+cho citation document/answer marker, lock TEST-only và snapshot CSV mock/corpus.
+Candidate vẫn hoàn toàn unverified; cần
 người review chạy protocol trước khi ghi score vào luận văn. Việc còn lại sau
 review: chạy DEV để sửa lỗi, đóng băng TEST, so sánh RAG-only/Agent trên nhóm
 multi-tool và chỉ chạy TEST một lần.
