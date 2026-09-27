@@ -35,6 +35,17 @@ def initialize_agent_state() -> None:
     st.session_state.setdefault("agent_messages", [])
 
 
+def clear_agent_conversation() -> None:
+    """Clear the chat and the prior suggestion selection together.
+
+    A selected suggestion remains in Streamlit session state after a rerun. If
+    it is not reset, clearing the Agent chat immediately submits the old
+    suggestion again, which makes the visible clear button ineffective.
+    """
+    st.session_state.agent_messages = []
+    st.session_state.pop("agent_suggestion", None)
+
+
 def _render_assistant_message(message: dict[str, Any]) -> None:
     st.markdown(str(message["answer"]))
     citations = message.get("citations", [])
@@ -66,7 +77,7 @@ def render_agent_view() -> None:
         st.caption("Planner → Shop data / RAG / calculator → câu trả lời + trace")
     with clear_control:
         if st.button("Xóa", icon=":material/delete_sweep:", key="clear_agent_chat"):
-            st.session_state.agent_messages = []
+            clear_agent_conversation()
             st.rerun()
 
     st.info(

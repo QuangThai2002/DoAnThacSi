@@ -1631,7 +1631,10 @@ iframe[title="streamlit.components.v1.components.html"] {
 # KHỞI TẠO
 # ============================================================
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(
+    show_spinner="Đang nạp chỉ mục tri thức Shopee lần đầu...",
+    show_time=True,
+)
 def load_resources() -> tuple[Any, Any, list[dict], Any, dict[str, int]]:
     return backend.load_hybrid_resources()
 
@@ -8137,7 +8140,7 @@ with st.sidebar:
 
     if st.button(
         "＋ Cuộc trò chuyện mới",
-        use_container_width=True,
+        width="stretch",
         type="primary",
         disabled=st.session_state.processing,
     ):
@@ -8167,7 +8170,7 @@ with st.sidebar:
             if st.button(
                 title,
                 key=f"open_{conversation_id}",
-                use_container_width=True,
+                width="stretch",
                 disabled=st.session_state.processing,
             ):
                 activate_conversation(conversation_id)
@@ -8272,7 +8275,7 @@ with st.sidebar:
             + ".md"
         ),
         mime="text/markdown",
-        use_container_width=True,
+        width="stretch",
         disabled=st.session_state.processing,
     )
     st.markdown(
@@ -8310,7 +8313,7 @@ with st.sidebar:
 
     if st.button(
         "🗑 Xóa cuộc trò chuyện hiện tại",
-        use_container_width=True,
+        width="stretch",
         disabled=st.session_state.processing,
     ):
         delete_active_conversation()
@@ -8392,7 +8395,7 @@ if not st.session_state.messages:
                     f"{st.session_state.active_conversation_id}_"
                     f"{index}"
                 ),
-                use_container_width=True,
+                width="stretch",
                 disabled=st.session_state.processing,
             ):
                 st.session_state.pending_prompt = suggestion
