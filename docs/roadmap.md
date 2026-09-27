@@ -99,8 +99,12 @@ Agent không được mô tả là kết nối Seller Centre hay LLM planner.
 - Đo tool-selection accuracy, task success, calculation exact match, evidence/citation correctness, refusal correctness và latency.
 - So sánh RAG-only với Agent ở nhóm multi-tool; định nghĩa rõ tiêu chí chấm.
 
-**Tiến độ:** đã có planner evaluation và end-to-end contract evaluator. Chờ bộ
-câu hỏi Agent được annotation độc lập trước khi ghi score vào luận văn.
+**Tiến độ:** đã có planner evaluation, end-to-end contract evaluator, candidate
+32 câu có split DEV 16 / TEST 10 / CHALLENGE 6, workbench kiểm duyệt và guard
+cho citation document/answer marker. Candidate vẫn hoàn toàn unverified; cần
+người review chạy protocol trước khi ghi score vào luận văn. Việc còn lại sau
+review: chạy DEV để sửa lỗi, đóng băng TEST, so sánh RAG-only/Agent trên nhóm
+multi-tool và chỉ chạy TEST một lần.
 
 ## Phase 7 — Luận văn, slide và demo
 

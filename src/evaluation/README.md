@@ -59,6 +59,34 @@ The current dataset is a seed benchmark. Treat it as a reviewable starting
 point, not as final scientific ground truth until each item has been checked
 against the source document/page.
 
+## Agent benchmark and end-to-end evaluation
+
+`agent_benchmark_candidate_v1.jsonl` contains 32 Agent review candidates with
+a deterministic split: DEV 16, TEST 10 and CHALLENGE 6. The candidate is
+derived from the legacy routing seed and every row deliberately starts with
+`gold_verified=false`; the split is useful for process discipline but is not
+itself independent gold evidence.
+
+The Agent has two evaluators:
+
+- `agent_eval.py` checks planner intent and ordered tool route.
+- `agent_end_to_end_eval.py` executes the Agent and checks the trace, citation
+  contract, mock-data disclaimer, refusal, period, latency and, after review,
+  citation document / answer-marker correctness.
+
+Run a development or regression check:
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\agent_eval.py --split dev
+.\.venv\Scripts\python.exe src\evaluation\agent_end_to_end_eval.py --split dev
+```
+
+Before an official TEST run, review the candidate in
+`src/agent_annotation_workbench.py`. The guarded flag then validates not only
+`gold_verified`, but reviewer/note, RAG reference-source confirmation and
+document IDs, and deterministic answer markers for mock-shop/calculation
+tasks. See [agent_annotation_protocol.md](../../docs/agent_annotation_protocol.md).
+
 ## Gold Benchmark v1 Draft
 
 `gold_benchmark_v1.jsonl` is a 120-item draft benchmark generated from

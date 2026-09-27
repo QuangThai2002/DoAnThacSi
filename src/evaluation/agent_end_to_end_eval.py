@@ -26,10 +26,11 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from agent.agent_runner import AgentRunner  # noqa: E402
+from agent_annotation_store import validate_official_records  # noqa: E402
 from artifact_provenance import build_manifest, git_is_clean, write_manifest  # noqa: E402
 
 
-DEFAULT_DATASET = Path(__file__).with_name("agent_eval_dataset.jsonl")
+DEFAULT_DATASET = Path(__file__).with_name("agent_benchmark_candidate_v1.jsonl")
 DEFAULT_RESULTS = PROJECT_ROOT / "data" / "processed" / "agent_end_to_end_eval_results.csv"
 DEFAULT_SUMMARY = PROJECT_ROOT / "data" / "processed" / "agent_end_to_end_eval_summary.csv"
 DEFAULT_MANIFEST = PROJECT_ROOT / "data" / "processed" / "agent_end_to_end_eval_manifest.json"
@@ -58,17 +59,7 @@ def evaluate(
     require_verified: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if require_verified:
-        unverified = [
-            str(item.get("id", ""))
-            for item in dataset
-            if not bool(item.get("gold_verified", False))
-        ]
-        if unverified:
-            raise ValueError(
-                "Refusing official Agent evaluation because "
-                f"{len(unverified)} item(s) have gold_verified=false. "
-                f"Examples: {', '.join(unverified[:10])}"
-            )
+        validate_official_records(dataset)
 
     active_runner = runner or AgentRunner()
     rows: list[dict[str, Any]] = []
@@ -88,12 +79,39 @@ def evaluate(
         answer = str(result.get("answer", ""))
 
         expected_citations = "rag" in expected_tools
+        expected_citation_document_ids = {
+            str(value).strip()
+            for value in item.get("expected_citation_document_ids", [])
+            if str(value).strip()
+        }
+        expected_answer_markers = [
+            str(value).strip().lower()
+            for value in item.get("expected_answer_markers", [])
+            if str(value).strip()
+        ]
         expects_mock_disclaimer = "shop_data" in expected_tools
         expects_refusal = item.get("expected_intent") == "out_of_scope"
         expected_period = item.get("expected_period")
         period_correct = plan.get("period") == expected_period if expected_period else True
         tools_executed = all(tool in trace_tools_ok for tool in expected_tools)
+        citation_document_check_applicable = bool(expected_citation_document_ids)
+        returned_document_ids = {
+            str(citation.get("document_id", "")).strip()
+            for citation in citations
+            if isinstance(citation, dict)
+        }
         citations_correct = bool(citations) if expected_citations else not citations
+        citation_document_correct = (
+            bool(expected_citation_document_ids & returned_document_ids)
+            if citation_document_check_applicable
+            else True
+        )
+        answer_marker_check_applicable = bool(expected_answer_markers)
+        answer_marker_correct = (
+            all(marker in answer.lower() for marker in expected_answer_markers)
+            if answer_marker_check_applicable
+            else True
+        )
         disclaimer_correct = (
             "dữ liệu vận hành mô phỏng" in answer.lower()
             if expects_mock_disclaimer
@@ -113,6 +131,8 @@ def evaluate(
                 plan_tools_correct,
                 tools_executed,
                 citations_correct,
+                citation_document_correct,
+                answer_marker_correct,
                 disclaimer_correct,
                 refusal_correct,
                 period_correct,
@@ -133,6 +153,13 @@ def evaluate(
                 "citation_expected": int(expected_citations),
                 "citation_count": len(citations),
                 "citations_correct": int(citations_correct),
+                "citation_document_check_applicable": int(citation_document_check_applicable),
+                "expected_citation_document_ids": "|".join(sorted(expected_citation_document_ids)),
+                "returned_citation_document_ids": "|".join(sorted(returned_document_ids)),
+                "citation_document_correct": int(citation_document_correct),
+                "answer_marker_check_applicable": int(answer_marker_check_applicable),
+                "expected_answer_markers": "|".join(expected_answer_markers),
+                "answer_marker_correct": int(answer_marker_correct),
                 "mock_disclaimer_correct": int(disclaimer_correct),
                 "refusal_correct": int(refusal_correct),
                 "expected_period": expected_period or "",
@@ -149,6 +176,12 @@ def evaluate(
         return round(sum(int(row[name]) for row in rows) / len(rows), 6) if rows else 0.0
 
     latencies = [float(row["agent_latency_seconds"]) for row in rows]
+    def applicable_rate(name: str, applicability: str) -> float | None:
+        applicable = [row for row in rows if int(row[applicability])]
+        if not applicable:
+            return None
+        return round(sum(int(row[name]) for row in applicable) / len(applicable), 6)
+
     summary = {
         "count": len(rows),
         "overall_pass_rate": rate("overall_pass"),
@@ -156,6 +189,18 @@ def evaluate(
         "plan_tool_exact_match": rate("plan_tools_correct"),
         "tool_execution_success": rate("tools_executed"),
         "citation_contract_success": rate("citations_correct"),
+        "citation_document_correctness": applicable_rate(
+            "citation_document_correct", "citation_document_check_applicable"
+        ),
+        "citation_document_check_count": sum(
+            int(row["citation_document_check_applicable"]) for row in rows
+        ),
+        "answer_marker_correctness": applicable_rate(
+            "answer_marker_correct", "answer_marker_check_applicable"
+        ),
+        "answer_marker_check_count": sum(
+            int(row["answer_marker_check_applicable"]) for row in rows
+        ),
         "mock_disclaimer_success": rate("mock_disclaimer_correct"),
         "out_of_scope_refusal_success": rate("refusal_correct"),
         "period_accuracy": rate("period_correct"),

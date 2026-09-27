@@ -83,3 +83,37 @@ Top-1 và 1 lỗi trang, nhưng không còn lỗi thiếu tài liệu đúng tro
 **Quyết định:** không tiếp tục tăng bonus theo từng câu DEV. Giữ ablation này
 như dấu vết chẩn đoán, ưu tiên kiểm duyệt 34 candidate trên PDF gốc và chỉ
 freeze cấu hình/đánh giá TEST sau khi có nhãn độc lập.
+
+## Agent candidate v1 DEV contract regression - 2026-09-27
+
+- Dataset: `src/evaluation/agent_benchmark_candidate_v1.jsonl`, lọc `--split
+  dev` (16 câu). Candidate có phân split cố định nhưng cả 16 nhãn đều
+  `gold_verified=false`; manifest vì thế gắn
+  `development_or_regression_only`.
+- Điều kiện: đây là run sau khi thêm citation-document / answer-marker schema;
+  hai kiểm tra semantic mới chưa có dữ liệu để áp dụng (`check_count=0`).
+- Commands:
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\agent_eval.py --split dev
+.\.venv\Scripts\python.exe src\evaluation\agent_end_to_end_eval.py --split dev
+```
+
+| Contract | Kết quả DEV regression |
+| --- | ---: |
+| Planner intent / tool exact match | 1.000 / 1.000 |
+| End-to-end overall / tool execution | 1.000 / 1.000 |
+| Citation contract / mock disclaimer / refusal | 1.000 / 1.000 / 1.000 |
+| Period / trace without error | 1.000 / 1.000 |
+| Citation-document / answer-marker checks | N/A (0 / 0 candidate labels) |
+| Median / P95 Agent latency | 48.0 ms / 10.609 s |
+
+P95 bao gồm first-use local embedding/index load cho một task có RAG; không
+được so sánh trực tiếp với latency warm-cache của RAG retrieval. Kết quả này
+chứng minh regression contract hiện không vỡ, **không** chứng minh task success
+hay chất lượng Agent.
+
+**Quyết định:** chặn chạy TEST chính thức bằng `--require-verified` cho đến khi
+workbench có reviewer, reference source, citation document và answer marker
+đầy đủ. Sau đó chỉ dùng DEV để sửa planner/tool; giữ TEST không đổi đến lần
+chạy final.

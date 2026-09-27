@@ -10,8 +10,8 @@ Nó giúp tránh mô tả tính năng hoặc số liệu không được kiểm 
 | So sánh BM25/Dense/Hybrid | `retrieval_eval.py`, Gold locked, manifest, CSV TEST | Chưa hoàn tất. |
 | Scope/private-shop guard | `scope_eval.py`, kết quả scope evaluation | Có seed test; cần mở rộng benchmark verified. |
 | Confidence | `response_confidence` và benchmark calibration/error analysis | Heuristic, không gọi là xác suất đúng. |
-| Agent đa tool | `src/agent/`, `data/shop_mock/`, trace JSON, agent evaluation | Có deterministic baseline; cần annotation độc lập và end-to-end evaluation. |
-| Demo UI | `src/shopee_chat_web_v19.py` | Có RAG demo; Agent chưa tích hợp UI. |
+| Agent đa tool | `src/agent/`, `data/shop_mock/`, trace JSON, candidate benchmark/workbench, agent evaluation | Có deterministic baseline và end-to-end evaluator; cần annotation độc lập trước khi trích score. |
+| Demo UI | `src/shopee_chat_web_v19.py`, `src/agent/streamlit_view.py` | Có RAG demo và Agent đa công cụ trong app chuẩn; state được tách riêng. |
 | Tái tạo | `requirements.txt`, README, reproducibility docs, Git manifest | Có baseline. |
 
 ## Khẳng định nên dùng

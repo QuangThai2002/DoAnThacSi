@@ -17,9 +17,11 @@ data/processed/agent_plan_eval_results.csv
 data/processed/agent_plan_eval_summary.csv
 data/processed/agent_end_to_end_eval_results.csv
 data/processed/agent_end_to_end_eval_summary.csv
+data/processed/agent_*_candidate_*.csv
 data/processed/*error_analysis*.md
 data/processed/*_manifest.json
 data/processed/benchmark_review/
+data/processed/agent_benchmark_review/
 thesis_review_package_*/
 
 .streamlit/

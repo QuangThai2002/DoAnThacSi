@@ -2,7 +2,7 @@
 
 Hệ thống trợ lý hỏi đáp tiếng Việt về chính sách, vận hành và API Shopee. Dự án kết hợp tìm kiếm từ khóa BM25, truy hồi ngữ nghĩa bằng embedding, ChromaDB và mô hình ngôn ngữ cục bộ qua Ollama. Giao diện người dùng được xây bằng Streamlit.
 
-> **Trạng thái baseline:** RAG demo hoạt động và đã có khung đánh giá retrieval. Agent baseline có trace, tool routing và dữ liệu shop mô phỏng, đã có chế độ demo trong UI nhưng chưa hoàn tất đánh giá Agent độc lập. Gold Benchmark v1 vẫn cần kiểm chứng thủ công và thực nghiệm RAG chính thức chưa được khóa.
+> **Trạng thái baseline:** RAG demo hoạt động và đã có khung đánh giá retrieval. Agent baseline có trace, tool routing, dữ liệu shop mô phỏng và giao diện trong app chuẩn. Agent đã có candidate benchmark/workbench nhưng chưa hoàn tất kiểm duyệt độc lập. Gold Benchmark v1 vẫn cần kiểm chứng thủ công và thực nghiệm RAG chính thức chưa được khóa.
 
 ## Bản chạy chuẩn
 
@@ -129,6 +129,26 @@ Workbench cũng có lựa chọn **Candidate v2 (34 câu đã khớp source/page
 là bộ câu hỏi nhỏ, sạch cờ audit cơ học để ưu tiên review trước; nó vẫn có
 `gold_verified=false` và không được dùng làm kết quả luận văn trước khi từng
 câu được đối chiếu PDF thủ công.
+
+### Kiểm duyệt Agent benchmark
+
+Agent có một workbench tách biệt vì nhãn cần kiểm tra gồm intent, thứ tự tool,
+kỳ dữ liệu, citation policy và kết quả từ CSV mock. Candidate 32 câu đã có split
+DEV 16 / TEST 10 / CHALLENGE 6 nhưng tất cả đều `gold_verified=false`; không
+được báo cáo score trước review.
+
+```powershell
+.\.venv\Scripts\python.exe src\evaluation\generate_agent_benchmark_candidate_v1.py
+.\.venv\Scripts\streamlit.exe run src\agent_annotation_workbench.py
+```
+
+Chi tiết protocol và lệnh chạy TEST có guard nằm ở
+[docs/agent_annotation_protocol.md](docs/agent_annotation_protocol.md). Lệnh
+health check có thể chạy end-to-end Agent DEV (tốn thời gian hơn) bằng:
+
+```powershell
+.\scripts\verify_baseline.ps1 -RunAgentEndToEnd
+```
 
 Chạy health check không làm thay đổi các kết quả chính thức trong repository:
 

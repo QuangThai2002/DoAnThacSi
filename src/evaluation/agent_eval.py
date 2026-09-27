@@ -16,10 +16,11 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from agent.planner import Planner  # noqa: E402
+from agent_annotation_store import validate_official_records  # noqa: E402
 from artifact_provenance import build_manifest, git_is_clean, write_manifest  # noqa: E402
 
 
-DEFAULT_DATASET = Path(__file__).with_name("agent_eval_dataset.jsonl")
+DEFAULT_DATASET = Path(__file__).with_name("agent_benchmark_candidate_v1.jsonl")
 DEFAULT_RESULTS = PROJECT_ROOT / "data" / "processed" / "agent_plan_eval_results.csv"
 DEFAULT_SUMMARY = PROJECT_ROOT / "data" / "processed" / "agent_plan_eval_summary.csv"
 DEFAULT_MANIFEST = PROJECT_ROOT / "data" / "processed" / "agent_plan_eval_manifest.json"
@@ -39,17 +40,7 @@ def evaluate(
     require_verified: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if require_verified:
-        unverified = [
-            str(item.get("id", ""))
-            for item in dataset
-            if not bool(item.get("gold_verified", False))
-        ]
-        if unverified:
-            raise ValueError(
-                "Refusing official Agent evaluation because "
-                f"{len(unverified)} item(s) have gold_verified=false. "
-                f"Examples: {', '.join(unverified[:10])}"
-            )
+        validate_official_records(dataset)
 
     planner = Planner()
     rows: list[dict[str, Any]] = []

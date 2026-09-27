@@ -8,13 +8,13 @@ cd C:\Users\Powder\Desktop\DoAnThacSi\master-thesis-rag-agent
 .\.venv\Scripts\python.exe src\evaluation\scope_eval.py
 ollama serve
 .\.venv\Scripts\streamlit.exe run src\shopee_chat_web_v19.py
-# Terminal khác cho Agent UI (tùy chọn):
+# Terminal khác cho Agent UI độc lập (tùy chọn; Agent đã có trong app chuẩn):
 .\.venv\Scripts\streamlit.exe run src\agent_demo.py --server.port 8502
 ```
 
 Mở sẵn:
 
-- Streamlit RAG ở `http://localhost:8501`, Agent demo riêng ở `http://localhost:8502` nếu mở.
+- Streamlit RAG/Agent ở `http://localhost:8501`; Agent demo riêng ở `http://localhost:8502` chỉ khi cần phương án dự phòng.
 - `docs/architecture.md` để giải thích pipeline.
 - Một terminal cho Agent CLI và CSV kết quả evaluation đã chạy trước.
 

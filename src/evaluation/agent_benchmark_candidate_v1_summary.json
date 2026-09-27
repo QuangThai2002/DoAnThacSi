@@ -1,0 +1,20 @@
+{
+  "dataset": "agent_benchmark_candidate_v1.jsonl",
+  "record_count": 32,
+  "by_split": {
+    "challenge": 6,
+    "dev": 16,
+    "test": 10
+  },
+  "by_expected_intent": {
+    "multi_tool_policy_and_shop_analysis": 3,
+    "multi_tool_policy_and_shop_retrieval": 6,
+    "out_of_scope": 5,
+    "policy_rag": 8,
+    "shop_analysis": 7,
+    "shop_data": 3
+  },
+  "all_gold_verified": false,
+  "evidence_status": "review_candidate_only",
+  "warning": "Do not use for thesis metrics until independent review is complete."
+}

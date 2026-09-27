@@ -86,32 +86,37 @@ Output chứa:
 .\.venv\Scripts\python.exe src\evaluation\agent_eval.py
 ```
 
-`agent_eval_dataset.jsonl` gồm 32 câu, bao phủ policy-only, shop-data-only,
-multi-tool và out-of-scope. Baseline hiện đánh giá **planner/tool routing**:
-intent accuracy, tool exact match, precision, recall và F1. Đánh giá Agent đầy
-đủ ở phase sau cần thêm task success, calculation exact match, citation
-correctness, refusal correctness và latency trên câu hỏi được annotation độc lập.
+`agent_eval_dataset.jsonl` là seed legacy 32 câu, bao phủ policy-only,
+shop-data-only, multi-tool và out-of-scope. `agent_benchmark_candidate_v1.jsonl`
+là candidate kế thừa có split cố định DEV 16 / TEST 10 / CHALLENGE 6. Mọi dòng
+candidate chủ đích có `gold_verified=false`; score của nó chỉ là regression
+check, không phải kết quả luận văn.
 
-Dataset hiện là seed test đi cùng rule baseline, nên `gold_verified` mặc định là
-false và score từ nó chỉ là regression check, không phải kết quả luận văn. Cờ
-`--require-verified` sẽ từ chối chạy chính thức cho đến khi bộ câu hỏi được
-annotation độc lập và gắn `gold_verified=true`.
+Baseline đánh giá **planner/tool routing** bằng intent accuracy, tool exact
+match, precision, recall và F1. Trước khi chạy chính thức, dùng workbench để
+kiểm duyệt độc lập intent/tool/period; task RAG cần `document_id` + xác nhận
+nguồn, task dữ liệu mock/tính toán cần answer marker. Hướng dẫn đầy đủ ở
+[`docs/agent_annotation_protocol.md`](agent_annotation_protocol.md). Cờ
+`--require-verified` từ chối cả nhãn `gold_verified` thiếu lẫn các thành phần
+review bắt buộc.
 
 ### Đánh giá end-to-end
 
 Evaluation end-to-end thực thi Agent, thay vì chỉ kiểm tra planner. Nó đo intent
 và danh sách tool, việc tool có hoàn thành trong trace, citation của câu hỏi
 RAG, cảnh báo dữ liệu mock cho câu hỏi shop, refusal ngoài phạm vi, period
-parsing, lỗi trace và độ trễ:
+parsing, lỗi trace, độ trễ và — sau annotation — citation document correctness
+/ answer-marker correctness:
 
 ```powershell
 .\.venv\Scripts\python.exe src\evaluation\agent_end_to_end_eval.py
 ```
 
-Kết quả nằm trong `data/processed/agent_end_to_end_eval_*.csv`. Dataset hiện
-vẫn là seed regression chưa được annotation độc lập, vì vậy các score này không
-được dùng làm claim của luận văn. Khi toàn bộ nhãn được kiểm duyệt, thêm
-`--require-verified` cho lần chạy chính thức.
+Kết quả nằm trong `data/processed/agent_end_to_end_eval_*.csv`. Candidate hiện
+vẫn chưa được annotation độc lập, vì vậy các score này không được dùng làm
+claim của luận văn. Khi bộ TEST được kiểm duyệt, chạy reviewed copy với
+`--split test --require-verified`; manifest khi đó sẽ ghi trạng thái evidence
+và Git revision.
 
 ## Giới hạn trước khi bảo vệ
 

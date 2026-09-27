@@ -45,6 +45,13 @@ class AgentEndToEndEvaluationTests(unittest.TestCase):
                 "expected_tools": ["shop_data", "rag", "calculator"],
                 "expected_period": "2026-08",
                 "gold_verified": True,
+                "review_status": "verified",
+                "reviewer": "reviewer",
+                "review_note": "Đã kiểm tra đủ route và output.",
+                "expected_citation_document_ids": ["SHP_FEE_001"],
+                "expected_answer_markers": ["dữ liệu vận hành mô phỏng"],
+                "confirmed_reference_source": True,
+                "split": "test",
             },
             {
                 "id": "outside_001",
@@ -52,6 +59,13 @@ class AgentEndToEndEvaluationTests(unittest.TestCase):
                 "expected_intent": "out_of_scope",
                 "expected_tools": [],
                 "gold_verified": True,
+                "review_status": "verified",
+                "reviewer": "reviewer",
+                "review_note": "Đã kiểm tra xử lý ngoài phạm vi.",
+                "expected_citation_document_ids": [],
+                "expected_answer_markers": [],
+                "confirmed_reference_source": False,
+                "split": "test",
             },
         ]
         rows, summary = evaluate(dataset, runner=FakeRunner(), require_verified=True)
@@ -71,7 +85,7 @@ class AgentEndToEndEvaluationTests(unittest.TestCase):
                 "gold_verified": False,
             }
         ]
-        with self.assertRaisesRegex(ValueError, "gold_verified=false"):
+        with self.assertRaisesRegex(ValueError, "gold_verified"):
             evaluate(dataset, runner=FakeRunner(), require_verified=True)
 
 
