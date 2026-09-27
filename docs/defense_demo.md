@@ -4,6 +4,7 @@
 
 ```powershell
 cd C:\Users\Powder\Desktop\DoAnThacSi\master-thesis-rag-agent
+.\.venv\Scripts\python.exe src\defense_preflight.py --check-ollama
 .\.venv\Scripts\python.exe -m unittest tests\test_agent.py
 .\.venv\Scripts\python.exe src\evaluation\scope_eval.py
 ollama serve
@@ -17,6 +18,8 @@ Mở sẵn:
 - Streamlit RAG/Agent ở `http://localhost:8501`; Agent demo riêng ở `http://localhost:8502` chỉ khi cần phương án dự phòng.
 - `docs/architecture.md` để giải thích pipeline.
 - Một terminal cho Agent CLI và CSV kết quả evaluation đã chạy trước.
+- `data/processed/defense_preflight_report.md` để phân biệt rõ demo-ready với
+  evidence-ready nếu hội đồng hỏi trạng thái thực nghiệm.
 
 ## Demo 1 — RAG có nguồn (2 phút)
 

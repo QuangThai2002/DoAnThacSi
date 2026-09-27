@@ -158,6 +158,20 @@ Chạy health check không làm thay đổi các kết quả chính thức trong
 .\scripts\verify_baseline.ps1 -RunRetrieval
 ```
 
+### Preflight trước ngày bảo vệ
+
+Lệnh dưới đây tạo một report duy nhất, tách rõ phần demo kỹ thuật sẵn sàng với
+blocker của số liệu thực nghiệm. Nó không tự xác thực benchmark hoặc tạo điểm
+số mới:
+
+```powershell
+.\.venv\Scripts\python.exe src\defense_preflight.py --check-ollama
+```
+
+Report nằm ở `data/processed/defense_preflight_report.md`. Thêm
+`--require-official-evidence` khi cần lệnh trả lỗi nếu RAG/Agent TEST vẫn chưa
+được review và khóa.
+
 ## Lộ trình đến bản bảo vệ
 
 1. Kiểm chứng thủ công Gold Benchmark v1 theo PDF/trang, viết lại câu hỏi và khóa tập TEST.

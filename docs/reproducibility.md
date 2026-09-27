@@ -166,3 +166,17 @@ với Git revision, cấu hình và số record đã verified, giúp tránh đư
 kết quả seed/regression vào bảng thực nghiệm chính thức.
 
 Những thông tin này giúp số liệu trong luận văn có thể tái tạo và truy vết.
+
+## 7. Preflight trước bảo vệ
+
+Trước ngày demo, tạo report trạng thái để xác nhận canonical app, index, chunks,
+CSV mock và Ollama local; report cũng nêu rõ benchmark nào chưa đủ điều kiện
+cho score chính thức:
+
+```powershell
+.\.venv\Scripts\python.exe src\defense_preflight.py --check-ollama
+```
+
+Nếu cần CI/local gate chặt, thêm `--require-official-evidence`. Lệnh sẽ trả lỗi
+khi RAG hoặc Agent TEST chưa được review và khóa, nhưng không tự sinh nhãn hay
+biến regression score thành bằng chứng luận văn.
