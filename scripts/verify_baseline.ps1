@@ -30,7 +30,7 @@ try {
         "src\extract_documents.py", "src\chunk_documents_pageaware.py",
         "src\build_vector_db.py", "src\hybrid_search_shopee_v2.py",
         "src\shopee_rag_complete_v4_0_1.py", "src\shopee_chat_web_v19.py",
-        "src\evaluation\artifact_provenance.py", "src\evaluation\retrieval_eval.py", "src\evaluation\scope_eval.py",
+        "src\evaluation\artifact_provenance.py", "src\evaluation\generate_benchmark_candidate_v2.py", "src\evaluation\retrieval_eval.py", "src\evaluation\scope_eval.py",
         "src\evaluation\audit_gold_benchmark.py", "src\evaluation\lock_gold_benchmark.py",
         "src\evaluation\agent_eval.py", "src\evaluation\agent_end_to_end_eval.py", "src\evaluation\error_analysis.py", "src\evaluation\annotation_store.py",
         "src\agent\agent_runner.py", "src\agent_demo.py", "src\annotation_workbench.py"

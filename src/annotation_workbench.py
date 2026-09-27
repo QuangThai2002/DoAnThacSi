@@ -33,12 +33,28 @@ from annotation_store import (  # noqa: E402
 from audit_gold_benchmark import quality_flags, read_jsonl  # noqa: E402
 
 
-DRAFT_PATH = EVALUATION_DIR / "gold_benchmark_v1.jsonl"
 CHUNKS_PATH = PROJECT_ROOT / "data" / "processed" / "chunks.jsonl"
 METADATA_PATH = PROJECT_ROOT / "data" / "processed" / "metadata_generated.csv"
 REVIEW_DIR = PROJECT_ROOT / "data" / "processed" / "benchmark_review"
-REVIEWED_PATH = REVIEW_DIR / "gold_benchmark_v1_reviewed.jsonl"
-JOURNAL_PATH = REVIEW_DIR / "gold_benchmark_v1_review_journal.jsonl"
+BENCHMARKS = {
+    "Draft v1 (120 câu sinh tự động)": {
+        "draft_path": EVALUATION_DIR / "gold_benchmark_v1.jsonl",
+        "reviewed_path": REVIEW_DIR / "gold_benchmark_v1_reviewed.jsonl",
+        "journal_path": REVIEW_DIR / "gold_benchmark_v1_review_journal.jsonl",
+        "description": (
+            "Bản draft cũ có nhiều cờ audit; chỉ dùng để tham khảo hoặc viết lại."
+        ),
+    },
+    "Candidate v2 (34 câu đã khớp source/page)": {
+        "draft_path": EVALUATION_DIR / "benchmark_candidate_v2.jsonl",
+        "reviewed_path": REVIEW_DIR / "benchmark_candidate_v2_reviewed.jsonl",
+        "journal_path": REVIEW_DIR / "benchmark_candidate_v2_review_journal.jsonl",
+        "description": (
+            "Câu hỏi/evidence đã qua kiểm tra cơ học, nhưng vẫn cần người kiểm "
+            "duyệt xem PDF gốc trước khi xác thực."
+        ),
+    },
+}
 
 st.set_page_config(
     page_title="Benchmark annotation workbench",
@@ -96,14 +112,22 @@ def render_source_page(relative_path: str, page_label: str) -> tuple[bytes | Non
         document.close()
 
 
-def initialize_state() -> None:
-    st.session_state.setdefault("annotation_records", reviewed_or_draft(DRAFT_PATH, REVIEWED_PATH))
-    st.session_state.setdefault("annotation_selected_id", st.session_state.annotation_records[0]["id"])
+def initialize_state(benchmark_key: str, paths: dict[str, Any]) -> tuple[str, str]:
+    records_key = f"annotation_records::{benchmark_key}"
+    selected_key = f"annotation_selected_id::{benchmark_key}"
+    st.session_state.setdefault(
+        records_key,
+        reviewed_or_draft(paths["draft_path"], paths["reviewed_path"]),
+    )
+    records = st.session_state[records_key]
+    if not records:
+        raise ValueError("Benchmark không có bản ghi để kiểm duyệt.")
+    st.session_state.setdefault(selected_key, records[0]["id"])
+    return records_key, selected_key
 
 
-def current_record() -> dict[str, Any]:
-    selected_id = st.session_state.annotation_selected_id
-    for item in st.session_state.annotation_records:
+def current_record(records: list[dict[str, Any]], selected_id: str) -> dict[str, Any]:
+    for item in records:
         if item.get("id") == selected_id:
             return item
     raise ValueError(f"Selected benchmark id no longer exists: {selected_id}")
@@ -125,10 +149,18 @@ def record_label(item: dict[str, Any]) -> str:
     return f"{item['id']} · {item.get('category', 'uncategorized')} · {review_state(item)}"
 
 
-initialize_state()
 catalog = load_source_catalog()
 chunks_by_source = load_chunks_by_source()
-records = st.session_state.annotation_records
+
+with st.sidebar:
+    benchmark_label = st.selectbox(
+        "Bộ benchmark",
+        list(BENCHMARKS),
+        key="annotation_benchmark_choice",
+    )
+paths = BENCHMARKS[benchmark_label]
+records_key, selected_key = initialize_state(benchmark_label, paths)
+records = st.session_state[records_key]
 states = Counter(review_state(item) for item in records)
 
 with st.sidebar:
@@ -136,7 +168,8 @@ with st.sidebar:
     st.metric("Đã xác thực", states["verified"], f"/{len(records)}")
     st.metric("Cần viết lại", states["needs_rewrite"])
     st.metric("Đã loại", states["rejected"])
-    st.caption("Dữ liệu draft gốc không bị sửa. Bản review và nhật ký được lưu tách riêng trong data/processed/benchmark_review/.")
+    st.caption(paths["description"])
+    st.caption("Dữ liệu gốc không bị sửa. Bản review và nhật ký được lưu tách riêng trong data/processed/benchmark_review/.")
     split_filter = st.selectbox("Lọc tập", ["Tất cả", "dev", "test", "challenge"], key="annotation_split_filter")
     status_filter = st.selectbox(
         "Lọc trạng thái",
@@ -158,20 +191,21 @@ if not filtered:
     st.stop()
 
 available_ids = [str(item["id"]) for item in filtered]
-if st.session_state.annotation_selected_id not in available_ids:
-    st.session_state.annotation_selected_id = available_ids[0]
+if st.session_state[selected_key] not in available_ids:
+    st.session_state[selected_key] = available_ids[0]
 record_by_id = {str(item["id"]): item for item in records}
 
 st.title("Workbench kiểm duyệt benchmark")
 st.caption("Chỉ đánh dấu verified sau khi đã xem PDF và đúng trang nguồn. Hệ thống không tự gắn nhãn gold.")
+st.caption(f"Đang review: {benchmark_label}.")
 
 selected_id = st.selectbox(
     "Chọn mẫu để kiểm duyệt",
     available_ids,
-    key="annotation_selected_id",
+    key=selected_key,
     format_func=lambda value: record_label(record_by_id[value]),
 )
-item = current_record()
+item = current_record(records, selected_id)
 flags = quality_flags(item, chunks_by_source)
 
 progress_position = available_ids.index(selected_id) + 1
@@ -289,9 +323,9 @@ if submitted:
                 "Không thể lưu verified khi audit còn cờ: " + ", ".join(post_review_flags)
             )
         updated_records = replace_record(records, reviewed)
-        atomic_write_jsonl(REVIEWED_PATH, updated_records)
-        append_review_event(JOURNAL_PATH, before=item, after=reviewed)
-        st.session_state.annotation_records = updated_records
+        atomic_write_jsonl(paths["reviewed_path"], updated_records)
+        append_review_event(paths["journal_path"], before=item, after=reviewed)
+        st.session_state[records_key] = updated_records
         st.success(f"Đã lưu {item['id']} là {reviewed['review_status']}.")
         st.rerun()
     except (ValueError, json.JSONDecodeError) as exc:
@@ -301,7 +335,7 @@ st.divider()
 st.download_button(
     "Tải bản benchmark đang review",
     data="".join(json.dumps(row, ensure_ascii=False) + "\n" for row in records),
-    file_name="gold_benchmark_v1_reviewed_export.jsonl",
+    file_name=f"{paths['draft_path'].stem}_reviewed_export.jsonl",
     mime="application/x-ndjson",
     icon=":material/download:",
 )

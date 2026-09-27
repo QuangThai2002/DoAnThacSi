@@ -1,0 +1,19 @@
+{
+  "record_count": 34,
+  "by_split": {
+    "challenge": 7,
+    "dev": 17,
+    "test": 10
+  },
+  "by_category": {
+    "fee_seller_cost": 6,
+    "logistics_return_refund": 6,
+    "market_sea_reports": 3,
+    "policy_listing": 4,
+    "privacy_dispute": 3,
+    "seller_finance": 4,
+    "shopee_api": 8
+  },
+  "audit_non_verification_flags": [],
+  "human_verification_required": true
+}

@@ -33,6 +33,22 @@ Nó không cho đặt `verified` nếu chưa nhập tên người kiểm duyệt
 nhận đã xem PDF/trang; sau đó vẫn chặn nếu còn cờ audit tự động. Chỉ một người
 nên review một bản working copy tại một thời điểm để tránh ghi đè thay đổi.
 
+## Điểm bắt đầu khuyến nghị
+
+Workbench có hai bộ dữ liệu:
+
+- **Draft v1 (120 câu sinh tự động):** giữ để truy vết baseline, nhưng chứa
+  nhiều câu lộ số trang, tên tài liệu hoặc boilerplate OCR.
+- **Candidate v2 (34 câu đã khớp source/page):** được tạo bởi
+  `generate_benchmark_candidate_v2.py` từ evidence trích xuất đã đối chiếu
+  cơ học. Bộ này không còn các cờ page/title/overlap/boilerplate tự động, nên
+  giảm tải cho vòng review đầu tiên.
+
+Candidate v2 là **AI-assisted candidate**, không phải gold data. Mỗi record
+vẫn có `gold_verified=false`; chỉ người đã xem PDF gốc mới được xác nhận
+`verified`. Sau khi reviewer hoàn tất, audit và lock bản review v2 theo cùng
+quy trình ở dưới, không thay thế draft v1.
+
 ## Quy trình cho từng record
 
 1. Mở tài liệu gốc, đến đúng trang được ghi trong record.

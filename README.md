@@ -125,6 +125,11 @@ Bản review và review journal được lưu riêng trong
 `data/processed/benchmark_review/`; draft gốc luôn được giữ nguyên. Xem thêm
 [protocol annotation](docs/benchmark_annotation_protocol.md).
 
+Workbench cũng có lựa chọn **Candidate v2 (34 câu đã khớp source/page)**. Đây
+là bộ câu hỏi nhỏ, sạch cờ audit cơ học để ưu tiên review trước; nó vẫn có
+`gold_verified=false` và không được dùng làm kết quả luận văn trước khi từng
+câu được đối chiếu PDF thủ công.
+
 Chạy health check không làm thay đổi các kết quả chính thức trong repository:
 
 ```powershell

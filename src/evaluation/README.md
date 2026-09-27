@@ -80,6 +80,12 @@ Before locking TEST or reporting thesis-grade results, each item must be
 manually checked against the source PDF/page and rewritten where the generated
 question is too lexical, too generic, or too close to the evidence text.
 
+`benchmark_candidate_v2.jsonl` is a separate 34-item AI-assisted review
+candidate. Its source/page/evidence linkage and mechanical audit checks are
+tested, but all records intentionally remain `gold_verified=false`. Use it to
+start human review faster; do not report its measurements as thesis results
+until the reviewed copy has been verified and locked.
+
 Smoke-test outputs for this draft are written to:
 
 - `data/processed/gold_v1_retrieval_eval_results.csv`
