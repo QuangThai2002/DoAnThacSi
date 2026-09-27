@@ -41,7 +41,19 @@ MAX_CONTEXT_CHARS = 5200
 
 # Model local.
 OLLAMA_CONTEXT = 3072
-OLLAMA_MAX_TOKENS = 520
+# Qwen3 can spend most of a CPU-only request on hidden reasoning. The RAG
+# pipeline already supplies retrieved evidence, so concise direct answers are
+# a better fit for the interactive UI.
+OLLAMA_THINK = os.getenv("OLLAMA_THINK", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+OLLAMA_MAX_TOKENS = int(os.getenv("OLLAMA_MAX_TOKENS", "240"))
+OLLAMA_REQUEST_TIMEOUT_SECONDS = float(
+    os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS", "75")
+)
 OLLAMA_KEEP_ALIVE = -1
 
 LAST_ANSWER_CONTEXT: list[dict] = []
@@ -588,6 +600,7 @@ NGUỒN:
             },
         ],
         "stream": False,
+        "think": OLLAMA_THINK,
         "keep_alive": OLLAMA_KEEP_ALIVE,
         "options": {
             "temperature": 0,
@@ -607,7 +620,7 @@ NGUỒN:
 
         with request.urlopen(
             http_request,
-            timeout=600,
+            timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS,
         ) as response:
             data = json.loads(
                 response.read().decode("utf-8")
@@ -1376,6 +1389,7 @@ def preload_ollama() -> None:
         "model": OLLAMA_MODEL,
         "messages": [],
         "stream": False,
+        "think": OLLAMA_THINK,
         "keep_alive": OLLAMA_KEEP_ALIVE,
     }
 
@@ -1391,7 +1405,7 @@ def preload_ollama() -> None:
     try:
         with request.urlopen(
             http_request,
-            timeout=300,
+            timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS,
         ) as response:
             response.read()
 
@@ -1570,6 +1584,7 @@ YÊU CẦU TRẢ LỜI:
             },
         ],
         "stream": False,
+        "think": OLLAMA_THINK,
         "keep_alive": OLLAMA_KEEP_ALIVE,
         "options": {
             "temperature": 0.1,
@@ -1591,7 +1606,7 @@ YÊU CẦU TRẢ LỜI:
 
         with request.urlopen(
             http_request,
-            timeout=600,
+            timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS,
         ) as response:
             response_data = json.loads(
                 response.read().decode("utf-8")

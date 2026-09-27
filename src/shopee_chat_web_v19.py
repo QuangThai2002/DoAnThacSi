@@ -6,6 +6,7 @@ import uuid
 import re
 import csv
 import html
+import os
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
@@ -7702,7 +7703,18 @@ def render_message(
 # V19 - XỬ LÝ NỀN, HỦY YÊU CẦU, TIMEOUT AN TOÀN VÀ POLLING KHÔNG KHÓA
 # ============================================================
 
-MAX_BACKGROUND_WAIT_SECONDS = 20.0
+# The UI timeout must be slightly longer than the Ollama HTTP timeout. This
+# avoids showing a false timeout while a CPU-only local model is still forming
+# a valid answer, while retaining a bounded wait and the existing cancel flow.
+MAX_BACKGROUND_WAIT_SECONDS = max(
+    10.0,
+    float(
+        os.getenv(
+            "RAG_RESPONSE_TIMEOUT_SECONDS",
+            str(backend.OLLAMA_REQUEST_TIMEOUT_SECONDS + 5.0),
+        )
+    ),
+)
 
 class ResponseJobManager:
     def __init__(self) -> None:
