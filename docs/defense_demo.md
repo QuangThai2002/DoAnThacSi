@@ -20,6 +20,8 @@ Mở sẵn:
 - Một terminal cho Agent CLI và CSV kết quả evaluation đã chạy trước.
 - `data/processed/defense_preflight_report.md` để phân biệt rõ demo-ready với
   evidence-ready nếu hội đồng hỏi trạng thái thực nghiệm.
+- [`docs/defense_qa.md`](defense_qa.md) để trả lời nhất quán về RAG, Agent,
+  dữ liệu mock, confidence và giới hạn nghiên cứu.
 
 ## Demo 1 — RAG có nguồn (2 phút)
 

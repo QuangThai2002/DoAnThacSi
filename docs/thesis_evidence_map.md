@@ -14,6 +14,7 @@ Nó giúp tránh mô tả tính năng hoặc số liệu không được kiểm 
 | Demo UI | `src/shopee_chat_web_v19.py`, `src/agent/streamlit_view.py` | Có RAG demo và Agent đa công cụ trong app chuẩn; state được tách riêng. |
 | Tái tạo | `requirements.txt`, README, reproducibility docs, Git manifest | Có baseline. |
 | Trạng thái trước bảo vệ | `src/defense_preflight.py`, `data/processed/defense_preflight_report.md` | Tự động tách demo-ready khỏi evidence-ready; không thay annotation. |
+| Hỏi–đáp hội đồng | `docs/defense_qa.md` | Câu trả lời bám code/artefact và nêu giới hạn trung thực. |
 
 ## Khẳng định nên dùng
 
