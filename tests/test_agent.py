@@ -12,7 +12,7 @@ if str(SRC_DIR) not in sys.path:
 from agent.agent_runner import AgentRunner
 from agent.calculator_tool import CalculatorTool
 from agent.planner import Planner
-from agent.shop_data_tool import ShopDataTool
+from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 
 
 class PlannerTests(unittest.TestCase):
@@ -46,6 +46,30 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertEqual(alerts["alert_count"], 4)
         self.assertEqual(alerts["alerts"][0]["sku"], "SKU-003")
 
+    def test_uploaded_csv_data_is_used_without_falling_back_to_mock_data(self) -> None:
+        upload_files = {
+            name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
+            for name in ("orders.csv", "products.csv", "inventory.csv", "ads.csv")
+        }
+
+        uploaded_tool = ShopDataTool.from_uploaded_csvs(upload_files)
+        summary = uploaded_tool.sales_summary("2026-08")
+
+        self.assertEqual(uploaded_tool.data_scope, "uploaded_csv")
+        self.assertEqual(summary["data_scope"], "uploaded_csv")
+        self.assertEqual(summary["completed_order_count"], 6)
+        self.assertEqual(uploaded_tool.advertising_summary("2026-08")["campaign_count"], 3)
+
+    def test_invalid_uploaded_csv_schema_is_rejected(self) -> None:
+        with self.assertRaises(ShopDataValidationError):
+            ShopDataTool.from_uploaded_csvs(
+                {
+                    "orders.csv": b"order_id\nORD-001\n",
+                    "products.csv": b"sku,product_name,category,cost_per_unit_vnd,list_price_vnd\nSKU-1,A,B,1,2\n",
+                    "inventory.csv": b"sku,on_hand,reserved,reorder_point,last_updated\nSKU-1,1,0,1,2026-08-01\n",
+                }
+            )
+
 
 class CalculatorAndRunnerTests(unittest.TestCase):
     def test_rank_costs_returns_largest_item(self) -> None:
@@ -57,6 +81,20 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         result = AgentRunner().run("Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?")
         self.assertIn("dữ liệu vận hành mô phỏng", result["answer"])
         self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
+
+    def test_runner_labels_uploaded_csv_data(self) -> None:
+        upload_files = {
+            name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
+            for name in ("orders.csv", "products.csv", "inventory.csv")
+        }
+        runner = AgentRunner(
+            shop_data_tool=ShopDataTool.from_uploaded_csvs(upload_files)
+        )
+
+        result = runner.run("Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?")
+
+        self.assertIn("CSV bạn tải lên", result["answer"])
+        self.assertIn("uploaded in the current session", result["limitations"][0])
 
 
 if __name__ == "__main__":

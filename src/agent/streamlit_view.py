@@ -1,7 +1,8 @@
 """Reusable Streamlit view for the traceable Agent demonstration.
 
 The view keeps its history separate from the RAG chat. Operational values are
-always labelled as mock data, so it cannot imply a Seller Centre connection.
+explicitly labelled as mock or session-uploaded CSV data, never Seller Centre
+data.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from typing import Any
 import streamlit as st
 
 from .agent_runner import AgentRunner
+from .shop_data_tool import ShopDataTool, ShopDataValidationError
 
 
 SUGGESTIONS = {
@@ -33,6 +35,8 @@ def agent_runner() -> AgentRunner:
 def initialize_agent_state() -> None:
     """Initialize only state owned by the Agent view."""
     st.session_state.setdefault("agent_messages", [])
+    st.session_state.setdefault("agent_uploaded_rows", None)
+    st.session_state.setdefault("agent_uploaded_filenames", ())
 
 
 def clear_agent_conversation() -> None:
@@ -44,6 +48,129 @@ def clear_agent_conversation() -> None:
     """
     st.session_state.agent_messages = []
     st.session_state.pop("agent_suggestion", None)
+
+
+def active_agent_runner() -> AgentRunner:
+    """Create a per-session runner when operational CSVs were uploaded."""
+    uploaded_rows = st.session_state.get("agent_uploaded_rows")
+    if uploaded_rows is not None:
+        return AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=uploaded_rows))
+    return agent_runner()
+
+
+def clear_uploaded_shop_data() -> None:
+    """Return the Agent to its disclosed mock dataset."""
+    st.session_state.agent_uploaded_rows = None
+    st.session_state.agent_uploaded_filenames = ()
+    for widget_key in (
+        "agent_orders_upload",
+        "agent_products_upload",
+        "agent_inventory_upload",
+        "agent_ads_upload",
+    ):
+        st.session_state.pop(widget_key, None)
+    clear_agent_conversation()
+
+
+def render_operational_data_controls() -> bool:
+    """Render session-scoped CSV upload controls and return the active source."""
+    using_uploaded_data = st.session_state.get("agent_uploaded_rows") is not None
+
+    with st.expander("Dữ liệu vận hành", expanded=False):
+        if using_uploaded_data:
+            uploaded_names = ", ".join(
+                st.session_state.get("agent_uploaded_filenames", ())
+            )
+            st.success(
+                "Đang dùng CSV bạn tải lên trong phiên này: " + uploaded_names,
+                icon=":material/table_chart:",
+            )
+            if st.button(
+                "Dùng lại dữ liệu mô phỏng",
+                icon=":material/restart_alt:",
+                key="reset_agent_uploaded_data",
+            ):
+                clear_uploaded_shop_data()
+                st.rerun()
+        else:
+            st.caption(
+                "Chưa có dữ liệu tải lên. Agent đang dùng CSV mô phỏng của luận văn."
+            )
+
+        st.caption(
+            "Tải CSV UTF-8 theo schema mẫu. Ba file đầu là bắt buộc; ads là tùy chọn. "
+            "Dữ liệu chỉ tồn tại trong phiên trình duyệt hiện tại."
+        )
+        st.code(
+            "orders.csv: order_id, order_date, status, sku, quantity, "
+            "gross_merchandise_value_vnd, seller_discount_vnd, "
+            "platform_discount_vnd, estimated_transaction_fee_vnd, "
+            "estimated_service_fee_vnd\n"
+            "products.csv: sku, product_name, category, cost_per_unit_vnd, list_price_vnd\n"
+            "inventory.csv: sku, on_hand, reserved, reorder_point, last_updated\n"
+            "ads.csv (tùy chọn): campaign_id, month, campaign_name, spend_vnd, "
+            "attributed_revenue_vnd, orders",
+            language="text",
+        )
+
+        with st.form("agent_operational_csv_upload", border=False):
+            orders_file = st.file_uploader(
+                "orders.csv",
+                type=["csv"],
+                key="agent_orders_upload",
+            )
+            products_file = st.file_uploader(
+                "products.csv",
+                type=["csv"],
+                key="agent_products_upload",
+            )
+            inventory_file = st.file_uploader(
+                "inventory.csv",
+                type=["csv"],
+                key="agent_inventory_upload",
+            )
+            ads_file = st.file_uploader(
+                "ads.csv (tùy chọn)",
+                type=["csv"],
+                key="agent_ads_upload",
+            )
+            submitted = st.form_submit_button(
+                "Dùng dữ liệu CSV này",
+                icon=":material/upload_file:",
+                width="stretch",
+            )
+
+        if submitted:
+            uploaded_files = {
+                "orders.csv": orders_file,
+                "products.csv": products_file,
+                "inventory.csv": inventory_file,
+                "ads.csv": ads_file,
+            }
+            missing_files = [
+                name
+                for name in ("orders.csv", "products.csv", "inventory.csv")
+                if uploaded_files[name] is None
+            ]
+            if missing_files:
+                st.error("Cần tải đủ: " + ", ".join(missing_files))
+            else:
+                try:
+                    content = {
+                        name: file.getvalue()
+                        for name, file in uploaded_files.items()
+                        if file is not None
+                    }
+                    tool = ShopDataTool.from_uploaded_csvs(content)
+                except ShopDataValidationError as exc:
+                    st.error(str(exc))
+                else:
+                    st.session_state.agent_uploaded_rows = tool.uploaded_rows
+                    st.session_state.agent_uploaded_filenames = tuple(content)
+                    clear_agent_conversation()
+                    st.rerun()
+
+    return using_uploaded_data
 
 
 def _render_assistant_message(message: dict[str, Any]) -> None:
@@ -80,11 +207,19 @@ def render_agent_view() -> None:
             clear_agent_conversation()
             st.rerun()
 
-    st.info(
-        "Dữ liệu vận hành lấy từ CSV mô phỏng trong luận văn; Agent không kết nối "
-        "Seller Centre hoặc tài khoản Shopee thật.",
-        icon=":material/info:",
-    )
+    using_uploaded_data = render_operational_data_controls()
+    if using_uploaded_data:
+        st.info(
+            "Agent đang phân tích CSV bạn tải lên trong phiên này; không kết nối "
+            "Seller Centre hoặc tài khoản Shopee thật.",
+            icon=":material/info:",
+        )
+    else:
+        st.info(
+            "Dữ liệu vận hành lấy từ CSV mô phỏng trong luận văn; Agent không kết nối "
+            "Seller Centre hoặc tài khoản Shopee thật.",
+            icon=":material/info:",
+        )
 
     for message in st.session_state.agent_messages:
         with st.chat_message(message["role"]):
@@ -106,7 +241,7 @@ def render_agent_view() -> None:
             prompt = SUGGESTIONS[str(selected)]
 
     typed_prompt = st.chat_input(
-        "Hỏi về chính sách Shopee hoặc dữ liệu shop mô phỏng",
+        "Hỏi về chính sách Shopee hoặc dữ liệu vận hành của shop",
         submit_mode="disable",
         key="agent_chat_input",
     )
@@ -127,7 +262,7 @@ def render_agent_view() -> None:
                 expanded=True,
                 type="compact",
             ) as status:
-                result = agent_runner().run(prompt)
+                result = active_agent_runner().run(prompt)
                 status.update(
                     label="Agent đã hoàn thành",
                     state="complete",

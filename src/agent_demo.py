@@ -16,7 +16,8 @@ initialize_agent_state()
 with st.sidebar:
     st.subheader("Phạm vi demo")
     st.info(
-        "Dữ liệu vận hành đến từ CSV mô phỏng trong luận văn. Ứng dụng không kết nối Seller Centre hoặc tài khoản Shopee thật."
+        "Agent dùng CSV mô phỏng hoặc CSV bạn tải lên trong phiên hiện tại. "
+        "Ứng dụng không kết nối Seller Centre hoặc tài khoản Shopee thật."
     )
     st.caption("RAG được gọi khi planner nhận diện câu hỏi chính sách/tri thức.")
 

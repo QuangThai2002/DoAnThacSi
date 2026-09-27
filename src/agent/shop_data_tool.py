@@ -1,15 +1,59 @@
 from __future__ import annotations
 
 import csv
+import io
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "shop_mock"
 COMPLETED_STATUS = "completed"
+
+REQUIRED_UPLOAD_COLUMNS = {
+    "orders.csv": {
+        "order_id",
+        "order_date",
+        "status",
+        "sku",
+        "quantity",
+        "gross_merchandise_value_vnd",
+        "seller_discount_vnd",
+        "platform_discount_vnd",
+        "estimated_transaction_fee_vnd",
+        "estimated_service_fee_vnd",
+    },
+    "products.csv": {
+        "sku",
+        "product_name",
+        "category",
+        "cost_per_unit_vnd",
+        "list_price_vnd",
+    },
+    "inventory.csv": {
+        "sku",
+        "on_hand",
+        "reserved",
+        "reorder_point",
+        "last_updated",
+    },
+    "ads.csv": {
+        "campaign_id",
+        "month",
+        "campaign_name",
+        "spend_vnd",
+        "attributed_revenue_vnd",
+        "orders",
+    },
+}
+REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
+MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
+
+
+class ShopDataValidationError(ValueError):
+    """Raised when an uploaded operational CSV cannot be used safely."""
 
 
 def as_decimal(value: str | int | float | Decimal) -> Decimal:
@@ -26,14 +70,141 @@ def as_number(value: Decimal) -> int | float:
 
 
 class ShopDataTool:
-    """Read-only analytics over intentionally disclosed mock shop data.
+    """Read-only analytics over mock data or session-scoped uploaded CSVs.
 
-    Every result carries a `data_scope` marker. This prevents the demo from
-    implying that the program has access to an actual Shopee seller account.
+    Every result carries a `data_scope` marker. Uploaded files remain in the
+    current Streamlit session; the tool never implies a Seller Centre link.
     """
 
-    def __init__(self, data_dir: Path = DEFAULT_DATA_DIR) -> None:
+    def __init__(
+        self,
+        data_dir: Path = DEFAULT_DATA_DIR,
+        uploaded_rows: Mapping[str, list[dict[str, str]]] | None = None,
+    ) -> None:
         self.data_dir = data_dir
+        self._uploaded_rows = (
+            {name: list(rows) for name, rows in uploaded_rows.items()}
+            if uploaded_rows is not None
+            else None
+        )
+        self.data_scope = (
+            "uploaded_csv" if self._uploaded_rows is not None else "mock_shop_data"
+        )
+
+    @property
+    def uploaded_rows(self) -> dict[str, list[dict[str, str]]] | None:
+        """Return session-owned parsed rows for the Streamlit integration."""
+        return self._uploaded_rows
+
+    @classmethod
+    def from_uploaded_csvs(cls, files: Mapping[str, bytes]) -> "ShopDataTool":
+        """Build a per-session tool after validating the required CSV schema."""
+        normalized_files = {str(name): value for name, value in files.items()}
+        missing_files = sorted(REQUIRED_UPLOAD_FILES - set(normalized_files))
+        if missing_files:
+            raise ShopDataValidationError(
+                "Thiếu file bắt buộc: " + ", ".join(missing_files)
+            )
+
+        unexpected_files = sorted(set(normalized_files) - set(REQUIRED_UPLOAD_COLUMNS))
+        if unexpected_files:
+            raise ShopDataValidationError(
+                "File không được hỗ trợ: " + ", ".join(unexpected_files)
+            )
+
+        rows_by_name: dict[str, list[dict[str, str]]] = {}
+        for name, raw_content in normalized_files.items():
+            rows_by_name[name] = cls._parse_uploaded_csv(name, raw_content)
+        return cls(uploaded_rows=rows_by_name)
+
+    @classmethod
+    def _parse_uploaded_csv(
+        cls,
+        name: str,
+        raw_content: bytes,
+    ) -> list[dict[str, str]]:
+        if not raw_content:
+            raise ShopDataValidationError(f"{name} đang trống.")
+        if len(raw_content) > MAX_UPLOADED_CSV_BYTES:
+            raise ShopDataValidationError(
+                f"{name} vượt quá giới hạn {MAX_UPLOADED_CSV_BYTES // (1024 * 1024)} MB."
+            )
+
+        try:
+            text = raw_content.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ShopDataValidationError(
+                f"{name} phải được lưu theo mã hóa UTF-8."
+            ) from exc
+
+        reader = csv.DictReader(io.StringIO(text))
+        headers = [str(header).strip() for header in (reader.fieldnames or []) if header]
+        missing_columns = sorted(REQUIRED_UPLOAD_COLUMNS[name] - set(headers))
+        if missing_columns:
+            raise ShopDataValidationError(
+                f"{name} thiếu cột: " + ", ".join(missing_columns)
+            )
+        reader.fieldnames = headers
+
+        rows = [
+            {
+                str(key).strip(): str(value or "").strip()
+                for key, value in row.items()
+                if key is not None
+            }
+            for row in reader
+        ]
+        if not rows:
+            raise ShopDataValidationError(f"{name} chưa có dòng dữ liệu.")
+
+        cls._validate_uploaded_rows(name, rows)
+        return rows
+
+    @staticmethod
+    def _validate_uploaded_rows(name: str, rows: list[dict[str, str]]) -> None:
+        required_columns = REQUIRED_UPLOAD_COLUMNS[name]
+        for row_number, row in enumerate(rows, start=2):
+            blank_columns = sorted(
+                column for column in required_columns if not row.get(column, "").strip()
+            )
+            if blank_columns:
+                raise ShopDataValidationError(
+                    f"{name}, dòng {row_number} thiếu giá trị: "
+                    + ", ".join(blank_columns)
+                )
+
+            try:
+                if name == "orders.csv":
+                    date.fromisoformat(row["order_date"])
+                    if int(row["quantity"]) < 0:
+                        raise ValueError("quantity must not be negative")
+                    for column in (
+                        "gross_merchandise_value_vnd",
+                        "seller_discount_vnd",
+                        "platform_discount_vnd",
+                        "estimated_transaction_fee_vnd",
+                        "estimated_service_fee_vnd",
+                    ):
+                        as_decimal(row[column])
+                elif name == "inventory.csv":
+                    if any(
+                        int(row[column]) < 0
+                        for column in ("on_hand", "reserved", "reorder_point")
+                    ):
+                        raise ValueError("inventory values must not be negative")
+                    date.fromisoformat(row["last_updated"])
+                elif name == "products.csv":
+                    as_decimal(row["cost_per_unit_vnd"])
+                    as_decimal(row["list_price_vnd"])
+                elif name == "ads.csv":
+                    date.fromisoformat(f"{row['month']}-01")
+                    int(row["orders"])
+                    as_decimal(row["spend_vnd"])
+                    as_decimal(row["attributed_revenue_vnd"])
+            except (InvalidOperation, ValueError) as exc:
+                raise ShopDataValidationError(
+                    f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
+                ) from exc
 
     def sales_summary(self, period: str | None = None) -> dict[str, Any]:
         orders = [
@@ -66,7 +237,7 @@ class ShopDataTool:
         )
         return {
             "tool": "shop_data.sales_summary",
-            "data_scope": "mock_shop_data",
+            "data_scope": self.data_scope,
             "period": period or "all_available_periods",
             "completed_order_count": len(orders),
             "completed_unit_count": quantity,
@@ -98,7 +269,7 @@ class ShopDataTool:
         alerts.sort(key=lambda item: (-int(item["shortfall_units"]), item["sku"]))
         return {
             "tool": "shop_data.inventory_alerts",
-            "data_scope": "mock_shop_data",
+            "data_scope": self.data_scope,
             "alert_count": len(alerts),
             "alerts": alerts,
             "rule": "available_units = on_hand - reserved; alert when available_units <= reorder_point",
@@ -119,7 +290,7 @@ class ShopDataTool:
         roas = revenue / spend if spend else Decimal("0")
         return {
             "tool": "shop_data.advertising_summary",
-            "data_scope": "mock_shop_data",
+            "data_scope": self.data_scope,
             "period": period or "all_available_periods",
             "campaign_count": len(rows),
             "ad_spend_vnd": as_number(spend),
@@ -137,6 +308,16 @@ class ShopDataTool:
         return sorted(periods)
 
     def _read_csv(self, name: str) -> list[dict[str, str]]:
+        if self._uploaded_rows is not None:
+            if name == "ads.csv" and name not in self._uploaded_rows:
+                return []
+            try:
+                return self._uploaded_rows[name]
+            except KeyError as exc:
+                raise FileNotFoundError(
+                    f"Uploaded shop data file not found: {name}"
+                ) from exc
+
         path = self.data_dir / name
         if not path.exists():
             raise FileNotFoundError(f"Mock shop data file not found: {path}")

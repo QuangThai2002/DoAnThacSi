@@ -11,7 +11,7 @@ from .shop_data_tool import ShopDataTool
 
 
 class AgentRunner:
-    """Run a transparent, read-only multi-tool agent over mock shop data.
+    """Run a transparent, read-only multi-tool agent over available shop data.
 
     This baseline deliberately returns evidence and deterministic calculations
     instead of asking an LLM to invent tool calls. The serialized trace supports
@@ -91,6 +91,17 @@ class AgentRunner:
             advertising=advertising,
             ranking=ranking,
             citations=citations,
+            data_scope=self.shop_data_tool.data_scope,
+        )
+        data_scope = self.shop_data_tool.data_scope
+        data_limitation = (
+            "Shop operational values come from CSV files uploaded in the current "
+            "session and are not connected to a real Shopee shop."
+            if data_scope == "uploaded_csv"
+            else (
+                "Shop operational values come only from data/shop_mock and are not "
+                "connected to a real Shopee shop."
+            )
         )
         return {
             "question": question,
@@ -100,7 +111,7 @@ class AgentRunner:
             "trace": trace,
             "agent_latency_seconds": round(perf_counter() - started, 6),
             "limitations": [
-                "Shop operational values come only from data/shop_mock and are not connected to a real Shopee shop.",
+                data_limitation,
                 "RAG evidence is retrieved text; a policy conclusion still requires evidence review and, when appropriate, LLM synthesis constrained by those sources.",
             ],
         }
@@ -136,15 +147,23 @@ class AgentRunner:
         advertising: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
+        data_scope: str,
     ) -> str:
         if plan.intent == "out_of_scope":
             return (
                 "Câu hỏi này nằm ngoài phạm vi Agent hiện tại. Agent chỉ hỗ trợ "
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
-        sections = [
-            "Kết quả dưới đây dùng dữ liệu vận hành mô phỏng của luận văn; không phải dữ liệu tài khoản Shopee thật."
-        ]
+        source_note = (
+            "Kết quả dưới đây dùng dữ liệu CSV bạn tải lên trong phiên hiện tại; "
+            "không phải dữ liệu lấy trực tiếp từ tài khoản Shopee."
+            if data_scope == "uploaded_csv"
+            else (
+                "Kết quả dưới đây dùng dữ liệu vận hành mô phỏng của luận văn; "
+                "không phải dữ liệu tài khoản Shopee thật."
+            )
+        )
+        sections = [source_note]
         if sales:
             sections.append(
                 "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
