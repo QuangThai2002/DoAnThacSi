@@ -2,7 +2,7 @@
 
 Hệ thống trợ lý hỏi đáp tiếng Việt về chính sách, vận hành và API Shopee. Dự án kết hợp tìm kiếm từ khóa BM25, truy hồi ngữ nghĩa bằng embedding, ChromaDB và mô hình ngôn ngữ cục bộ qua Ollama. Giao diện người dùng được xây bằng Streamlit.
 
-> **Trạng thái baseline:** RAG demo hoạt động và đã có khung đánh giá retrieval. Agent baseline có trace, tool routing và dữ liệu shop mô phỏng, nhưng chưa tích hợp vào UI hoặc hoàn tất đánh giá Agent độc lập. Gold Benchmark v1 vẫn cần kiểm chứng thủ công và thực nghiệm RAG chính thức chưa được khóa.
+> **Trạng thái baseline:** RAG demo hoạt động và đã có khung đánh giá retrieval. Agent baseline có trace, tool routing và dữ liệu shop mô phỏng, đã có chế độ demo trong UI nhưng chưa hoàn tất đánh giá Agent độc lập. Gold Benchmark v1 vẫn cần kiểm chứng thủ công và thực nghiệm RAG chính thức chưa được khóa.
 
 ## Bản chạy chuẩn
 
@@ -154,6 +154,8 @@ Nhật ký các run kỹ thuật (có nhãn regression-only/official rõ ràng):
 Agent baseline và cách chạy demo: [docs/agent_baseline.md](docs/agent_baseline.md).
 
 ```powershell
+# Trong app chuẩn, chọn "Agent đa công cụ" ở sidebar.
+# Hoặc chạy demo Agent độc lập:
 .\.venv\Scripts\streamlit.exe run src\agent_demo.py --server.port 8502
 ```
 

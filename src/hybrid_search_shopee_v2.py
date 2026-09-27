@@ -11,6 +11,7 @@ import time
 import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 import chromadb
@@ -346,6 +347,7 @@ def load_jsonl(path: Path) -> list[dict]:
     return records
 
 
+@lru_cache(maxsize=1)
 def load_resources() -> tuple[
     SentenceTransformer,
     Any,

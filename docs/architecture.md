@@ -1,6 +1,8 @@
 # Kiến trúc Baseline V19
 
-Tài liệu này mô tả đúng hệ thống đang chạy, không mô tả Agent như một thành phần đã tồn tại. Mục tiêu là tách rõ **RAG baseline**, **pipeline đánh giá** và **lớp Agent dự kiến**.
+Tài liệu này mô tả đúng hệ thống đang chạy. Mục tiêu là tách rõ **RAG
+baseline**, **pipeline đánh giá** và **Agent demo xác định được tool routing**;
+Agent không được diễn giải là tích hợp với Seller Centre hay LLM planner.
 
 ## 1. Luồng RAG hiện tại
 
@@ -74,18 +76,22 @@ mức đủ của evidence retrieval và quy tắc; nó **không phải** xác s
 độ đầy đủ bằng chứng nội bộ, đồng thời đánh giá riêng bằng benchmark trước khi
 phát biểu về độ tin cậy.
 
-## 4. Ranh giới hiện tại và Agent dự kiến
+## 4. Ranh giới hiện tại và Agent demo
 
 ```mermaid
 flowchart LR
-    U[Người dùng] --> P[Planner — dự kiến]
-    P --> R[RAG Tool\nđã có thể tái sử dụng]
-    P --> S[Shop Data Tool\ndữ liệu mô phỏng — chưa có]
-    P --> C[Calculator Tool\nđang rải trong UI, cần tách — chưa có tool chuẩn]
-    R --> X[Evidence]
+    U[Người dùng] --> I[Streamlit V19\nchế độ Agent]
+    I --> P[Planner xác định được tool routing]
+    P --> R[RAG Tool\nHybrid retrieval + citation]
+    P --> S[Shop Data Tool\nCSV mô phỏng, chỉ đọc]
+    P --> C[Calculator Tool\nDecimal + công thức]
+    R --> X[Trace JSON]
     S --> X
     C --> X
-    X --> A[Answer synthesizer + trace\n— dự kiến]
+    X --> A[Câu trả lời + citations + limitations]
 ```
 
-Agent chưa được tính là hiện hữu cho tới khi có ít nhất: lựa chọn tool có cấu trúc, dữ liệu cửa hàng mô phỏng, phép tính có thể kiểm chứng, trace từng bước và bộ đánh giá agent riêng.
+Agent đáp ứng demo kỹ thuật tối thiểu: lựa chọn tool có cấu trúc, dữ liệu cửa
+hàng mô phỏng, phép tính có thể kiểm chứng và trace từng bước. Agent có planner
+rule-based, không phải LLM planner; dữ liệu shop không phải dữ liệu Shopee thật;
+và bộ đánh giá 32 câu hiện chỉ là regression chưa được annotation độc lập.

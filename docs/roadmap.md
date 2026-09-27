@@ -60,6 +60,11 @@ Biến thể tối thiểu:
 
 **Không làm:** đổi nhiều thứ cùng lúc hoặc báo cáo điểm sau khi tuning trên TEST.
 
+**Tiến độ:** đã hoàn thành một vòng DEV có kiểm chứng: sửa wording DEV để
+không lộ evidence, thêm heuristic có unit test, chạy ablation 4 variant và
+error analysis. Candidate v2 vẫn chưa được human-verify nên kết quả chỉ là
+development/regression; không tiếp tục tune theo 17 câu này.
+
 ## Phase 5 — Lớp AI Agent tối thiểu, có thể bảo vệ
 
 **Mục tiêu:** chuyển từ RAG assistant sang hệ thống chọn và phối hợp tool.
@@ -83,7 +88,8 @@ Question
 **Điều kiện hoàn thành:** agent tự chọn đúng tool, không tự bịa dữ liệu nội bộ, và trả được ít nhất một tác vụ đa bước có thể đối chiếu.
 
 **Tiến độ:** đã triển khai Agent baseline, CLI, Streamlit demo, dữ liệu mock và
-trace. Agent không được mô tả là kết nối Seller Centre hay LLM planner.
+trace. Agent đã có chế độ trong app chuẩn; state Agent tách khỏi chat RAG.
+Agent không được mô tả là kết nối Seller Centre hay LLM planner.
 
 ## Phase 6 — Đánh giá Agent
 

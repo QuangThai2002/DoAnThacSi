@@ -57,3 +57,29 @@ CHALLENGE không được dùng để tune.
 **Quyết định:** Agent baseline đạt contract kỹ thuật hiện tại. Trước khi đưa
 vào chương thực nghiệm, phải tách/kiểm duyệt độc lập 30--50 câu và định nghĩa
 chấm task success, calculation exact match, citation correctness và refusal.
+
+## RAG Candidate v2 DEV routing regression - 2026-09-27
+
+- Code revision: `908474f72879df378fd1059a21eec4b582780fa8` (working tree
+  sạch khi chạy).
+- Dataset: `src/evaluation/benchmark_candidate_v2.jsonl`, chỉ `--split dev`.
+- Số mẫu: 17. Tất cả là candidate có evidence/source/page khớp cơ học, nhưng
+  `gold_verified=false`; manifest gắn nhãn `development_or_regression_only`.
+  Vì vậy bảng này chỉ dùng để chọn hướng sửa ở DEV, **không** là số liệu luận
+  văn và không được suy ra hiệu quả trên TEST.
+- Lặp: 3; variants: BM25, dense, hybrid không bonus và hybrid heuristic.
+
+| Variant | Hit@1 | Hit@5 | MRR@10 | nDCG@5 | Page Hit@5 | Median / P95 latency |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| BM25 | 0.706 | 0.882 | 0.788 | 0.805 | 0.824 | 4.7 / 12.9 ms |
+| Dense | 0.647 | 0.882 | 0.735 | 0.766 | 0.765 | 24.6 / 28.8 ms |
+| Hybrid không query bonus | 0.706 | 0.824 | 0.776 | 0.768 | 0.765 | 31.0 / 36.8 ms |
+| Hybrid + heuristic | 0.765 | 1.000 | 0.882 | 0.913 | 0.941 | 66.2 / 81.5 ms |
+
+Sau vòng error analysis trước đó, chỉ câu DEV và heuristic có unit test được
+chỉnh; 10 record TEST không đổi. Báo cáo lỗi của variant heuristic còn 3 lỗi
+Top-1 và 1 lỗi trang, nhưng không còn lỗi thiếu tài liệu đúng trong Top-5.
+
+**Quyết định:** không tiếp tục tăng bonus theo từng câu DEV. Giữ ablation này
+như dấu vết chẩn đoán, ưu tiên kiểm duyệt 34 candidate trên PDF gốc và chỉ
+freeze cấu hình/đánh giá TEST sau khi có nhãn độc lập.

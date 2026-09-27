@@ -33,7 +33,7 @@ try {
         "src\evaluation\artifact_provenance.py", "src\evaluation\generate_benchmark_candidate_v2.py", "src\evaluation\retrieval_eval.py", "src\evaluation\scope_eval.py",
         "src\evaluation\audit_gold_benchmark.py", "src\evaluation\lock_gold_benchmark.py",
         "src\evaluation\agent_eval.py", "src\evaluation\agent_end_to_end_eval.py", "src\evaluation\error_analysis.py", "src\evaluation\annotation_store.py",
-        "src\agent\agent_runner.py", "src\agent_demo.py", "src\annotation_workbench.py"
+        "src\agent\agent_runner.py", "src\agent\streamlit_view.py", "src\agent_demo.py", "src\annotation_workbench.py"
     )
     Invoke-PythonChecked -Arguments @("-m", "unittest", "discover", "-s", "tests")
     Invoke-PythonChecked -Arguments @("src\evaluation\scope_eval.py", "--output", (Join-Path $CheckDirectory "scope_results.csv"), "--summary", (Join-Path $CheckDirectory "scope_summary.csv"), "--manifest", (Join-Path $CheckDirectory "scope_manifest.json"))

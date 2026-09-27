@@ -26,6 +26,7 @@ except ImportError:  # Tương thích với một số bản Streamlit cũ.
         return None
 
 import shopee_rag_complete_v4_0_1 as backend
+from agent.streamlit_view import initialize_agent_state, render_agent_view
 
 
 # ============================================================
@@ -8101,7 +8102,8 @@ else:
 # ============================================================
 
 initialize_v7_state()
-resources = load_resources()
+initialize_agent_state()
+st.session_state.setdefault("workspace_mode", "Tra cứu RAG")
 
 with st.sidebar:
     st.markdown(
@@ -8119,6 +8121,18 @@ with st.sidebar:
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+    st.segmented_control(
+        "Chế độ trình diễn",
+        options=["Tra cứu RAG", "Agent đa công cụ"],
+        key="workspace_mode",
+        required=True,
+        width="stretch",
+        help=(
+            "Agent dùng CSV mô phỏng, RAG và calculator có trace; "
+            "không kết nối shop thật."
+        ),
     )
 
     if st.button(
@@ -8313,6 +8327,12 @@ with st.sidebar:
     )
 
 
+if st.session_state.workspace_mode == "Agent đa công cụ":
+    render_agent_view()
+    st.stop()
+
+
+resources = load_resources()
 active_conversation = st.session_state.conversations[
     st.session_state.active_conversation_id
 ]
