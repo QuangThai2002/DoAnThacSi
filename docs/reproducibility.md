@@ -123,6 +123,7 @@ Ví dụ lần chạy TEST chính thức sau khi benchmark đã được khóa:
   --require-verified `
   --output data\processed\official_test_results.csv `
   --summary data\processed\official_test_summary.csv `
+  --manifest data\processed\official_test_manifest.json `
   --repetitions 3
 ```
 
@@ -157,7 +158,11 @@ record đã verified (chỉ là kiểm tra tooling, không phải thí nghiệm)
 - Git commit hash và `git status --short` rỗng.
 - Thời điểm chạy, Python version, cấu hình model/index.
 - Dataset version, số record mỗi split/category/query type.
-- File `*_results.csv`, `*_summary.csv` và bảng phân tích lỗi.
+- File `*_results.csv`, `*_summary.csv`, `*_manifest.json` và bảng phân tích lỗi.
 - Lý do/điều kiện thay đổi nếu có reranking, chunking hoặc embedding model mới.
+
+Manifest được sinh tự động từ evaluator. Nó liên kết hash của dataset và output
+với Git revision, cấu hình và số record đã verified, giúp tránh đưa nhầm một
+kết quả seed/regression vào bảng thực nghiệm chính thức.
 
 Những thông tin này giúp số liệu trong luận văn có thể tái tạo và truy vết.

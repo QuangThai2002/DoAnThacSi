@@ -34,6 +34,6 @@ Nó giúp tránh mô tả tính năng hoặc số liệu không được kiểm 
 
 1. Git commit hash khi tạo kết quả final.
 2. Locked benchmark và SHA-256 manifest.
-3. CSV chi tiết + summary của retrieval, scope và Agent.
+3. CSV chi tiết + summary + manifest provenance của retrieval, scope và Agent.
 4. Bảng error analysis có id câu hỏi, loại lỗi, nguyên nhân và hướng xử lý.
 5. Ảnh/screen recording từ demo với nguồn và trace Agent.

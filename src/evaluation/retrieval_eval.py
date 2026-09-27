@@ -24,11 +24,13 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import hybrid_search_shopee_v2 as retrieval  # noqa: E402
+from artifact_provenance import build_manifest, git_is_clean, write_manifest  # noqa: E402
 
 
 DEFAULT_DATASET_PATH = Path(__file__).with_name("eval_dataset.jsonl")
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "retrieval_eval_results.csv"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data" / "processed" / "retrieval_eval_summary.csv"
+DEFAULT_MANIFEST_PATH = PROJECT_ROOT / "data" / "processed" / "retrieval_eval_manifest.json"
 
 VARIANTS = [
     "bm25",
@@ -265,6 +267,7 @@ def evaluate(
     dataset_path: Path,
     output_path: Path,
     summary_path: Path,
+    manifest_path: Path | None,
     repetitions: int,
     selected_splits: set[str] | None,
     require_verified: bool,
@@ -332,6 +335,7 @@ def evaluate(
                     "split": item.split,
                     "category": item.category,
                     "query_type": item.query_type,
+                    "gold_verified": int(item.gold_verified),
                     "hit_at_1": hit_at(results, expected_documents, 1),
                     "hit_at_3": hit_at(results, expected_documents, 3),
                     "hit_at_5": hit_at(results, expected_documents, 5),
@@ -379,6 +383,53 @@ def evaluate(
     write_csv(output_path, rows)
     summary_rows = build_summary(rows)
     write_csv(summary_path, summary_rows)
+
+    if manifest_path:
+        selected_split_names = sorted({item.split for item in items if item.split})
+        verified_count = sum(int(item.gold_verified) for item in items)
+        is_official_test_candidate = (
+            require_verified
+            and verified_count == len(items)
+            and "test" in selected_split_names
+            and git_is_clean(PROJECT_ROOT)
+        )
+        status = (
+            "official_test_candidate"
+            if is_official_test_candidate
+            else "development_or_regression_only"
+        )
+        if is_official_test_candidate:
+            reason = (
+                "The selected test split was fully verified and guarded by "
+                "--require-verified. Preserve this manifest with the final report."
+            )
+        else:
+            reason = (
+                "This run is not an official TEST result: it may use a development "
+                "split, omit --require-verified, contain unverified items, or run "
+                "from a dirty working tree."
+            )
+        manifest = build_manifest(
+            evaluation_name="retrieval_evaluation",
+            project_root=PROJECT_ROOT,
+            dataset_path=dataset_path,
+            output_paths=[output_path, summary_path],
+            configuration={
+                "variants": VARIANTS,
+                "repetitions": repetitions,
+                "selected_splits": selected_split_names,
+                "require_verified": require_verified,
+            },
+            dataset_counts={
+                "total_records": len(all_items),
+                "selected_answerable_records": len(items),
+                "verified_selected_records": verified_count,
+                "unverified_selected_records": len(items) - verified_count,
+            },
+            evidence_status=status,
+            evidence_status_reason=reason,
+        )
+        write_manifest(manifest_path, manifest)
 
     print(f"Wrote {len(rows)} retrieval rows to {output_path}")
     print(f"Wrote {len(summary_rows)} summary rows to {summary_path}")
@@ -504,6 +555,12 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY_PATH)
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST_PATH,
+        help="Write dataset/code/output provenance next to the evaluation artefacts.",
+    )
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument(
         "--split",
@@ -522,6 +579,7 @@ def main() -> None:
         dataset_path=args.dataset,
         output_path=args.output,
         summary_path=args.summary,
+        manifest_path=args.manifest,
         repetitions=max(1, args.repetitions),
         selected_splits=set(args.split) if args.split else None,
         require_verified=args.require_verified,

@@ -99,10 +99,13 @@ Chạy evaluation tách biệt hoàn toàn với các quick path, lịch sử h�
   --dataset src\evaluation\gold_benchmark_v1.jsonl `
   --output data\processed\gold_v1_retrieval_eval_results.csv `
   --summary data\processed\gold_v1_retrieval_eval_summary.csv `
+  --manifest data\processed\gold_v1_retrieval_eval_manifest.json `
   --repetitions 3
 ```
 
-Kết quả được ghi vào `data/processed/*_eval_results.csv` và `data/processed/*_eval_summary.csv`. Chỉ số chính gồm Hit@K, Recall@K, unique-document Recall@K, MRR@10, nDCG@5, Page Hit@5 và độ trễ.
+Kết quả được ghi vào `data/processed/*_eval_results.csv` và `data/processed/*_eval_summary.csv`. Mỗi lần chạy cũng sinh `*_manifest.json` chứa hash dataset, hash output, Git commit, cấu hình, số record verified và nhãn trạng thái bằng chứng. Chỉ số chính gồm Hit@K, Recall@K, unique-document Recall@K, MRR@10, nDCG@5, Page Hit@5 và độ trễ.
+
+Chỉ manifest có `evidence_status=official_test_candidate` mới được xem là ứng viên số liệu TEST chính thức; mọi manifest `development_or_regression_only` chỉ dùng để debug, pilot hoặc theo dõi hồi quy.
 
 **Lưu ý khoa học:** toàn bộ 120 câu của `gold_benchmark_v1.jsonl` hiện có `gold_verified=false`. Các câu được sinh từ chunk nên có thể thiên vị BM25; không được dùng các điểm số smoke test để kết luận hiệu quả của hệ thống trong luận văn.
 

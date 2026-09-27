@@ -21,11 +21,13 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 import hybrid_search_shopee_v2 as retrieval  # noqa: E402
+from artifact_provenance import build_manifest, write_manifest  # noqa: E402
 
 
 DEFAULT_DATASET_PATH = Path(__file__).with_name("eval_dataset.jsonl")
 DEFAULT_OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "scope_eval_results.csv"
 DEFAULT_SUMMARY_PATH = PROJECT_ROOT / "data" / "processed" / "scope_eval_summary.csv"
+DEFAULT_MANIFEST_PATH = PROJECT_ROOT / "data" / "processed" / "scope_eval_manifest.json"
 
 LABELS = ["answerable", "private_data", "out_of_scope"]
 
@@ -188,9 +190,37 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY_PATH)
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST_PATH,
+        help="Write dataset/code/output provenance next to the evaluation artefacts.",
+    )
     args = parser.parse_args()
 
     evaluate(args.dataset, args.output, args.summary)
+    items = load_dataset(args.dataset)
+    manifest = build_manifest(
+        evaluation_name="scope_guard_evaluation",
+        project_root=PROJECT_ROOT,
+        dataset_path=args.dataset,
+        output_paths=[args.output, args.summary],
+        configuration={
+            "labels": LABELS,
+            "guard_type": "deterministic_private_data_and_scope_classifier",
+        },
+        dataset_counts={
+            "total_records": len(items),
+            "verified_selected_records": 0,
+            "unverified_selected_records": len(items),
+        },
+        evidence_status="development_or_regression_only",
+        evidence_status_reason=(
+            "The current scope dataset is a seed regression set and does not carry "
+            "independent gold verification metadata."
+        ),
+    )
+    write_manifest(args.manifest, manifest)
 
 
 if __name__ == "__main__":

@@ -16,11 +16,13 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 from agent.planner import Planner  # noqa: E402
+from artifact_provenance import build_manifest, git_is_clean, write_manifest  # noqa: E402
 
 
 DEFAULT_DATASET = Path(__file__).with_name("agent_eval_dataset.jsonl")
 DEFAULT_RESULTS = PROJECT_ROOT / "data" / "processed" / "agent_plan_eval_results.csv"
 DEFAULT_SUMMARY = PROJECT_ROOT / "data" / "processed" / "agent_plan_eval_summary.csv"
+DEFAULT_MANIFEST = PROJECT_ROOT / "data" / "processed" / "agent_plan_eval_manifest.json"
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -67,6 +69,7 @@ def evaluate(
         rows.append(
             {
                 "id": item["id"],
+                "split": str(item.get("split", "")).strip().lower(),
                 "question": item["question"],
                 "expected_intent": item["expected_intent"],
                 "planned_intent": plan.intent,
@@ -113,18 +116,80 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=DEFAULT_RESULTS)
     parser.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY)
     parser.add_argument(
+        "--split",
+        action="append",
+        choices=["dev", "test", "challenge"],
+        help="Evaluate only one or more labelled splits. Repeat this flag as needed.",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST,
+        help="Write dataset/code/output provenance next to the evaluation artefacts.",
+    )
+    parser.add_argument(
         "--require-verified",
         action="store_true",
         help="Fail if any Agent evaluation record has gold_verified=false.",
     )
     args = parser.parse_args()
 
+    selected_splits = set(args.split) if args.split else None
+    dataset = [
+        item
+        for item in load_jsonl(args.dataset)
+        if not selected_splits
+        or str(item.get("split", "")).strip().lower() in selected_splits
+    ]
+    if not dataset:
+        raise ValueError("No Agent evaluation items match the selected split(s).")
     rows, summary = evaluate(
-        load_jsonl(args.dataset),
+        dataset,
         require_verified=args.require_verified,
     )
     write_csv(args.output, rows)
     write_csv(args.summary, [summary])
+    verified_count = sum(int(bool(item.get("gold_verified", False))) for item in dataset)
+    selected_split_names = sorted(
+        {str(item.get("split", "")).strip().lower() for item in dataset if item.get("split")}
+    )
+    is_official_candidate = (
+        args.require_verified
+        and verified_count == len(dataset)
+        and selected_split_names == ["test"]
+        and git_is_clean(PROJECT_ROOT)
+    )
+    manifest = build_manifest(
+        evaluation_name="agent_planner_evaluation",
+        project_root=PROJECT_ROOT,
+        dataset_path=args.dataset,
+        output_paths=[args.output, args.summary],
+        configuration={
+            "require_verified": args.require_verified,
+            "selected_splits": selected_split_names,
+        },
+        dataset_counts={
+            "total_records": len(dataset),
+            "verified_selected_records": verified_count,
+            "unverified_selected_records": len(dataset) - verified_count,
+        },
+        evidence_status=(
+            "official_test_candidate"
+            if is_official_candidate
+            else "development_or_regression_only"
+        ),
+        evidence_status_reason=(
+            "The selected planner TEST split was independently verified and guarded "
+            "by --require-verified in a clean working tree."
+            if is_official_candidate
+            else (
+                "This planner result is a development or regression run because it "
+                "does not select a verified TEST split with --require-verified in a "
+                "clean working tree."
+            )
+        ),
+    )
+    write_manifest(args.manifest, manifest)
     print(f"Wrote {len(rows)} Agent planning rows to {args.output}")
     print("metric,value")
     for key, value in summary.items():
