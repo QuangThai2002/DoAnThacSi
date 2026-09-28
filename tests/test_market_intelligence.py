@@ -14,6 +14,7 @@ from agent.market_intelligence import (
     price_comparison,
     product_opportunities,
     reference_listings,
+    simulated_marketplace,
     source_status,
     trend_brief,
 )
@@ -50,6 +51,13 @@ class MarketIntelligenceTests(unittest.TestCase):
             self.assertLessEqual(float(item["opportunity_score"]), 100)
             self.assertGreater(float(item["units_sold_estimate"]), 0)
             self.assertGreater(float(item["estimated_revenue_vnd"]), 0)
+
+    def test_simulated_marketplace_mixes_seller_and_similar_shops(self) -> None:
+        market = simulated_marketplace("fresh-fruit")
+        self.assertEqual(len(market["shops"]), 10)
+        self.assertTrue(any(item["shop_type"] == "Shop của bạn" for item in market["shops"]))
+        self.assertGreaterEqual(len(market["listings"]), 50)
+        self.assertTrue(all(float(item["product_score"]) > 0 for item in market["listings"]))
 
 
 if __name__ == "__main__":

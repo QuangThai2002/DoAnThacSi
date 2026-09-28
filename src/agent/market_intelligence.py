@@ -228,6 +228,92 @@ def product_opportunities() -> list[dict[str, object]]:
     return results
 
 
+def simulated_marketplace(category_id: str) -> dict[str, list[dict[str, object]]]:
+    """Create a consistent mixed catalogue for one realistic demo market.
+
+    It contains one clearly labelled demo shop representing the seller and
+    nine shops of different sizes.  Products are intentionally interleaved so
+    the UI can compare the same market rather than show isolated examples.
+    """
+    _id, _lead, category, _cost, anchor_price, _aliases = _category_seed(category_id)
+    catalogue = next(item for item in market_categories() if item["id"] == category_id)
+    products = [str(name) for name in catalogue["product_examples"]]
+    profiles = (
+        ("Shop của bạn · Demo", "Shop của bạn", 0.90),
+        ("Shop khởi đầu A", "Shop nhỏ", 0.72),
+        ("Shop khởi đầu B", "Shop nhỏ", 0.79),
+        ("Shop cùng phân khúc A", "Shop vừa", 0.88),
+        ("Shop cùng phân khúc B", "Shop vừa", 0.98),
+        ("Shop cùng phân khúc C", "Shop vừa", 1.07),
+        ("Shop phát triển A", "Shop lớn", 1.12),
+        ("Shop phát triển B", "Shop lớn", 1.19),
+        ("Shop dẫn đầu A", "Shop dẫn đầu", 1.29),
+        ("Shop dẫn đầu B", "Shop dẫn đầu", 1.36),
+    )
+    listings: list[dict[str, object]] = []
+    shops: list[dict[str, object]] = []
+    for shop_index, (shop_name, shop_type, price_factor) in enumerate(profiles):
+        rng = random.Random(f"marketplace:{category_id}:{shop_index}")
+        listing_count = 5 + ((shop_index * 3 + len(category_id)) % 8)
+        shop_units = 0
+        shop_gmv = 0
+        rating = round(min(4.95, 4.12 + shop_index * 0.065 + rng.uniform(-0.09, 0.14)), 2)
+        reviews = int((shop_index + 1) ** 2 * rng.randint(45, 115))
+        for product_index in range(listing_count):
+            product_name = products[product_index % len(products)]
+            price = int(round(anchor_price * price_factor * (0.82 + (product_index % 5) * 0.09) / 1000) * 1000)
+            units = int((shop_index + 2) * rng.randint(18, 72))
+            gmv = price * units
+            shop_units += units
+            shop_gmv += gmv
+            listings.append(
+                {
+                    "shop_name": shop_name,
+                    "shop_type": shop_type,
+                    "product_name": product_name,
+                    "listed_price_vnd": price,
+                    "units_sold_12m": units,
+                    "gmv_12m_vnd": gmv,
+                    "rating": rating,
+                    "review_count": max(8, reviews // listing_count),
+                    "data_scope": "Dữ liệu shop của bạn (demo)" if shop_index == 0 else "Shop tương tự (demo)",
+                }
+            )
+        shops.append(
+            {
+                "shop_name": shop_name,
+                "shop_type": shop_type,
+                "listing_count": listing_count,
+                "units_sold_12m": shop_units,
+                "gmv_12m_vnd": shop_gmv,
+                "average_price_vnd": round(shop_gmv / shop_units),
+                "rating": rating,
+                "review_count": reviews,
+                "positive_review_score": round(rating / 5 * 100, 1),
+                "longevity_score": min(96, 48 + shop_index * 5 + rng.randint(0, 10)),
+                "data_scope": "Dữ liệu shop của bạn (demo)" if shop_index == 0 else "Shop tương tự (demo)",
+            }
+        )
+
+    max_units = max(int(shop["units_sold_12m"]) for shop in shops)
+    max_gmv = max(int(shop["gmv_12m_vnd"]) for shop in shops)
+    for shop in shops:
+        volume = int(shop["units_sold_12m"]) / max_units * 100
+        revenue = int(shop["gmv_12m_vnd"]) / max_gmv * 100
+        score = min(volume, revenue) * 0.45 + (volume + revenue) / 2 * 0.20 + float(shop["positive_review_score"]) * 0.20 + float(shop["longevity_score"]) * 0.15
+        shop["shop_score"] = round(score, 1)
+    max_listing_units = max(int(row["units_sold_12m"]) for row in listings)
+    max_listing_gmv = max(int(row["gmv_12m_vnd"]) for row in listings)
+    for row in listings:
+        volume = int(row["units_sold_12m"]) / max_listing_units * 100
+        revenue = int(row["gmv_12m_vnd"]) / max_listing_gmv * 100
+        review = float(row["rating"]) / 5 * 100
+        row["product_score"] = round(min(volume, revenue) * 0.50 + (volume + revenue) / 2 * 0.20 + review * 0.30, 1)
+    listings.sort(key=lambda row: (str(row["product_name"]), -float(row["product_score"])))
+    shops.sort(key=lambda row: float(row["shop_score"]), reverse=True)
+    return {"shops": shops, "listings": listings, "category": category}
+
+
 def source_status() -> list[Mapping[str, str]]:
     """Expose connector readiness without implying any live integration."""
     return list(SOURCE_STATUS)

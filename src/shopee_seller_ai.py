@@ -6,7 +6,6 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -24,9 +23,8 @@ from agent.market_intelligence import (
     MARKET_SNAPSHOT_DATE,
     market_categories,
     price_comparison,
-    product_opportunities,
+    simulated_marketplace,
 )
-from agent.market_sources import fetch_configured_sources
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 from agent.shop_data_library import (
@@ -459,34 +457,6 @@ def currency(value: float) -> str:
     return f"{value:,.0f} đ"
 
 
-def market_credential(name: str) -> str:
-    """Read a local secret without ever rendering it back to the browser."""
-    try:
-        value = st.secrets[name] if name in st.secrets else os.environ.get(name, "")
-    except (FileNotFoundError, RuntimeError):
-        value = os.environ.get(name, "")
-    return str(value or "")
-
-
-def market_credentials() -> dict[str, str]:
-    return {
-        name: market_credential(name)
-        for name in (
-            "YOUTUBE_API_KEY",
-            "META_PAGE_ID",
-            "META_PAGE_ACCESS_TOKEN",
-            "TIKTOK_RESEARCH_CLIENT_KEY",
-            "TIKTOK_RESEARCH_CLIENT_SECRET",
-        )
-    }
-
-
-@st.cache_data(ttl=900, show_spinner=False)
-def load_live_market_sources(query: str, credentials: tuple[tuple[str, str], ...]) -> list[dict[str, object]]:
-    """Cache user-triggered live calls briefly to respect API quotas."""
-    return fetch_configured_sources(query, dict(credentials))
-
-
 def market_own_prices(category: str) -> tuple[list[float], str]:
     """Get comparable list prices without silently inventing a shop price."""
     rows = st.session_state.get("seller_uploaded_rows")
@@ -557,8 +527,9 @@ def render_market_intelligence() -> None:
         st.markdown("**Đọc nhanh trong 15 giây**")
         st.write("1. So sánh giá shop với dải tham chiếu.  2. Nhìn đánh giá và review để chọn giả thuyết cần kiểm chứng.  3. Thử một thay đổi nhỏ rồi đo lại đơn hàng và lợi nhuận.")
 
-    price_tab, shop_tab, product_tab, source_tab = st.tabs(["So sánh giá", "Shop tham chiếu", "Cơ hội mặt hàng", "Nguồn trực tuyến"])
+    price_tab, shop_tab, product_tab = st.tabs(["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"])
     references = list(summary["references"])
+    marketplace = simulated_marketplace(str(category_id))
     with price_tab:
         st.subheader(str(summary["position"]))
         st.write(str(summary["interpretation"]))
@@ -615,122 +586,35 @@ def render_market_intelligence() -> None:
         )
 
     with shop_tab:
-        st.caption("Các tên shop và tín hiệu dưới đây chỉ là mẫu tham chiếu mô phỏng, không phải đối thủ thật hay dữ liệu doanh số.")
-        table = pd.DataFrame(references).rename(
-            columns={
-                "shop_name": "Shop tham chiếu",
-                "product_name": "Sản phẩm đại diện",
-                "listed_price_vnd": "Giá niêm yết (VND)",
-                "rating": "Đánh giá",
-                "review_count": "Số review",
-                "observed_signal": "Tín hiệu quan sát",
-            }
-        )
-        st.dataframe(
-            table[["Shop tham chiếu", "Sản phẩm đại diện", "Giá niêm yết (VND)", "Đánh giá", "Số review", "Tín hiệu quan sát"]],
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "Giá niêm yết (VND)": st.column_config.NumberColumn(format="%,d đ"),
-                "Đánh giá": st.column_config.NumberColumn(format="%.2f"),
-                "Số review": st.column_config.NumberColumn(format="%,d"),
-            },
-        )
+        shops = pd.DataFrame(marketplace["shops"])
+        st.caption("So sánh 1 shop của bạn với 9 shop nhỏ, vừa, lớn và dẫn đầu trong cùng ngành hàng. Đây là thị trường mô phỏng để thử hệ thống.")
+        shop_chart = alt.Chart(shops).mark_circle(opacity=0.85).encode(
+            x=alt.X("average_price_vnd:Q", title="Giá bán trung bình", axis=alt.Axis(format=",d")),
+            y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
+            size=alt.Size("units_sold_12m:Q", title="Lượng bán", scale=alt.Scale(range=[130, 1200])),
+            color=alt.Color("shop_type:N", title="Loại shop"),
+            tooltip=["shop_name:N", "shop_type:N", alt.Tooltip("average_price_vnd:Q", format=",d"), alt.Tooltip("gmv_12m_vnd:Q", format=",d"), "shop_score:Q"],
+        ).properties(height=360)
+        st.altair_chart(shop_chart, width="stretch")
+        table = shops.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Review", "shop_score": "Điểm shop"})
+        st.dataframe(table[["Shop", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Review", "Điểm shop"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm shop": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
 
     with product_tab:
-        opportunities = product_opportunities()
-        current = next(item for item in opportunities if item["category_id"] == category_id)
-        st.subheader(f"#{current['rank']} · {current['category']}")
-        st.caption("Điểm cơ hội không lấy từ mạng xã hội. Nó cân bằng số lượng bán, doanh thu, giá, review và tính lâu dài.")
-        with st.container(horizontal=True):
-            st.metric("Điểm cơ hội", f"{current['opportunity_score']}/100", help="Điểm tổng hợp; cao hơn nghĩa là đáng ưu tiên thử nghiệm hơn trong Market Demo.", border=True)
-            st.metric("Số lượng bán ước tính", f"{int(current['units_sold_estimate']):,}", help="Ước tính 12 tháng mô phỏng.", border=True)
-            st.metric("Doanh thu ước tính", currency(float(current["estimated_revenue_vnd"])), help="Ước tính 12 tháng mô phỏng, không phải doanh thu thật.", border=True)
-
-        components = pd.DataFrame(
-            [
-                {"Tiêu chí": "Cân bằng lượng bán và doanh thu", "Điểm": current["balance_score"]},
-                {"Tiêu chí": "Giá phù hợp thị trường", "Điểm": current["price_fit_score"]},
-                {"Tiêu chí": "Review tích cực", "Điểm": current["positive_review_score"]},
-                {"Tiêu chí": "Tính ổn định dài hạn", "Điểm": current["longevity_score"]},
-            ]
-        )
-        top = pd.DataFrame(opportunities[:10])
-        component_col, ranking_col = st.columns(2)
-        with component_col:
-            st.markdown("**Vì sao mặt hàng này có điểm như vậy?**")
-            component_chart = alt.Chart(components).mark_bar(cornerRadiusEnd=4).encode(
-                x=alt.X("Điểm:Q", scale=alt.Scale(domain=[0, 100]), title="Điểm / 100"),
-                y=alt.Y("Tiêu chí:N", sort="-x", title=None),
-                color=alt.value("#ee4d2d"),
-                tooltip=["Tiêu chí:N", alt.Tooltip("Điểm:Q", format=".1f")],
-            ).properties(height=250)
-            st.altair_chart(component_chart, width="stretch")
-        with ranking_col:
-            st.markdown("**10 ngành hàng nên ưu tiên thử nghiệm**")
-            ranking_chart = alt.Chart(top).mark_bar(cornerRadiusEnd=4).encode(
-                x=alt.X("opportunity_score:Q", scale=alt.Scale(domain=[0, 100]), title="Điểm cơ hội / 100"),
-                y=alt.Y("category:N", sort="-x", title=None),
-                color=alt.value("#f7a28f"),
-                tooltip=["category:N", alt.Tooltip("opportunity_score:Q", format=".1f"), "lead_product:N"],
-            ).properties(height=250)
-            st.altair_chart(ranking_chart, width="stretch")
-        st.info(
-            "Cách đọc: sản phẩm bán nhiều nhưng giá quá thấp sẽ bị điểm doanh thu kéo xuống; sản phẩm giá cao nhưng ít đơn cũng bị điểm lượng bán kéo xuống. "
-            "Chỉ khi hai phần cân bằng, kèm giá hợp lý, review tốt và ổn định dài hạn thì điểm mới cao.",
-            icon=":material/balance:",
-        )
-        st.caption("Toàn bộ lượng bán, doanh thu và review trong tab này là mô phỏng. Khi có dữ liệu vận hành thật, cùng công thức có thể áp dụng cho sản phẩm của shop.")
-
-    with source_tab:
-        st.subheader("Nguồn trực tuyến có kiểm soát")
-        st.caption("Chỉ gọi API khi bạn tự cấu hình khóa/quyền hợp lệ. Không có chức năng quét dữ liệu hoặc lấy thông tin tài khoản người khác.")
-        credentials = market_credentials()
-        configured = [
-            label
-            for label, names in {
-                "YouTube": ("YOUTUBE_API_KEY",),
-                "Facebook Page": ("META_PAGE_ID", "META_PAGE_ACCESS_TOKEN"),
-                "TikTok Research": ("TIKTOK_RESEARCH_CLIENT_KEY", "TIKTOK_RESEARCH_CLIENT_SECRET"),
-            }.items()
-            if all(credentials[name] for name in names)
-        ]
-        if configured:
-            st.success("Đã sẵn sàng: " + ", ".join(configured), icon=":material/link:")
-        else:
-            st.info(
-                "Chưa có khóa API. Bạn vẫn dùng được Market Demo; để bật dữ liệu trực tuyến, cấu hình secrets theo file docs/market_secrets.example.toml.",
-                icon=":material/key:",
-            )
-        query = str(selected["search_terms"])
-        if st.button(
-            "Làm mới nguồn trực tuyến",
-            key="refresh_live_market_sources",
-            icon=":material/refresh:",
-            type="primary",
-            disabled=not configured,
-        ):
-            st.session_state.seller_live_market_results = load_live_market_sources(
-                query, tuple(sorted(credentials.items()))
-            )
-            st.session_state.seller_live_market_query = query
-
-        live_results = st.session_state.get("seller_live_market_results", [])
-        if live_results and st.session_state.get("seller_live_market_query") == query:
-            for result in live_results:
-                with st.container(border=True):
-                    st.markdown(f"**{result['platform']} · {result['status']}**")
-                    st.caption(str(result["message"]))
-                    items = list(result.get("items", []))
-                    if items:
-                        st.dataframe(
-                            pd.DataFrame(items).rename(
-                                columns={"title": "Nội dung", "creator": "Kênh / tín hiệu", "published_at": "Ngày", "url": "Liên kết"}
-                            ),
-                            hide_index=True,
-                            width="stretch",
-                            column_config={"Liên kết": st.column_config.LinkColumn("Mở nguồn")},
-                        )
+        listings = pd.DataFrame(marketplace["listings"])
+        st.caption("Bảng trộn sản phẩm của Shop của bạn · Demo và 9 shop tương tự. Lọc theo shop để xem đối thủ nào đang bán cùng mặt hàng.")
+        selected_shops = st.multiselect("Hiển thị shop", listings["shop_name"].unique().tolist(), default=listings["shop_name"].unique().tolist(), key="market_listing_shops")
+        shown = listings[listings["shop_name"].isin(selected_shops)].copy()
+        product_chart = alt.Chart(shown).mark_circle(opacity=0.78).encode(
+            x=alt.X("listed_price_vnd:Q", title="Giá niêm yết", axis=alt.Axis(format=",d")),
+            y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
+            size=alt.Size("units_sold_12m:Q", title="Lượng bán", scale=alt.Scale(range=[45, 700])),
+            color=alt.Color("shop_type:N", title="Loại shop"),
+            tooltip=["shop_name:N", "product_name:N", alt.Tooltip("listed_price_vnd:Q", format=",d"), alt.Tooltip("gmv_12m_vnd:Q", format=",d"), "product_score:Q"],
+        ).properties(height=360)
+        st.altair_chart(product_chart, width="stretch")
+        display = shown.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Review", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
+        st.dataframe(display[["Shop", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Review", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        st.info("Điểm sản phẩm cân bằng lượng bán, GMV và review. Nó không phải dự báo chắc chắn; dùng để chọn mặt hàng cần thử trước.", icon=":material/insights:")
 
 def filter_dashboard_rows(
     rows: dict[str, list[dict[str, str]]], scope: str
