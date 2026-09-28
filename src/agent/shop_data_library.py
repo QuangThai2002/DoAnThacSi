@@ -29,26 +29,26 @@ REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
 
 
 DEMO_PRODUCTS = (
+    ("Máy lọc không khí mini", "Đồ điện tử gia dụng", 1150000, 1690000),
+    ("Bàn phím cơ 87 phím", "Gear máy tính", 410000, 690000),
+    ("Giỏ táo nhập khẩu 2kg", "Hoa quả tươi", 165000, 249000),
+    ("Hộp bánh quy bơ", "Bánh kẹo", 68000, 125000),
+    ("Pin sạc dự phòng 10000mAh", "Điện thoại & phụ kiện", 235000, 420000),
     ("Tai nghe Bluetooth Lite", "Âm thanh", 185000, 320000),
-    ("Loa mini di động", "Âm thanh", 220000, 390000),
-    ("Webcam Full HD", "Thiết bị số", 310000, 540000),
-    ("Chuột không dây Mini", "Phụ kiện máy tính", 95000, 185000),
-    ("Bàn phím cơ 87 phím", "Phụ kiện máy tính", 410000, 690000),
-    ("Đèn bàn LED cảm ứng", "Gia dụng", 250000, 430000),
-    ("Bình giữ nhiệt 750ml", "Gia dụng", 115000, 215000),
-    ("Máy xay cầm tay", "Gia dụng", 290000, 480000),
-    ("Pin sạc dự phòng 10000mAh", "Thiết bị số", 235000, 420000),
-    ("Cáp sạc nhanh Type-C", "Phụ kiện điện thoại", 35000, 89000),
-    ("Giá đỡ điện thoại", "Phụ kiện điện thoại", 55000, 125000),
-    ("Áo thun cotton basic", "Thời trang", 78000, 169000),
-    ("Quần jogger thể thao", "Thời trang", 135000, 289000),
-    ("Túi tote canvas", "Thời trang", 65000, 149000),
-    ("Sổ tay bìa da", "Văn phòng phẩm", 48000, 119000),
-    ("Bút gel 12 màu", "Văn phòng phẩm", 42000, 105000),
+    ("Áo thun cotton basic", "Thời trang nam", 78000, 169000),
+    ("Váy liền thân công sở", "Thời trang nữ", 185000, 359000),
+    ("Giày sneaker hàng ngày", "Giày dép", 320000, 590000),
+    ("Túi tote canvas", "Túi xách", 65000, 149000),
+    ("Kem chống nắng SPF50", "Mỹ phẩm", 135000, 265000),
     ("Nước rửa tay 500ml", "Chăm sóc cá nhân", 52000, 115000),
-    ("Kem chống nắng SPF50", "Chăm sóc cá nhân", 135000, 265000),
+    ("Bỉm em bé gói lớn", "Mẹ & bé", 210000, 345000),
     ("Thức ăn cho mèo 1.5kg", "Thú cưng", 145000, 255000),
-    ("Cát vệ sinh cho mèo", "Thú cưng", 92000, 179000),
+    ("Sách kỹ năng bán hàng", "Sách", 88000, 159000),
+    ("Bộ bút gel 12 màu", "Văn phòng phẩm", 42000, 105000),
+    ("Thảm tập yoga 6mm", "Thể thao", 165000, 295000),
+    ("Mũ bảo hiểm nửa đầu", "Xe máy", 190000, 330000),
+    ("Kệ để đồ 4 tầng", "Nội thất", 320000, 560000),
+    ("Hạt dinh dưỡng tổng hợp", "Thực phẩm khô", 145000, 245000),
 )
 DEMO_PERIODS = tuple(
     f"{year:04d}-{month:02d}"
@@ -96,7 +96,7 @@ def build_demo_rows(seed: int = 20260928) -> dict[str, list[dict[str, str]]]:
                 "estimated_service_fee_vnd": str(int(gmv * 0.025)),
             })
 
-    campaign_categories = ("Âm thanh", "Gia dụng", "Thời trang")
+    campaign_categories = ("Gear máy tính", "Hoa quả tươi", "Bánh kẹo")
     for period in DEMO_PERIODS:
         for campaign_index, category in enumerate(campaign_categories, start=1):
             spend = rng.randrange(80000, 260000, 5000)

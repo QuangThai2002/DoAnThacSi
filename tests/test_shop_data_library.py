@@ -19,6 +19,7 @@ class ShopDataLibraryTest(unittest.TestCase):
             library = ShopDataLibrary(Path(directory) / "library.sqlite")
             saved = library.seed_demo()
             self.assertEqual(len(saved["products.csv"]), 20)
+            self.assertEqual(len({row["category"] for row in saved["products.csv"]}), 20)
             self.assertEqual(len(saved["orders.csv"]), 20 * 12)
             self.assertEqual(len(DEMO_PERIODS), 12)
             self.assertEqual(library.load("demo"), saved)
