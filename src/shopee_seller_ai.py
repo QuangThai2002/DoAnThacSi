@@ -391,6 +391,18 @@ TABLE_SPECS = {
         "columns": ["campaign_id", "month", "campaign_name", "spend_vnd", "attributed_revenue_vnd", "orders"],
     },
 }
+COLUMN_LABELS = {
+    "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
+    "quantity": "Số lượng", "gross_merchandise_value_vnd": "GMV (VND)",
+    "seller_discount_vnd": "Giảm giá người bán (VND)", "platform_discount_vnd": "Trợ giá sàn (VND)",
+    "estimated_transaction_fee_vnd": "Phí giao dịch ước tính (VND)",
+    "estimated_service_fee_vnd": "Phí dịch vụ ước tính (VND)",
+    "product_name": "Tên sản phẩm", "category": "Ngành hàng", "cost_per_unit_vnd": "Giá vốn/đơn vị (VND)",
+    "list_price_vnd": "Giá niêm yết (VND)", "on_hand": "Tồn thực tế", "reserved": "Đã giữ chỗ",
+    "reorder_point": "Ngưỡng nhập thêm", "last_updated": "Ngày cập nhật", "campaign_id": "Mã chiến dịch",
+    "month": "Tháng", "campaign_name": "Tên chiến dịch", "spend_vnd": "Chi quảng cáo (VND)",
+    "attributed_revenue_vnd": "Doanh thu quy gán (VND)", "orders": "Số đơn từ quảng cáo",
+}
 
 
 def library_repository() -> ShopDataLibrary:
@@ -591,12 +603,17 @@ def render_data_library() -> None:
         for name, spec in TABLE_SPECS.items():
             with st.expander(spec["title"], expanded=name in LIBRARY_REQUIRED_FILES and saved_rows is None, icon=":material/table_chart:"):
                 st.caption(spec["help"])
+                st.caption("Ngày nhập theo dạng YYYY-MM-DD; các cột tiền tệ nhập bằng số VND, không dùng dấu phẩy.")
                 edited[name] = st.data_editor(
                     editor_dataframe(editable_rows.get(name, []), spec["columns"]),
                     key=f"library_editor_{scope}_{name}",
                     num_rows="dynamic",
                     hide_index=True,
                     width="stretch",
+                    column_config={
+                        column: st.column_config.TextColumn(COLUMN_LABELS.get(column, column))
+                        for column in spec["columns"]
+                    },
                 )
         submitted = st.form_submit_button("Lưu bảng dữ liệu", type="primary", icon=":material/save:", width="stretch")
     if submitted:
