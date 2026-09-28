@@ -69,6 +69,16 @@ st.markdown(
       }
       [data-testid="stChatInput"] textarea, [data-testid="stChatInput"] textarea::placeholder { color: #5f5f5f !important; }
       [data-testid="stChatInput"] button { background: #ee4d2d !important; color: #ffffff !important; border-radius: 8px !important; }
+      [data-testid="stFileUploader"], [data-testid="stFileUploader"] section,
+      [data-testid="stFileUploaderDropzone"] {
+        background: #ffffff !important; border-color: #f1cfc3 !important; color: #4b4b4b !important;
+      }
+      [data-testid="stFileUploader"] button {
+        background: #fff3ef !important; border-color: #efb9a9 !important; color: #c94124 !important;
+      }
+      [data-testid="stFileUploader"] small, [data-testid="stFileUploader"] span {
+        color: #6b625f !important;
+      }
       [data-testid="stBottom"], [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"], .stBottom {
         background: #fffaf8 !important; border-top: 1px solid #f4e3dc !important;
       }
@@ -112,18 +122,32 @@ st.markdown(
 
 
 SUGGESTIONS = {
-    "quick": {
+    "learner": {
         "Các loại phí Shopee": "Shopee đang áp dụng những loại phí nào?",
         "Chính sách hoàn tiền": "Người mua có thể yêu cầu hoàn tiền trong trường hợp nào?",
         "Cách bắt đầu bán": "Người mới cần chuẩn bị gì để bắt đầu bán hàng trên Shopee?",
     },
-    "shop": {
+    "owner": {
         "Doanh thu tháng này": "Doanh thu tháng này của shop thế nào?",
         "Hàng sắp hết": "Sản phẩm nào đang sắp hết hàng?",
-        "Hiệu quả quảng cáo": "Quảng cáo tháng này có hiệu quả không?",
+        "Phí ảnh hưởng doanh thu": "Tháng này shop cần đối chiếu những khoản phí nào?",
     },
 }
 REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
+CHAT_TYPES = {
+    "learner": {
+        "name": "Người mới",
+        "icon": ":material/school:",
+        "description": "Tìm hiểu để mở và vận hành shop trên Shopee.",
+        "placeholder": "Hỏi về cách bắt đầu bán hoặc chính sách Shopee...",
+    },
+    "owner": {
+        "name": "Chủ shop",
+        "icon": ":material/storefront:",
+        "description": "Hỏi về doanh thu, chính sách và hoạt động của shop.",
+        "placeholder": "Hỏi về doanh thu, tồn kho, quảng cáo hoặc phí của shop...",
+    },
+}
 
 
 def initialise_state() -> None:
@@ -133,7 +157,9 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_upload_message", None)
     st.session_state.setdefault("seller_upload_error", None)
     st.session_state.setdefault("seller_chat_mode", None)
-    st.session_state.setdefault("seller_page", "Trò chuyện")
+    st.session_state.setdefault("seller_active_chat_id", None)
+    st.session_state.setdefault("seller_conversations", [])
+    st.session_state.setdefault("seller_show_chat_picker", False)
 
 
 def active_runner() -> AgentRunner:
@@ -147,11 +173,52 @@ def is_uploaded() -> bool:
     return st.session_state.get("seller_uploaded_rows") is not None
 
 
-def reset_conversation(*, keep_mode: bool = False) -> None:
+def clear_active_conversation() -> None:
     st.session_state.seller_messages = []
     st.session_state.pop("seller_suggestion", None)
-    if not keep_mode:
-        st.session_state.seller_chat_mode = None
+
+
+def conversation_title(messages: list[dict[str, Any]], mode: str) -> str:
+    first_question = next((item["content"] for item in messages if item["role"] == "user"), None)
+    if first_question:
+        return human_title(str(first_question))
+    return f"Chat {CHAT_TYPES[mode]['name'].lower()}"
+
+
+def save_active_conversation() -> None:
+    chat_id = st.session_state.get("seller_active_chat_id")
+    mode = st.session_state.get("seller_chat_mode")
+    if not chat_id or mode not in CHAT_TYPES:
+        return
+    messages = st.session_state.seller_messages
+    for conversation in st.session_state.seller_conversations:
+        if conversation["id"] == chat_id:
+            conversation["messages"] = list(messages)
+            conversation["title"] = conversation_title(messages, mode)
+            return
+
+
+def start_conversation(mode: str) -> None:
+    chat_id = f"{mode}_{len(st.session_state.seller_conversations) + 1}"
+    st.session_state.seller_chat_mode = mode
+    st.session_state.seller_active_chat_id = chat_id
+    st.session_state.seller_show_chat_picker = False
+    clear_active_conversation()
+    st.session_state.seller_conversations.append(
+        {"id": chat_id, "mode": mode, "title": conversation_title([], mode), "messages": []}
+    )
+
+
+def open_conversation(chat_id: str) -> None:
+    conversation = next(item for item in st.session_state.seller_conversations if item["id"] == chat_id)
+    st.session_state.seller_active_chat_id = conversation["id"]
+    st.session_state.seller_chat_mode = conversation["mode"]
+    st.session_state.seller_messages = list(conversation["messages"])
+    st.session_state.pop("seller_suggestion", None)
+
+
+def show_chat_picker() -> None:
+    st.session_state.seller_show_chat_picker = True
 
 
 def human_title(question: str) -> str:
@@ -236,9 +303,10 @@ def answer_question(question: str) -> dict[str, Any]:
     return result
 
 
-def render_data_upload() -> None:
-    st.subheader("Dữ liệu shop")
-    st.caption("Dữ liệu này giúp AI phân tích hoạt động kinh doanh của shop.")
+def render_data_upload(*, inline: bool = False) -> None:
+    if not inline:
+        st.subheader("Dữ liệu bán hàng")
+        st.caption("Dữ liệu này giúp AI phân tích hoạt động kinh doanh của shop.")
 
     if is_uploaded():
         rows = st.session_state.seller_uploaded_rows
@@ -256,7 +324,8 @@ def render_data_upload() -> None:
         if st.button("Thay dữ liệu shop", icon=":material/upload_file:"):
             st.session_state.seller_uploaded_rows = None
             st.session_state.seller_uploaded_names = ()
-            reset_conversation(keep_mode=True)
+            clear_active_conversation()
+            save_active_conversation()
             st.rerun()
         return
 
@@ -285,11 +354,32 @@ def render_data_upload() -> None:
         return
     st.session_state.seller_uploaded_rows = tool.uploaded_rows
     st.session_state.seller_uploaded_names = tuple(content)
-    st.session_state.seller_chat_mode = "shop"
-    reset_conversation(keep_mode=True)
+    if st.session_state.get("seller_chat_mode") is None:
+        start_conversation("owner")
+    clear_active_conversation()
+    save_active_conversation()
     st.session_state.seller_upload_message = "Đã thêm dữ liệu shop thành công."
-    st.session_state.seller_page = "Trò chuyện"
     st.rerun()
+
+
+@st.dialog("Chọn loại cuộc trò chuyện")
+def choose_chat_type() -> None:
+    st.write("Chọn đúng vai trò để AI gợi ý câu hỏi phù hợp.")
+    learner_column, owner_column = st.columns(2, gap="medium")
+    with learner_column:
+        with st.container(border=True):
+            st.markdown("#### :material/school: Người mới tìm hiểu")
+            st.caption("Dành cho người chuẩn bị tạo shop hoặc mới bắt đầu bán trên Shopee.")
+            if st.button("Bắt đầu với vai trò người mới", key="choose_learner", type="primary", width="stretch"):
+                start_conversation("learner")
+                st.rerun()
+    with owner_column:
+        with st.container(border=True):
+            st.markdown("#### :material/storefront: Chủ shop")
+            st.caption("Dành cho chủ shop cần hỏi doanh thu, chính sách và vận hành bán hàng.")
+            if st.button("Bắt đầu với vai trò chủ shop", key="choose_owner", width="stretch"):
+                start_conversation("owner")
+                st.rerun()
 
 
 def render_assistant() -> None:
@@ -297,49 +387,28 @@ def render_assistant() -> None:
         st.toast(st.session_state.seller_upload_message, icon=":material/check_circle:")
         st.session_state.seller_upload_message = None
 
-    mode = st.session_state.seller_chat_mode
-    if not mode and not st.session_state.seller_messages:
-        st.markdown('<div class="seller-eyebrow">TRỢ LÝ CHO NGƯỜI BÁN SHOPEE</div>', unsafe_allow_html=True)
-        st.title("Bạn cần hỗ trợ điều gì?")
-        st.markdown('<div class="seller-subtitle">Chọn đúng nhu cầu để bắt đầu một cuộc trò chuyện.</div>', unsafe_allow_html=True)
-        st.space("medium")
-        quick_column, shop_column = st.columns(2, gap="medium")
-        with quick_column:
-            with st.container(border=True):
-                st.markdown("#### :material/forum: Hỏi nhanh về Shopee")
-                st.write("Dành cho người đang bán hoặc chuẩn bị mở shop, muốn hiểu chính sách và cách vận hành cơ bản.")
-                st.caption("Ví dụ: phí Shopee, hoàn tiền, điều kiện bán hàng.")
-                if st.button("Bắt đầu hỏi", key="start_quick_chat", type="primary", icon=":material/send:", width="stretch"):
-                    st.session_state.seller_chat_mode = "quick"
-                    st.rerun()
-        with shop_column:
-            with st.container(border=True):
-                st.markdown("#### :material/analytics: Phân tích shop của tôi")
-                st.write("Dành cho người bán đã có dữ liệu và muốn kiểm tra doanh thu, tồn kho, quảng cáo hoặc chi phí.")
-                st.caption("Cần thêm dữ liệu đơn hàng, sản phẩm và tồn kho.")
-                if st.button("Phân tích shop", key="start_shop_chat", icon=":material/analytics:", width="stretch"):
-                    st.session_state.seller_chat_mode = "shop"
-                    st.rerun()
+    mode = st.session_state.get("seller_chat_mode")
+    if mode not in CHAT_TYPES or not st.session_state.get("seller_active_chat_id"):
+        st.markdown('<div class="seller-eyebrow">TRỢ LÝ BÁN HÀNG AI</div>', unsafe_allow_html=True)
+        st.title("Bắt đầu cuộc trò chuyện")
+        st.markdown('<div class="seller-subtitle">Chọn loại cuộc trò chuyện để AI hỗ trợ đúng nhu cầu của bạn.</div>', unsafe_allow_html=True)
+        st.space("small")
+        with st.container(border=True):
+            st.markdown("#### Bạn muốn hỏi với vai trò nào?")
+            st.caption("Bạn có thể tạo nhiều cuộc trò chuyện; mỗi cuộc được đánh dấu riêng là Người mới hoặc Chủ shop.")
+            st.button("Cuộc trò chuyện mới", key="new_chat_main", type="primary", icon=":material/add_comment:", on_click=show_chat_picker)
         return
 
-    mode = mode or "quick"
-    mode_labels = {
-        "quick": ("Hỏi nhanh về Shopee", "Hỏi bằng ngôn ngữ tự nhiên về chính sách hoặc cách bán hàng trên Shopee."),
-        "shop": ("Phân tích shop của tôi", "Hỏi về số liệu vận hành dựa trên dữ liệu shop bạn thêm trong phiên này."),
-    }
-    label, description = mode_labels[mode]
+    chat_type = CHAT_TYPES[mode]
     st.markdown('<div class="seller-eyebrow">TRỢ LÝ BÁN HÀNG AI</div>', unsafe_allow_html=True)
     with st.container(horizontal=True, horizontal_alignment="distribute"):
-        st.title(label)
-        if st.button("Đổi nhu cầu", key="change_chat_mode", icon=":material/swap_horiz:"):
-            reset_conversation()
-            st.rerun()
-    st.caption(description)
-    if mode == "shop" and not is_uploaded():
-        st.info("Để AI phân tích đúng số liệu shop, hãy thêm dữ liệu trước khi đặt câu hỏi.", icon=":material/upload_file:")
-        if st.button("Thêm dữ liệu shop", key="go_to_data", type="primary", icon=":material/upload_file:"):
-            st.session_state.seller_page = "Dữ liệu shop"
-            st.rerun()
+        st.title(chat_type["name"])
+        st.badge(chat_type["name"], icon=chat_type["icon"], color="orange" if mode == "owner" else "gray")
+    st.caption(chat_type["description"])
+
+    if mode == "owner" and not is_uploaded():
+        with st.expander("Thêm dữ liệu bán hàng để phân tích doanh thu", icon=":material/upload_file:"):
+            render_data_upload(inline=True)
 
     for message in st.session_state.seller_messages:
         if message["role"] == "user":
@@ -354,8 +423,7 @@ def render_assistant() -> None:
         if choice:
             prompt = SUGGESTIONS[mode][str(choice)]
 
-    placeholder = "Hỏi về chính sách hoặc cách bán hàng trên Shopee..." if mode == "quick" else "Hỏi về doanh thu, tồn kho hoặc quảng cáo của shop..."
-    typed_prompt = st.chat_input(placeholder, key="seller_chat_input", submit_mode="disable")
+    typed_prompt = st.chat_input(chat_type["placeholder"], key="seller_chat_input", submit_mode="disable")
     if typed_prompt:
         prompt = typed_prompt
     if not prompt:
@@ -385,28 +453,23 @@ def render_assistant() -> None:
         st.caption(f":material/verified: Độ chắc chắn: {result['confidence']}")
         render_sources(result.get("citations", []))
     st.session_state.seller_messages.append({"role": "assistant", **result})
+    save_active_conversation()
 
 
 initialise_state()
 with st.sidebar:
     st.markdown("### :material/storefront: Trợ lý AI")
-    if st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch"):
-        reset_conversation()
-        st.rerun()
+    st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
     st.caption("Cuộc trò chuyện gần đây")
-    recent_questions = [message["content"] for message in st.session_state.seller_messages if message["role"] == "user"][-3:]
-    for question in reversed(recent_questions):
-        st.caption(":material/chat: " + human_title(question))
-    page = st.radio(
-        "Điều hướng",
-        ["Trò chuyện", "Dữ liệu shop"],
-        index=["Trò chuyện", "Dữ liệu shop"].index(st.session_state.get("seller_page", "Trò chuyện")),
-        label_visibility="collapsed",
-    )
-    st.session_state.seller_page = page
-    st.caption("Dữ liệu shop chỉ được dùng trong phiên hiện tại.")
+    for conversation in reversed(st.session_state.seller_conversations[-5:]):
+        chat_type = CHAT_TYPES[conversation["mode"]]
+        selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
+        label = f"{chat_type['name']} · {conversation['title']}"
+        if st.button(label, key=f"open_{conversation['id']}", icon=chat_type["icon"], width="stretch", disabled=selected):
+            open_conversation(conversation["id"])
+            st.rerun()
+    st.caption("Nhãn :material/school: là chat Người mới; :material/storefront: là chat Chủ shop.")
 
-if page == "Trò chuyện":
-    render_assistant()
-else:
-    render_data_upload()
+if st.session_state.seller_show_chat_picker:
+    choose_chat_type()
+render_assistant()

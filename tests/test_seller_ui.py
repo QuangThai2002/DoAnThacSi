@@ -13,16 +13,19 @@ class SellerFacingUiTests(unittest.TestCase):
     def test_assistant_starts_with_a_clear_empty_state(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
 
-        self.assertEqual([title.value for title in app.title], ["Bạn cần hỗ trợ điều gì?"])
-        self.assertIn("Bắt đầu hỏi", [button.label for button in app.button])
-        self.assertIn("Phân tích shop", [button.label for button in app.button])
-        next(button for button in app.button if button.label == "Bắt đầu hỏi").click().run()
+        self.assertEqual([title.value for title in app.title], ["Bắt đầu cuộc trò chuyện"])
+        self.assertIn("Cuộc trò chuyện mới", [button.label for button in app.button])
+        app.button(key="new_chat_main").click().run()
+        self.assertIn("Bắt đầu với vai trò người mới", [button.label for button in app.button])
+        app.button(key="choose_learner").click().run()
         self.assertEqual(len(app.chat_input), 1)
+        self.assertIn("Người mới · Chat người mới", [button.label for button in app.button])
         self.assertEqual(len(app.error), 0)
 
-    def test_data_page_exposes_only_human_readable_uploads(self) -> None:
+    def test_owner_chat_exposes_human_readable_uploads(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
-        app.radio[0].set_value("Dữ liệu shop").run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_owner").click().run()
 
         self.assertEqual(
             [uploader.label for uploader in app.file_uploader],
