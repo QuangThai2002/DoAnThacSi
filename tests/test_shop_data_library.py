@@ -9,7 +9,7 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from agent.shop_data_library import DEMO_ROWS, ShopDataLibrary, clean_and_validate_rows
+from agent.shop_data_library import DEMO_PERIODS, DEMO_ROWS, ShopDataLibrary, clean_and_validate_rows
 from agent.shop_data_tool import ShopDataValidationError
 
 
@@ -18,14 +18,16 @@ class ShopDataLibraryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             library = ShopDataLibrary(Path(directory) / "library.sqlite")
             saved = library.seed_demo()
-            self.assertEqual(len(saved["orders.csv"]), 4)
+            self.assertEqual(len(saved["products.csv"]), 20)
+            self.assertEqual(len(saved["orders.csv"]), 20 * 12)
+            self.assertEqual(len(DEMO_PERIODS), 12)
             self.assertEqual(library.load("demo"), saved)
 
     def test_blank_editor_rows_are_ignored(self) -> None:
         rows = {name: list(values) for name, values in DEMO_ROWS.items()}
         rows["products.csv"].append({key: "" for key in DEMO_ROWS["products.csv"][0]})
         validated = clean_and_validate_rows(rows)
-        self.assertEqual(len(validated["products.csv"]), 3)
+        self.assertEqual(len(validated["products.csv"]), 20)
 
     def test_required_tables_are_enforced(self) -> None:
         with self.assertRaises(ShopDataValidationError):

@@ -443,8 +443,50 @@ def currency(value: float) -> str:
     return f"{value:,.0f} đ"
 
 
-def render_management_dashboard(rows: dict[str, list[dict[str, str]]]) -> None:
+def filter_dashboard_rows(
+    rows: dict[str, list[dict[str, str]]], scope: str
+) -> dict[str, list[dict[str, str]]]:
+    """Let users read one category/product/month without changing stored data."""
+    products = pd.DataFrame(rows["products.csv"])
+    orders = pd.DataFrame(rows["orders.csv"])
+    categories = sorted(products["category"].dropna().unique().tolist())
+    months = sorted(orders["order_date"].str.slice(0, 7).dropna().unique().tolist())
+    with st.expander("Lọc báo cáo", icon=":material/filter_list:"):
+        category_col, month_col = st.columns(2)
+        with category_col:
+            selected_categories = st.multiselect(
+                "Ngành hàng", categories, default=categories, key=f"dashboard_categories_{scope}"
+            )
+        allowed_products = products[products["category"].isin(selected_categories)]
+        with month_col:
+            selected_months = st.multiselect(
+                "Tháng", months, default=months, key=f"dashboard_months_{scope}"
+            )
+        selected_skus = st.multiselect(
+            "Sản phẩm", allowed_products["product_name"].tolist(),
+            default=allowed_products["product_name"].tolist(), key=f"dashboard_products_{scope}"
+        )
+    selected_sku_values = set(
+        allowed_products[allowed_products["product_name"].isin(selected_skus)]["sku"]
+    )
+    selected_month_values = set(selected_months)
+    return {
+        "products.csv": [row for row in rows["products.csv"] if row["sku"] in selected_sku_values],
+        "inventory.csv": [row for row in rows["inventory.csv"] if row["sku"] in selected_sku_values],
+        "orders.csv": [
+            row for row in rows["orders.csv"]
+            if row["sku"] in selected_sku_values and row["order_date"][:7] in selected_month_values
+        ],
+        "ads.csv": [row for row in rows.get("ads.csv", []) if row["month"] in selected_month_values],
+    }
+
+
+def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: str) -> None:
     """Show directly usable operational views from the same saved tables."""
+    rows = filter_dashboard_rows(rows, scope)
+    if not rows["products.csv"] or not rows["orders.csv"]:
+        st.info("Hãy chọn ít nhất một sản phẩm và một tháng để xem báo cáo.", icon=":material/info:")
+        return
     tool = ShopDataTool(uploaded_rows=rows)
     sales = tool.sales_summary()
     inventory = tool.inventory_alerts()
@@ -582,17 +624,22 @@ def render_data_library() -> None:
     st.subheader(scope_title)
     st.caption(scope_note)
 
-    if is_demo and saved_rows is None:
-        st.info("Bộ demo chưa được nạp. Nạp một lần để có sẵn dữ liệu thử nghiệm, biểu đồ và cảnh báo.", icon=":material/lightbulb:")
-        if st.button("Nạp bộ dữ liệu demo", type="primary", icon=":material/auto_awesome:"):
+    if is_demo:
+        st.info(
+            "Bộ demo gồm 20 mặt hàng thuộc nhiều ngành hàng, 240 đơn mô phỏng trong 12 tháng và 36 dòng quảng cáo. "
+            "Số liệu được tạo giả lập có kiểm soát để luôn lặp lại khi demo.",
+            icon=":material/lightbulb:",
+        )
+        demo_action = "Nạp bộ dữ liệu demo 12 tháng" if saved_rows is None else "Tạo lại bộ dữ liệu demo 12 tháng"
+        if st.button(demo_action, key="seed_demo_library", type="primary", icon=":material/auto_awesome:"):
             library.seed_demo()
-            st.session_state.seller_upload_message = "Đã nạp bộ dữ liệu demo vào Thư viện dữ liệu."
+            st.session_state.seller_upload_message = "Đã lưu bộ demo gồm 20 mặt hàng và 12 tháng dữ liệu."
             st.rerun()
 
     if saved_rows is not None:
         action_label = "Dùng bộ demo trong chat" if is_demo else "Dùng dữ liệu shop trong chat"
         st.button(action_label, icon=":material/play_circle:", type="primary", on_click=activate_library_data, args=(scope,))
-        render_management_dashboard(saved_rows)
+        render_management_dashboard(saved_rows, scope)
         st.space("small")
 
     st.markdown("#### Chỉnh sửa bảng dữ liệu")

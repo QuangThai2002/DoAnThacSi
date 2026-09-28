@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import random
 import sqlite3
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -27,30 +28,88 @@ DEFAULT_LIBRARY_PATH = PROJECT_ROOT / "data" / "local_store" / "shop_data_librar
 REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
 
 
-# A compact, independent dataset that makes every chart and alert visible on
-# first use.  It is not taken from a Seller Centre account.
-DEMO_ROWS: dict[str, list[dict[str, str]]] = {
-    "orders.csv": [
-        {"order_id": "DEMO-001", "order_date": "2026-08-03", "status": "completed", "sku": "DEMO-001", "quantity": "2", "gross_merchandise_value_vnd": "600000", "seller_discount_vnd": "20000", "platform_discount_vnd": "0", "estimated_transaction_fee_vnd": "30000", "estimated_service_fee_vnd": "15000"},
-        {"order_id": "DEMO-002", "order_date": "2026-08-12", "status": "completed", "sku": "DEMO-002", "quantity": "1", "gross_merchandise_value_vnd": "420000", "seller_discount_vnd": "0", "platform_discount_vnd": "0", "estimated_transaction_fee_vnd": "21000", "estimated_service_fee_vnd": "10500"},
-        {"order_id": "DEMO-003", "order_date": "2026-08-19", "status": "completed", "sku": "DEMO-003", "quantity": "3", "gross_merchandise_value_vnd": "540000", "seller_discount_vnd": "25000", "platform_discount_vnd": "0", "estimated_transaction_fee_vnd": "27000", "estimated_service_fee_vnd": "13500"},
-        {"order_id": "DEMO-004", "order_date": "2026-09-05", "status": "completed", "sku": "DEMO-001", "quantity": "1", "gross_merchandise_value_vnd": "300000", "seller_discount_vnd": "10000", "platform_discount_vnd": "0", "estimated_transaction_fee_vnd": "15000", "estimated_service_fee_vnd": "7500"},
-    ],
-    "products.csv": [
-        {"sku": "DEMO-001", "product_name": "Tai nghe Bluetooth Lite", "category": "Âm thanh", "cost_per_unit_vnd": "185000", "list_price_vnd": "320000"},
-        {"sku": "DEMO-002", "product_name": "Đèn bàn LED cảm ứng", "category": "Gia dụng", "cost_per_unit_vnd": "250000", "list_price_vnd": "430000"},
-        {"sku": "DEMO-003", "product_name": "Chuột không dây Mini", "category": "Phụ kiện", "cost_per_unit_vnd": "95000", "list_price_vnd": "185000"},
-    ],
-    "inventory.csv": [
-        {"sku": "DEMO-001", "on_hand": "5", "reserved": "2", "reorder_point": "4", "last_updated": "2026-09-10"},
-        {"sku": "DEMO-002", "on_hand": "12", "reserved": "1", "reorder_point": "4", "last_updated": "2026-09-10"},
-        {"sku": "DEMO-003", "on_hand": "4", "reserved": "1", "reorder_point": "5", "last_updated": "2026-09-10"},
-    ],
-    "ads.csv": [
-        {"campaign_id": "ADS-001", "month": "2026-08", "campaign_name": "Tìm kiếm tai nghe", "spend_vnd": "80000", "attributed_revenue_vnd": "450000", "orders": "2"},
-        {"campaign_id": "ADS-002", "month": "2026-08", "campaign_name": "Khám phá phụ kiện", "spend_vnd": "50000", "attributed_revenue_vnd": "220000", "orders": "1"},
-    ],
-}
+DEMO_PRODUCTS = (
+    ("Tai nghe Bluetooth Lite", "Âm thanh", 185000, 320000),
+    ("Loa mini di động", "Âm thanh", 220000, 390000),
+    ("Webcam Full HD", "Thiết bị số", 310000, 540000),
+    ("Chuột không dây Mini", "Phụ kiện máy tính", 95000, 185000),
+    ("Bàn phím cơ 87 phím", "Phụ kiện máy tính", 410000, 690000),
+    ("Đèn bàn LED cảm ứng", "Gia dụng", 250000, 430000),
+    ("Bình giữ nhiệt 750ml", "Gia dụng", 115000, 215000),
+    ("Máy xay cầm tay", "Gia dụng", 290000, 480000),
+    ("Pin sạc dự phòng 10000mAh", "Thiết bị số", 235000, 420000),
+    ("Cáp sạc nhanh Type-C", "Phụ kiện điện thoại", 35000, 89000),
+    ("Giá đỡ điện thoại", "Phụ kiện điện thoại", 55000, 125000),
+    ("Áo thun cotton basic", "Thời trang", 78000, 169000),
+    ("Quần jogger thể thao", "Thời trang", 135000, 289000),
+    ("Túi tote canvas", "Thời trang", 65000, 149000),
+    ("Sổ tay bìa da", "Văn phòng phẩm", 48000, 119000),
+    ("Bút gel 12 màu", "Văn phòng phẩm", 42000, 105000),
+    ("Nước rửa tay 500ml", "Chăm sóc cá nhân", 52000, 115000),
+    ("Kem chống nắng SPF50", "Chăm sóc cá nhân", 135000, 265000),
+    ("Thức ăn cho mèo 1.5kg", "Thú cưng", 145000, 255000),
+    ("Cát vệ sinh cho mèo", "Thú cưng", 92000, 179000),
+)
+DEMO_PERIODS = tuple(
+    f"{year:04d}-{month:02d}"
+    for year, month in ((2025, month) for month in range(10, 13))
+) + tuple(f"2026-{month:02d}" for month in range(1, 10))
+
+
+def build_demo_rows(seed: int = 20260928) -> dict[str, list[dict[str, str]]]:
+    """Build reproducible simulated data: 20 products across 12 months.
+
+    The seed makes the pseudo-random values repeatable for a defence demo and
+    tests, while still looking like varied day-to-day shop activity.
+    """
+    rng = random.Random(seed)
+    products: list[dict[str, str]] = []
+    orders: list[dict[str, str]] = []
+    inventory: list[dict[str, str]] = []
+    ads: list[dict[str, str]] = []
+    for index, (product_name, category, cost, list_price) in enumerate(DEMO_PRODUCTS, start=1):
+        sku = f"DEMO-{index:03d}"
+        products.append({
+            "sku": sku, "product_name": product_name, "category": category,
+            "cost_per_unit_vnd": str(cost), "list_price_vnd": str(list_price),
+        })
+        reorder_point = rng.randint(5, 16)
+        available = reorder_point + rng.randint(-4, 24)
+        reserved = rng.randint(0, min(5, max(available, 0)))
+        inventory.append({
+            "sku": sku, "on_hand": str(max(available + reserved, 0)), "reserved": str(reserved),
+            "reorder_point": str(reorder_point), "last_updated": "2026-09-28",
+        })
+
+        for period_index, period in enumerate(DEMO_PERIODS, start=1):
+            quantity = rng.randint(1, 5)
+            sold_price = int(list_price * rng.uniform(0.88, 1.0))
+            gmv = quantity * sold_price
+            seller_discount = int(gmv * rng.choice((0, 0, 0.03, 0.05, 0.08)))
+            status = "completed" if rng.random() > 0.08 else "cancelled"
+            orders.append({
+                "order_id": f"DEMO-{period.replace('-', '')}-{index:03d}",
+                "order_date": f"{period}-{rng.randint(1, 27):02d}", "status": status, "sku": sku,
+                "quantity": str(quantity), "gross_merchandise_value_vnd": str(gmv),
+                "seller_discount_vnd": str(seller_discount), "platform_discount_vnd": str(int(gmv * 0.02)),
+                "estimated_transaction_fee_vnd": str(int(gmv * 0.05)),
+                "estimated_service_fee_vnd": str(int(gmv * 0.025)),
+            })
+
+    campaign_categories = ("Âm thanh", "Gia dụng", "Thời trang")
+    for period in DEMO_PERIODS:
+        for campaign_index, category in enumerate(campaign_categories, start=1):
+            spend = rng.randrange(80000, 260000, 5000)
+            ads.append({
+                "campaign_id": f"ADS-{period.replace('-', '')}-{campaign_index}", "month": period,
+                "campaign_name": f"Quảng cáo {category}", "spend_vnd": str(spend),
+                "attributed_revenue_vnd": str(int(spend * rng.uniform(2.2, 5.5))),
+                "orders": str(rng.randint(4, 18)),
+            })
+    return {"orders.csv": orders, "products.csv": products, "inventory.csv": inventory, "ads.csv": ads}
+
+
+DEMO_ROWS = build_demo_rows()
 
 
 def empty_rows() -> dict[str, list[dict[str, str]]]:
