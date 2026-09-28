@@ -514,7 +514,7 @@ def market_advisor_response(
     if any(token in text for token in ("đánh giá", "review", "sao thấp", "uy tín", "phản hồi")):
         review_gap = max(0, average_reviews - int(own_shop["review_count"]))
         return (
-            f"Trong kịch bản này, điểm đánh giá của shop bạn là **{float(own_shop['rating']):.2f}/5**, "
+            f"Theo dữ liệu thị trường đang xem, điểm đánh giá của shop bạn là **{float(own_shop['rating']):.2f}/5**, "
             f"thấp hơn trung bình nhóm **{rating_gap:.2f} điểm** và ít hơn khoảng **{review_gap:,.0f} review**. "
             "Vì vậy, đây là tín hiệu rằng shop cần tăng độ tin cậy, không phải kết luận về chất lượng thật.\n\n"
             "**Nên làm trước:** chọn 1 sản phẩm bán tốt, bổ sung ảnh/mô tả dễ hiểu, kiểm tra đóng gói và chủ động xin đánh giá sau khi giao thành công. "
@@ -536,7 +536,7 @@ def market_advisor_response(
             f"{float(strongest_product['product_score']):.1f}/100, lượng bán mô phỏng "
             f"{int(strongest_product['units_sold_12m']):,} trong 12 tháng.\n\n"
             "**Hướng thử trước:** giữ sẵn tồn kho cho sản phẩm này, kiểm tra ảnh/mô tả và thử ghép nó với một sản phẩm bổ trợ. "
-            "Đây là gợi ý từ kịch bản demo, không phải dự báo doanh số thật."
+            "Đây là gợi ý từ dữ liệu demo, không phải dự báo doanh số thật."
         )
     if any(token in text for token in ("doanh thu", "gmv", "yếu", "mạnh", "cạnh tranh", "shop")):
         gmv_gap = float(leader["gmv_12m_vnd"]) - float(own_shop["gmv_12m_vnd"])
@@ -548,7 +548,7 @@ def market_advisor_response(
         )
     if any(token in text for token in ("tóm tắt", "tổng quan", "toàn bộ")):
         return (
-            f"**Tóm tắt {category}:** shop bạn có {int(own_shop['listing_count'])} sản phẩm, "
+            f"**Bản đồ hành động cho ngành {category}:** shop bạn có {int(own_shop['listing_count'])} sản phẩm, "
             f"giá trung bình {currency(float(own_shop['average_price_vnd']))}, "
             f"GMV 12 tháng {currency(float(own_shop['gmv_12m_vnd']))} và điểm shop {float(own_shop['shop_score']):.1f}/100.\n\n"
             f"Ưu tiên hiện tại là **{strongest_product['product_name']}**; sau đó cải thiện chất lượng trang sản phẩm và đánh giá trước khi tăng quảng cáo."
@@ -586,9 +586,9 @@ def market_scene_price_summary(marketplace: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@st.dialog("Trợ lý định hướng shop", width="large")
+@st.dialog("Chiến lược gia AI", width="large")
 def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> None:
-    st.caption("Hỏi nhanh về kịch bản thị trường đang xem. Câu trả lời dựa trên bộ dữ liệu mô phỏng hiện tại.")
+    st.caption("Hỏi về giá, sản phẩm hoặc hướng phát triển. Chiến lược gia AI sẽ dùng dữ liệu thị trường đang xem để đề xuất bước nên làm tiếp theo.")
     messages: list[dict[str, str]] = st.session_state.seller_market_advisor_messages
     if not messages:
         st.info("Gợi ý: hỏi về cách đặt giá, sản phẩm nên ưu tiên hoặc điểm cần cải thiện của shop.", icon=":material/auto_awesome:")
@@ -773,7 +773,7 @@ def render_market_intelligence() -> None:
     st.button(
         "AI",
         key="market_advisor_toggle",
-        help="Mở Trợ lý định hướng shop",
+        help="Mở Chiến lược gia AI",
         on_click=open_market_advisor,
     )
     if st.session_state.seller_market_advisor_open:
