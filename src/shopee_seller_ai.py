@@ -593,7 +593,13 @@ def render_market_intelligence() -> None:
             y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
             size=alt.Size("units_sold_12m:Q", title="Lượng bán", scale=alt.Scale(range=[130, 1200])),
             color=alt.Color("shop_type:N", title="Loại shop"),
-            tooltip=["shop_name:N", "shop_type:N", alt.Tooltip("average_price_vnd:Q", format=",d"), alt.Tooltip("gmv_12m_vnd:Q", format=",d"), "shop_score:Q"],
+            tooltip=[
+                alt.Tooltip("shop_name:N", title="Tên shop"),
+                alt.Tooltip("shop_type:N", title="Quy mô shop"),
+                alt.Tooltip("average_price_vnd:Q", title="Giá bán trung bình", format=",d"),
+                alt.Tooltip("gmv_12m_vnd:Q", title="Tổng doanh thu 12 tháng", format=",d"),
+                alt.Tooltip("shop_score:Q", title="Điểm đánh giá shop", format=".1f"),
+            ],
         ).properties(height=360)
         st.altair_chart(shop_chart, width="stretch")
         table = shops.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Review", "shop_score": "Điểm shop"})
@@ -609,7 +615,13 @@ def render_market_intelligence() -> None:
             y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
             size=alt.Size("units_sold_12m:Q", title="Lượng bán", scale=alt.Scale(range=[45, 700])),
             color=alt.Color("shop_type:N", title="Loại shop"),
-            tooltip=["shop_name:N", "product_name:N", alt.Tooltip("listed_price_vnd:Q", format=",d"), alt.Tooltip("gmv_12m_vnd:Q", format=",d"), "product_score:Q"],
+            tooltip=[
+                alt.Tooltip("shop_name:N", title="Tên shop"),
+                alt.Tooltip("product_name:N", title="Tên sản phẩm"),
+                alt.Tooltip("listed_price_vnd:Q", title="Giá niêm yết", format=",d"),
+                alt.Tooltip("gmv_12m_vnd:Q", title="Tổng doanh thu 12 tháng", format=",d"),
+                alt.Tooltip("product_score:Q", title="Điểm đánh giá sản phẩm", format=".1f"),
+            ],
         ).properties(height=360)
         st.altair_chart(product_chart, width="stretch")
         display = shown.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Review", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
