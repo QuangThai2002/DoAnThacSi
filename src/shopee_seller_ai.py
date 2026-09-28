@@ -36,7 +36,7 @@ st.markdown(
         background: #fffaf8 !important; color: #2b2b2b !important;
       }
       [data-testid="stHeader"] { background: rgba(255, 255, 255, .94) !important; border-bottom: 1px solid #f5e8e3; }
-      [data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid #f1e7e2; min-width: 272px; }
+      [data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid #f1e7e2; }
       [data-testid="stSidebar"] * { color: #333333 !important; }
       [data-testid="stAppViewContainer"] p,
       [data-testid="stAppViewContainer"] li,
@@ -45,7 +45,7 @@ st.markdown(
       [data-testid="stAppViewContainer"] h2,
       [data-testid="stAppViewContainer"] h3 { color: #252525 !important; }
       .block-container, [data-testid="stMainBlockContainer"] {
-        max-width: 1100px; padding-top: 2.25rem !important; padding-bottom: 7rem;
+        max-width: 1440px; padding-top: 2.25rem !important; padding-bottom: 7rem;
       }
 
       /* Clear, seller-facing navigation */
