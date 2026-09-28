@@ -486,8 +486,10 @@ def currency(value: float) -> str:
     return f"{value:,.0f} đ"
 
 
-def market_advisor_response(question: str, category: str, marketplace: dict[str, Any]) -> str:
-    """Give an evidence-led, plain-language recommendation for this demo scene."""
+def market_advisor_response(
+    question: str, category: str, marketplace: dict[str, Any], turn_index: int = 0
+) -> str:
+    """Give a focused, non-repetitive recommendation for this demo scene."""
     shops = list(marketplace["shops"])
     listings = list(marketplace["listings"])
     own_shop = next(item for item in shops if item["shop_type"] == "Shop của bạn")
@@ -501,14 +503,27 @@ def market_advisor_response(question: str, category: str, marketplace: dict[str,
     price_direction = (
         "cao hơn" if price_gap > 0 else "thấp hơn" if price_gap < 0 else "gần bằng"
     )
-    base = (
-        f"**Tóm tắt kịch bản {category}:** Shop của bạn có {int(own_shop['listing_count'])} sản phẩm, "
-        f"giá bán trung bình {currency(float(own_shop['average_price_vnd']))}, "
-        f"GMV 12 tháng {currency(float(own_shop['gmv_12m_vnd']))} và điểm shop {float(own_shop['shop_score']):.1f}/100."
-    )
+    average_rating = sum(float(item["rating"]) for item in comparable_shops) / len(comparable_shops)
+    average_reviews = sum(int(item["review_count"]) for item in comparable_shops) / len(comparable_shops)
+    rating_gap = average_rating - float(own_shop["rating"])
+    alternative_actions = [
+        "**Cách khác 1 — tăng niềm tin trước khi giảm giá:** ưu tiên ảnh thật, mô tả rõ công dụng/kích thước và phản hồi chat nhanh. Mục tiêu là tăng đánh giá tích cực, không phải chạy theo giá rẻ.",
+        "**Cách khác 2 — tạo gói dễ mua:** ghép sản phẩm mạnh nhất với một món bổ trợ hoặc tặng ưu đãi nhỏ cho đơn thứ hai. Sau một kỳ, so GMV và lợi nhuận với phương án giảm giá trực tiếp.",
+        "**Cách khác 3 — chọn một sản phẩm mũi nhọn:** chỉ quảng bá 1–2 sản phẩm có điểm cao, tối ưu trang sản phẩm của chúng trước rồi mới mở rộng sang các sản phẩm khác.",
+    ]
+    if any(token in text for token in ("đánh giá", "review", "sao thấp", "uy tín", "phản hồi")):
+        review_gap = max(0, average_reviews - int(own_shop["review_count"]))
+        return (
+            f"Trong kịch bản này, điểm đánh giá của shop bạn là **{float(own_shop['rating']):.2f}/5**, "
+            f"thấp hơn trung bình nhóm **{rating_gap:.2f} điểm** và ít hơn khoảng **{review_gap:,.0f} review**. "
+            "Vì vậy, đây là tín hiệu rằng shop cần tăng độ tin cậy, không phải kết luận về chất lượng thật.\n\n"
+            "**Nên làm trước:** chọn 1 sản phẩm bán tốt, bổ sung ảnh/mô tả dễ hiểu, kiểm tra đóng gói và chủ động xin đánh giá sau khi giao thành công. "
+            "Sau 2–4 tuần, đo lại tỷ lệ đánh giá tích cực và số đơn quay lại."
+        )
+    if any(token in text for token in ("cách khác", "phương án khác", "còn", "nữa", "khác không")):
+        return alternative_actions[turn_index % len(alternative_actions)]
     if any(token in text for token in ("giá", "định giá", "rẻ", "cao", "khuyến mãi")):
         return (
-            f"{base}\n\n"
             f"Giá trung bình của shop bạn đang **{price_direction} {currency(abs(price_gap))}** so với nhóm shop tương tự. "
             f"Shop có GMV cao nhất trong nhóm là **{leader['shop_name']}** với giá trung bình "
             f"{currency(float(leader['average_price_vnd']))}.\n\n"
@@ -517,7 +532,6 @@ def market_advisor_response(question: str, category: str, marketplace: dict[str,
         )
     if any(token in text for token in ("sản phẩm", "mặt hàng", "bán gì", "ưu tiên", "tồn kho")):
         return (
-            f"{base}\n\n"
             f"Sản phẩm nên ưu tiên kiểm chứng trước là **{strongest_product['product_name']}**: điểm sản phẩm "
             f"{float(strongest_product['product_score']):.1f}/100, lượng bán mô phỏng "
             f"{int(strongest_product['units_sold_12m']):,} trong 12 tháng.\n\n"
@@ -527,17 +541,21 @@ def market_advisor_response(question: str, category: str, marketplace: dict[str,
     if any(token in text for token in ("doanh thu", "gmv", "yếu", "mạnh", "cạnh tranh", "shop")):
         gmv_gap = float(leader["gmv_12m_vnd"]) - float(own_shop["gmv_12m_vnd"])
         return (
-            f"{base}\n\n"
             f"Mốc để học hỏi là **{leader['shop_name']}**: GMV cao hơn shop bạn {currency(gmv_gap)}, "
             f"điểm shop {float(leader['shop_score']):.1f}/100 và {int(leader['review_count']):,} lượt đánh giá.\n\n"
             "**Hướng đi:** ưu tiên tăng chất lượng trang sản phẩm và trải nghiệm sau mua để có đánh giá tốt, rồi mới mở rộng quảng cáo. "
             "So sánh từng sản phẩm ở tab “Sản phẩm cùng thị trường” để chọn nơi cần cải thiện."
         )
+    if any(token in text for token in ("tóm tắt", "tổng quan", "toàn bộ")):
+        return (
+            f"**Tóm tắt {category}:** shop bạn có {int(own_shop['listing_count'])} sản phẩm, "
+            f"giá trung bình {currency(float(own_shop['average_price_vnd']))}, "
+            f"GMV 12 tháng {currency(float(own_shop['gmv_12m_vnd']))} và điểm shop {float(own_shop['shop_score']):.1f}/100.\n\n"
+            f"Ưu tiên hiện tại là **{strongest_product['product_name']}**; sau đó cải thiện chất lượng trang sản phẩm và đánh giá trước khi tăng quảng cáo."
+        )
     return (
-        f"{base}\n\n"
-        f"Trong nhóm đang xem có {int(marketplace['reference_count'])} shop tương tự. Sản phẩm có tín hiệu tốt nhất của shop bạn là "
-        f"**{strongest_product['product_name']}**.\n\n"
-        "Bạn có thể hỏi tiếp: “Tôi nên điều chỉnh giá thế nào?”, “Sản phẩm nào nên ưu tiên?” hoặc “Shop tôi đang yếu ở đâu?”."
+        f"Bạn đang xem **{category}** với 7 shop tương tự. Mình có thể phân tích riêng giá, đánh giá, doanh thu "
+        "hoặc sản phẩm nên ưu tiên — hãy hỏi một phần cụ thể để nhận câu trả lời ngắn, không lặp lại toàn bộ báo cáo."
     )
 
 
@@ -585,7 +603,7 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
                 if st.button(suggestion, key=f"market_advisor_suggestion_{suggestions.index(suggestion)}", width="stretch"):
                     messages.extend([
                         {"role": "user", "content": suggestion},
-                        {"role": "assistant", "content": market_advisor_response(suggestion, category, marketplace)},
+                        {"role": "assistant", "content": market_advisor_response(suggestion, category, marketplace, len(messages) // 2)},
                     ])
                     st.rerun()
     for message in messages:
@@ -595,7 +613,7 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
     if question:
         messages.extend([
             {"role": "user", "content": question},
-            {"role": "assistant", "content": market_advisor_response(question, category, marketplace)},
+            {"role": "assistant", "content": market_advisor_response(question, category, marketplace, len(messages) // 2)},
         ])
         st.rerun()
     if st.button("Đóng trợ lý", key="close_market_advisor", icon=":material/close:"):

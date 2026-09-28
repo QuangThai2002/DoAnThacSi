@@ -79,6 +79,18 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertTrue(any("Giá trung bình" in markdown.value for markdown in app.markdown))
         self.assertEqual(len(app.error), 0)
 
+    def test_market_adviser_answers_follow_up_without_repeating_a_summary(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="open_market_intelligence").click().run()
+        app.button(key="market_advisor_toggle").click().run()
+        app.chat_input[0].set_value("Tại sao shop tôi có đánh giá thấp?").run()
+        app.chat_input[0].set_value("Còn cách khác nữa không?").run()
+
+        answers = [message.markdown[0].value for message in app.chat_message if message.name == "assistant"]
+        self.assertTrue(any("độ tin cậy" in answer for answer in answers))
+        self.assertTrue(any("Cách khác" in answer for answer in answers))
+        self.assertFalse(any("Tóm tắt kịch bản" in answer for answer in answers))
+
     def test_learner_opens_the_demo_shelf(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="new_chat_main").click().run()
