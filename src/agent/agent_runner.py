@@ -92,7 +92,6 @@ class AgentRunner:
             advertising=advertising,
             ranking=ranking,
             citations=citations,
-            data_scope=self.shop_data_tool.data_scope,
         )
         data_scope = self.shop_data_tool.data_scope
         data_limitation = (
@@ -109,6 +108,9 @@ class AgentRunner:
             "plan": asdict(plan),
             "answer": answer,
             "citations": citations,
+            "data_source": (
+                data_scope if "shop_data" in plan.tools else None
+            ),
             "trace": trace,
             "agent_latency_seconds": round(perf_counter() - started, 6),
             "limitations": [
@@ -149,29 +151,13 @@ class AgentRunner:
         advertising: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
-        data_scope: str,
     ) -> str:
         if plan.intent == "out_of_scope":
             return (
                 "Câu hỏi này nằm ngoài phạm vi Agent hiện tại. Agent chỉ hỗ trợ "
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
-        has_operational_result = any((sales, inventory, advertising, ranking))
         sections: list[str] = []
-        if has_operational_result:
-            sections.append(
-                "Kết quả vận hành dưới đây dùng dữ liệu CSV bạn tải lên trong phiên "
-                "hiện tại; không phải dữ liệu lấy trực tiếp từ tài khoản Shopee."
-                if data_scope == "uploaded_csv"
-                else (
-                    "Kết quả vận hành dưới đây dùng dữ liệu mô phỏng của luận văn; "
-                    "không phải dữ liệu tài khoản Shopee thật."
-                )
-            )
-        if citations and not has_operational_result:
-            sections.append(
-                "Câu trả lời dưới đây dựa trên tài liệu chính sách Shopee đã truy hồi."
-            )
         if sales:
             sections.append(
                 "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
@@ -223,34 +209,20 @@ class AgentRunner:
             else:
                 sections.append("Không có cảnh báo tồn kho theo ngưỡng đã cấu hình.")
         if citations:
-            policy_answer = AgentRunner._policy_answer(question, citations)
+            policy_answer = AgentRunner._policy_answer(question)
             if policy_answer:
                 sections.append(policy_answer)
-            labels = "; ".join(
-                f"{citation['title']}{', trang ' + citation['page'] if citation['page'] else ''}"
-                for citation in citations[:2]
-            )
-            sections.append(
-                "Để đối chiếu chính sách, Agent đã truy hồi các nguồn: " + labels + "."
-            )
-            evidence_text = " ".join(citation["excerpt"].lower() for citation in citations)
-            policy_terms: list[str] = []
-            if "phí cố định" in evidence_text:
-                policy_terms.append("Phí Cố Định")
-            if "phí xử lý giao dịch" in evidence_text:
-                policy_terms.append("Phí Xử lý Giao Dịch")
-            if policy_terms:
+            elif not sections:
                 sections.append(
-                    "Các nhóm phí xuất hiện trực tiếp trong evidence truy hồi: "
-                    + ", ".join(policy_terms)
-                    + ". Cần đối chiếu tỷ lệ/điều kiện theo đúng ngành hàng và tài liệu nguồn trước khi áp dụng."
+                    "Tôi đã tìm được tài liệu chính sách liên quan. Xem nguồn bên dưới "
+                    "để đối chiếu chi tiết."
                 )
         elif "rag" in plan.tools:
             sections.append("Agent chưa truy hồi được nguồn chính sách; không đưa ra kết luận chính sách.")
         return "\n\n".join(sections)
 
     @staticmethod
-    def _policy_answer(question: str, citations: list[dict[str, str]]) -> str:
+    def _policy_answer(question: str) -> str:
         """Give a short, evidence-grounded answer for common policy questions."""
         normalized_question = normalize(question)
         if "phi co dinh" in normalized_question:

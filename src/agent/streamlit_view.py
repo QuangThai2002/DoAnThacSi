@@ -186,16 +186,21 @@ def render_operational_data_controls() -> bool:
 
 def _render_assistant_message(message: dict[str, Any]) -> None:
     st.markdown(str(message["answer"]))
+    data_source = message.get("data_source")
+    if data_source == "uploaded_csv":
+        st.caption(":material/table_chart: Dữ liệu: CSV tải lên trong phiên này.")
+    elif data_source == "mock_shop_data":
+        st.caption(":material/database: Dữ liệu: mô phỏng cho mục đích demo.")
     citations = message.get("citations", [])
     if citations:
         st.caption(
-            "Nguồn truy hồi: "
+            ":material/article: Nguồn: "
             + "; ".join(
                 f"{citation['title']}{', trang ' + citation['page'] if citation['page'] else ''}"
                 for citation in citations
             )
         )
-    with st.expander("Plan và tool trace"):
+    with st.expander("Kiểm chứng và chi tiết"):
         st.json(
             {
                 "plan": message.get("plan", {}),

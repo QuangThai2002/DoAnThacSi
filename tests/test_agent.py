@@ -96,9 +96,9 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertEqual(ranking["cost_ranking"][0]["name"], "discount")
         self.assertEqual(ranking["cost_ranking"][0]["share_of_ranked_costs"], 0.6)
 
-    def test_runner_keeps_mock_data_disclaimer(self) -> None:
+    def test_runner_marks_mock_data_source(self) -> None:
         result = AgentRunner().run("Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?")
-        self.assertIn("dữ liệu mô phỏng", result["answer"])
+        self.assertEqual(result["data_source"], "mock_shop_data")
         self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
 
     def test_runner_labels_uploaded_csv_data(self) -> None:
@@ -112,7 +112,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
 
         result = runner.run("Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?")
 
-        self.assertIn("CSV bạn tải lên", result["answer"])
+        self.assertEqual(result["data_source"], "uploaded_csv")
         self.assertIn("uploaded in the current session", result["limitations"][0])
 
     def test_runner_calculates_largest_cost_from_shop_data(self) -> None:
