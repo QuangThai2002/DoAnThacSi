@@ -53,8 +53,10 @@ class MarketIntelligenceTests(unittest.TestCase):
             self.assertGreater(float(item["estimated_revenue_vnd"]), 0)
 
     def test_simulated_marketplace_mixes_seller_and_similar_shops(self) -> None:
-        market = simulated_marketplace("fresh-fruit")
-        self.assertEqual(len(market["shops"]), 10)
+        market = simulated_marketplace("fresh-fruit", scenario_seed=42)
+        self.assertGreaterEqual(len(market["shops"]), 6)
+        self.assertLessEqual(len(market["shops"]), 9)
+        self.assertEqual(len(market["shops"]) - 1, market["reference_count"])
         self.assertTrue(any(item["shop_type"] == "Shop của bạn" for item in market["shops"]))
         self.assertGreaterEqual(len(market["listings"]), 50)
         self.assertTrue(all(float(item["product_score"]) > 0 for item in market["listings"]))

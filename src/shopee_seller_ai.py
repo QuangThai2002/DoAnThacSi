@@ -6,6 +6,7 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 import sys
 from typing import Any
@@ -184,6 +185,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_data_origin", None)
     st.session_state.setdefault("seller_library_scope", "owner")
     st.session_state.setdefault("seller_demo_selected_ids", [])
+    st.session_state.setdefault("seller_market_scenario_seed", random.SystemRandom().randint(1, 999_999_999))
 
 
 def active_runner() -> AgentRunner:
@@ -264,6 +266,11 @@ def open_data_library() -> None:
 def open_market_intelligence() -> None:
     """Open the transparent market-demo workspace."""
     st.session_state.seller_view = "market"
+
+
+def refresh_market_scenario() -> None:
+    """Create another reproducible-in-session seller and competitor scenario."""
+    st.session_state.seller_market_scenario_seed = random.SystemRandom().randint(1, 999_999_999)
 
 
 def open_chat_view() -> None:
@@ -511,6 +518,12 @@ def render_market_intelligence() -> None:
         key="seller_market_category_id",
     )
     selected = next(item for item in catalog if item["id"] == category_id)
+    st.button(
+        "Tạo lại shop và thị trường demo",
+        key="refresh_market_scenario",
+        icon=":material/autorenew:",
+        on_click=refresh_market_scenario,
+    )
     own_prices, own_note = market_own_prices(str(selected["category"]))
     summary = price_comparison(str(category_id), own_prices)
 
@@ -529,7 +542,9 @@ def render_market_intelligence() -> None:
 
     price_tab, shop_tab, product_tab = st.tabs(["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"])
     references = list(summary["references"])
-    marketplace = simulated_marketplace(str(category_id))
+    marketplace = simulated_marketplace(
+        str(category_id), int(st.session_state.seller_market_scenario_seed)
+    )
     with price_tab:
         st.subheader(str(summary["position"]))
         st.write(str(summary["interpretation"]))
@@ -587,7 +602,7 @@ def render_market_intelligence() -> None:
 
     with shop_tab:
         shops = pd.DataFrame(marketplace["shops"])
-        st.caption("So sánh 1 shop của bạn với 9 shop nhỏ, vừa, lớn và dẫn đầu trong cùng ngành hàng. Đây là thị trường mô phỏng để thử hệ thống.")
+        st.caption(f"So sánh shop của bạn với {marketplace['reference_count']} shop tương tự trong cùng ngành hàng. Mỗi lần tạo lại sẽ có một kịch bản demo mới.")
         shop_chart = alt.Chart(shops).mark_circle(opacity=0.85).encode(
             x=alt.X("average_price_vnd:Q", title="Giá bán trung bình", axis=alt.Axis(format=",d")),
             y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
@@ -607,7 +622,7 @@ def render_market_intelligence() -> None:
 
     with product_tab:
         listings = pd.DataFrame(marketplace["listings"])
-        st.caption("Bảng trộn sản phẩm của Shop của bạn · Demo và 9 shop tương tự. Lọc theo shop để xem đối thủ nào đang bán cùng mặt hàng.")
+        st.caption(f"Bảng trộn sản phẩm của Shop của bạn · Demo và {marketplace['reference_count']} shop tương tự. Lọc theo shop để xem các mặt hàng cạnh tranh.")
         selected_shops = st.multiselect("Hiển thị shop", listings["shop_name"].unique().tolist(), default=listings["shop_name"].unique().tolist(), key="market_listing_shops")
         shown = listings[listings["shop_name"].isin(selected_shops)].copy()
         product_chart = alt.Chart(shown).mark_circle(opacity=0.78).encode(

@@ -228,32 +228,30 @@ def product_opportunities() -> list[dict[str, object]]:
     return results
 
 
-def simulated_marketplace(category_id: str) -> dict[str, list[dict[str, object]]]:
+def simulated_marketplace(category_id: str, scenario_seed: int = 0) -> dict[str, list[dict[str, object]]]:
     """Create a consistent mixed catalogue for one realistic demo market.
 
-    It contains one clearly labelled demo shop representing the seller and
-    nine shops of different sizes.  Products are intentionally interleaved so
+    It contains one clearly labelled randomly generated seller demo and from
+    five to eight shops of different sizes. Products are intentionally interleaved so
     the UI can compare the same market rather than show isolated examples.
     """
     _id, _lead, category, _cost, anchor_price, _aliases = _category_seed(category_id)
     catalogue = next(item for item in market_categories() if item["id"] == category_id)
     products = [str(name) for name in catalogue["product_examples"]]
-    profiles = (
-        ("Shop của bạn · Demo", "Shop của bạn", 0.90),
-        ("Shop khởi đầu A", "Shop nhỏ", 0.72),
-        ("Shop khởi đầu B", "Shop nhỏ", 0.79),
-        ("Shop cùng phân khúc A", "Shop vừa", 0.88),
-        ("Shop cùng phân khúc B", "Shop vừa", 0.98),
-        ("Shop cùng phân khúc C", "Shop vừa", 1.07),
-        ("Shop phát triển A", "Shop lớn", 1.12),
-        ("Shop phát triển B", "Shop lớn", 1.19),
-        ("Shop dẫn đầu A", "Shop dẫn đầu", 1.29),
-        ("Shop dẫn đầu B", "Shop dẫn đầu", 1.36),
-    )
+    market_rng = random.Random(f"market-scenario:{category_id}:{scenario_seed}")
+    reference_count = market_rng.randint(5, 8)
+    size_pool = ["Shop nhỏ", "Shop nhỏ", "Shop vừa", "Shop vừa", "Shop vừa", "Shop lớn", "Shop lớn", "Shop dẫn đầu"]
+    market_rng.shuffle(size_pool)
+    profiles: list[tuple[str, str, float]] = [
+        ("Shop của bạn · Demo", "Shop của bạn", round(market_rng.uniform(0.78, 1.22), 2))
+    ]
+    for index, shop_type in enumerate(size_pool[:reference_count], start=1):
+        label = shop_type.replace("Shop ", "")
+        profiles.append((f"Shop tương tự {index} · {label}", shop_type, round(market_rng.uniform(0.68, 1.38), 2)))
     listings: list[dict[str, object]] = []
     shops: list[dict[str, object]] = []
     for shop_index, (shop_name, shop_type, price_factor) in enumerate(profiles):
-        rng = random.Random(f"marketplace:{category_id}:{shop_index}")
+        rng = random.Random(f"marketplace:{category_id}:{scenario_seed}:{shop_index}")
         listing_count = 5 + ((shop_index * 3 + len(category_id)) % 8)
         shop_units = 0
         shop_gmv = 0
@@ -311,7 +309,7 @@ def simulated_marketplace(category_id: str) -> dict[str, list[dict[str, object]]
         row["product_score"] = round(min(volume, revenue) * 0.50 + (volume + revenue) / 2 * 0.20 + review * 0.30, 1)
     listings.sort(key=lambda row: (str(row["product_name"]), -float(row["product_score"])))
     shops.sort(key=lambda row: float(row["shop_score"]), reverse=True)
-    return {"shops": shops, "listings": listings, "category": category}
+    return {"shops": shops, "listings": listings, "category": category, "reference_count": reference_count}
 
 
 def source_status() -> list[Mapping[str, str]]:
