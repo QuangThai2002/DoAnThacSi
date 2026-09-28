@@ -13,7 +13,10 @@ class SellerFacingUiTests(unittest.TestCase):
     def test_assistant_starts_with_a_clear_empty_state(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
 
-        self.assertEqual([title.value for title in app.title], ["Trợ lý bán hàng AI"])
+        self.assertEqual([title.value for title in app.title], ["Bạn cần hỗ trợ điều gì?"])
+        self.assertIn("Bắt đầu hỏi", [button.label for button in app.button])
+        self.assertIn("Phân tích shop", [button.label for button in app.button])
+        next(button for button in app.button if button.label == "Bắt đầu hỏi").click().run()
         self.assertEqual(len(app.chat_input), 1)
         self.assertEqual(len(app.error), 0)
 

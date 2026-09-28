@@ -57,6 +57,11 @@ st.markdown(
         background: #fff0eb !important; color: #d83f20 !important; font-weight: 650;
       }
       [data-testid="stSidebar"] input[type="radio"] { accent-color: #ee4d2d !important; }
+      [data-testid="stMain"] .stButton > button {
+        background: #ffffff !important; border: 1px solid #f3cdbf !important; color: #c94124 !important;
+        border-radius: 9px !important; font-weight: 650 !important;
+      }
+      [data-testid="stMain"] .stButton > button:hover { background: #fff0ea !important; border-color: #ee4d2d !important; }
 
       /* Keep the composer light even if a global Streamlit theme is dark. */
       [data-testid="stChatInput"], [data-testid="stChatInput"] > div, [data-testid="stChatInput"] form {
@@ -107,10 +112,16 @@ st.markdown(
 
 
 SUGGESTIONS = {
-    "Doanh thu tháng này": "Doanh thu tháng này của shop thế nào?",
-    "Hàng sắp hết": "Sản phẩm nào đang sắp hết hàng?",
-    "Hiệu quả quảng cáo": "Quảng cáo tháng này có hiệu quả không?",
-    "Phí Shopee": "Shopee đang áp dụng những loại phí nào?",
+    "quick": {
+        "Các loại phí Shopee": "Shopee đang áp dụng những loại phí nào?",
+        "Chính sách hoàn tiền": "Người mua có thể yêu cầu hoàn tiền trong trường hợp nào?",
+        "Cách bắt đầu bán": "Người mới cần chuẩn bị gì để bắt đầu bán hàng trên Shopee?",
+    },
+    "shop": {
+        "Doanh thu tháng này": "Doanh thu tháng này của shop thế nào?",
+        "Hàng sắp hết": "Sản phẩm nào đang sắp hết hàng?",
+        "Hiệu quả quảng cáo": "Quảng cáo tháng này có hiệu quả không?",
+    },
 }
 REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
 
@@ -121,6 +132,8 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_uploaded_names", ())
     st.session_state.setdefault("seller_upload_message", None)
     st.session_state.setdefault("seller_upload_error", None)
+    st.session_state.setdefault("seller_chat_mode", None)
+    st.session_state.setdefault("seller_page", "Trò chuyện")
 
 
 def active_runner() -> AgentRunner:
@@ -134,9 +147,11 @@ def is_uploaded() -> bool:
     return st.session_state.get("seller_uploaded_rows") is not None
 
 
-def reset_conversation() -> None:
+def reset_conversation(*, keep_mode: bool = False) -> None:
     st.session_state.seller_messages = []
     st.session_state.pop("seller_suggestion", None)
+    if not keep_mode:
+        st.session_state.seller_chat_mode = None
 
 
 def human_title(question: str) -> str:
@@ -241,7 +256,7 @@ def render_data_upload() -> None:
         if st.button("Thay dữ liệu shop", icon=":material/upload_file:"):
             st.session_state.seller_uploaded_rows = None
             st.session_state.seller_uploaded_names = ()
-            reset_conversation()
+            reset_conversation(keep_mode=True)
             st.rerun()
         return
 
@@ -270,43 +285,61 @@ def render_data_upload() -> None:
         return
     st.session_state.seller_uploaded_rows = tool.uploaded_rows
     st.session_state.seller_uploaded_names = tuple(content)
-    reset_conversation()
+    st.session_state.seller_chat_mode = "shop"
+    reset_conversation(keep_mode=True)
     st.session_state.seller_upload_message = "Đã thêm dữ liệu shop thành công."
+    st.session_state.seller_page = "Trò chuyện"
     st.rerun()
 
 
-def render_overview() -> None:
-    st.subheader("Tổng quan")
-    if not is_uploaded():
-        st.info("Thêm dữ liệu shop để xem tổng quan kinh doanh.", icon=":material/table_chart:")
-        if st.button("Thêm dữ liệu shop", icon=":material/upload_file:"):
-            st.session_state.seller_page = "Dữ liệu shop"
-            st.rerun()
-        return
-    tool = ShopDataTool(uploaded_rows=st.session_state.seller_uploaded_rows)
-    sales = tool.sales_summary()
-    inventory = tool.inventory_alerts()
-    ads = tool.advertising_summary()
-    st.caption("Tóm tắt từ dữ liệu bạn tải lên")
-    metrics = st.columns(4)
-    metrics[0].metric("Doanh thu sau phí ước tính", f"{int(sales['net_revenue_after_estimated_fees_vnd']):,} đ", help="Doanh thu còn lại sau các khoản chi phí mà hệ thống có dữ liệu.")
-    metrics[1].metric("Đơn hoàn tất", sales["completed_order_count"])
-    metrics[2].metric("Chi phí quảng cáo", f"{int(ads['ad_spend_vnd']):,} đ")
-    metrics[3].metric("ROAS", f"{float(ads['roas']):.2f}", help="Doanh thu thu được trên mỗi 1 đồng chi cho quảng cáo.")
-    st.subheader("Điều cần chú ý")
-    if inventory["alert_count"]:
-        st.warning(f"{inventory['alert_count']} sản phẩm có nguy cơ hết hàng.", icon=":material/warning:")
-    if ads["campaign_count"]:
-        st.info(f"Quảng cáo đang có ROAS {float(ads['roas']):.2f}. Hãy đối chiếu với mục tiêu lợi nhuận của shop.", icon=":material/campaign:")
-
-
 def render_assistant() -> None:
-    st.markdown('<div class="seller-eyebrow">SHOPEE SELLER INTELLIGENCE</div>', unsafe_allow_html=True)
-    st.title("Trợ lý bán hàng AI")
-    st.markdown('<div class="seller-subtitle">Hỏi về doanh thu, chi phí, sản phẩm, quảng cáo hoặc chính sách Shopee.</div>', unsafe_allow_html=True)
     if st.session_state.get("seller_upload_message"):
         st.toast(st.session_state.seller_upload_message, icon=":material/check_circle:")
         st.session_state.seller_upload_message = None
+
+    mode = st.session_state.seller_chat_mode
+    if not mode and not st.session_state.seller_messages:
+        st.markdown('<div class="seller-eyebrow">TRỢ LÝ CHO NGƯỜI BÁN SHOPEE</div>', unsafe_allow_html=True)
+        st.title("Bạn cần hỗ trợ điều gì?")
+        st.markdown('<div class="seller-subtitle">Chọn đúng nhu cầu để bắt đầu một cuộc trò chuyện.</div>', unsafe_allow_html=True)
+        st.space("medium")
+        quick_column, shop_column = st.columns(2, gap="medium")
+        with quick_column:
+            with st.container(border=True):
+                st.markdown("#### :material/forum: Hỏi nhanh về Shopee")
+                st.write("Dành cho người đang bán hoặc chuẩn bị mở shop, muốn hiểu chính sách và cách vận hành cơ bản.")
+                st.caption("Ví dụ: phí Shopee, hoàn tiền, điều kiện bán hàng.")
+                if st.button("Bắt đầu hỏi", key="start_quick_chat", type="primary", icon=":material/send:", width="stretch"):
+                    st.session_state.seller_chat_mode = "quick"
+                    st.rerun()
+        with shop_column:
+            with st.container(border=True):
+                st.markdown("#### :material/analytics: Phân tích shop của tôi")
+                st.write("Dành cho người bán đã có dữ liệu và muốn kiểm tra doanh thu, tồn kho, quảng cáo hoặc chi phí.")
+                st.caption("Cần thêm dữ liệu đơn hàng, sản phẩm và tồn kho.")
+                if st.button("Phân tích shop", key="start_shop_chat", icon=":material/analytics:", width="stretch"):
+                    st.session_state.seller_chat_mode = "shop"
+                    st.rerun()
+        return
+
+    mode = mode or "quick"
+    mode_labels = {
+        "quick": ("Hỏi nhanh về Shopee", "Hỏi bằng ngôn ngữ tự nhiên về chính sách hoặc cách bán hàng trên Shopee."),
+        "shop": ("Phân tích shop của tôi", "Hỏi về số liệu vận hành dựa trên dữ liệu shop bạn thêm trong phiên này."),
+    }
+    label, description = mode_labels[mode]
+    st.markdown('<div class="seller-eyebrow">TRỢ LÝ BÁN HÀNG AI</div>', unsafe_allow_html=True)
+    with st.container(horizontal=True, horizontal_alignment="distribute"):
+        st.title(label)
+        if st.button("Đổi nhu cầu", key="change_chat_mode", icon=":material/swap_horiz:"):
+            reset_conversation()
+            st.rerun()
+    st.caption(description)
+    if mode == "shop" and not is_uploaded():
+        st.info("Để AI phân tích đúng số liệu shop, hãy thêm dữ liệu trước khi đặt câu hỏi.", icon=":material/upload_file:")
+        if st.button("Thêm dữ liệu shop", key="go_to_data", type="primary", icon=":material/upload_file:"):
+            st.session_state.seller_page = "Dữ liệu shop"
+            st.rerun()
 
     for message in st.session_state.seller_messages:
         if message["role"] == "user":
@@ -317,12 +350,12 @@ def render_assistant() -> None:
 
     prompt: str | None = None
     if not st.session_state.seller_messages:
-        st.markdown('<div class="empty-state"><h2>Hôm nay bạn muốn kiểm tra điều gì?</h2><p>Đặt câu hỏi bằng ngôn ngữ tự nhiên, AI sẽ hỗ trợ tìm và phân tích thông tin.</p></div>', unsafe_allow_html=True)
-        choice = st.pills("Gợi ý", list(SUGGESTIONS), selection_mode="single", label_visibility="collapsed", key="seller_suggestion")
+        choice = st.pills("Câu hỏi gợi ý", list(SUGGESTIONS[mode]), selection_mode="single", label_visibility="collapsed", key="seller_suggestion")
         if choice:
-            prompt = SUGGESTIONS[str(choice)]
+            prompt = SUGGESTIONS[mode][str(choice)]
 
-    typed_prompt = st.chat_input("Hỏi AI về hoạt động bán hàng hoặc chính sách Shopee...", key="seller_chat_input", submit_mode="disable")
+    placeholder = "Hỏi về chính sách hoặc cách bán hàng trên Shopee..." if mode == "quick" else "Hỏi về doanh thu, tồn kho hoặc quảng cáo của shop..."
+    typed_prompt = st.chat_input(placeholder, key="seller_chat_input", submit_mode="disable")
     if typed_prompt:
         prompt = typed_prompt
     if not prompt:
@@ -364,26 +397,16 @@ with st.sidebar:
     recent_questions = [message["content"] for message in st.session_state.seller_messages if message["role"] == "user"][-3:]
     for question in reversed(recent_questions):
         st.caption(":material/chat: " + human_title(question))
-    st.divider()
     page = st.radio(
         "Điều hướng",
-        ["Trợ lý AI", "Tổng quan", "Dữ liệu shop", "Tài liệu", "Giới thiệu"],
-        index=["Trợ lý AI", "Tổng quan", "Dữ liệu shop", "Tài liệu", "Giới thiệu"].index(st.session_state.get("seller_page", "Trợ lý AI")),
+        ["Trò chuyện", "Dữ liệu shop"],
+        index=["Trò chuyện", "Dữ liệu shop"].index(st.session_state.get("seller_page", "Trò chuyện")),
         label_visibility="collapsed",
     )
     st.session_state.seller_page = page
-    st.divider()
-    st.caption("AI hỗ trợ phân tích và tra cứu. Kết quả không thay thế số liệu hoặc quy định chính thức của Shopee.")
+    st.caption("Dữ liệu shop chỉ được dùng trong phiên hiện tại.")
 
-if page == "Trợ lý AI":
+if page == "Trò chuyện":
     render_assistant()
-elif page == "Tổng quan":
-    render_overview()
-elif page == "Dữ liệu shop":
-    render_data_upload()
-elif page == "Tài liệu":
-    st.title("Tài liệu")
-    st.write("Chính sách Shopee sẽ được AI tự tìm khi câu hỏi có liên quan. Nguồn tham khảo xuất hiện ở cuối mỗi câu trả lời.")
 else:
-    st.title("Giới thiệu hệ thống")
-    st.write("Trợ lý bán hàng AI hỗ trợ người bán tổng hợp dữ liệu shop và tra cứu chính sách Shopee bằng ngôn ngữ tự nhiên.")
+    render_data_upload()
