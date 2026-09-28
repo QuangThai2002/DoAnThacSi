@@ -24,12 +24,13 @@ from agent.agent_runner import AgentRunner
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 from agent.shop_data_library import (
+    DEMO_PERIODS,
     REQUIRED_FILES as LIBRARY_REQUIRED_FILES,
     ShopDataLibrary,
     clean_and_validate_rows,
     demo_catalog,
     empty_rows,
-    random_demo_product_ids,
+    random_demo_category_ids,
 )
 
 
@@ -608,43 +609,51 @@ def search_key(text: str) -> str:
 
 def set_random_demo_selection(count: int) -> None:
     seed = int(st.session_state.seller_demo_random_seed)
-    st.session_state.seller_demo_selected_ids = random_demo_product_ids(count, seed=seed)
+    st.session_state.seller_demo_selected_ids = random_demo_category_ids(count, seed=seed)
     st.session_state.seller_demo_random_seed = seed + 1
 
 
-def add_demo_product_to_selection(product_id: str) -> None:
+def add_demo_category_to_selection(category_id: str) -> None:
     selected = list(st.session_state.seller_demo_selected_ids)
-    if product_id and product_id not in selected:
-        selected.append(product_id)
+    if category_id and category_id not in selected:
+        selected.append(category_id)
     st.session_state.seller_demo_selected_ids = selected
 
 
-def select_all_demo_products() -> None:
+def select_all_demo_categories() -> None:
     st.session_state.seller_demo_selected_ids = [str(item["id"]) for item in demo_catalog()]
 
 
 def matches_demo_search(query_key: str, item: dict[str, object]) -> bool:
-    searchable = search_key(f"{item['product_name']} {item['category']} {item['search_terms']}")
+    examples = " ".join(str(product) for product in item["product_examples"])
+    searchable = search_key(f"{item['category']} {examples} {item['search_terms']}")
     if not query_key:
         return True
-    tokens = query_key.split()
-    if all(token in searchable for token in tokens):
+    if query_key in searchable:
         return True
+    tokens = query_key.split()
+    # Fuzzy matching is useful for a one-word typo, but with a multi-word
+    # Vietnamese search it would otherwise surface unrelated categories.
+    if len(tokens) > 1:
+        return False
     return SequenceMatcher(None, query_key, searchable).ratio() >= 0.28
 
 
 def render_demo_assortment_builder(
     library: ShopDataLibrary, saved_rows: dict[str, list[dict[str, str]]] | None
 ) -> None:
-    """Let a learner choose a sellable assortment before creating test data."""
+    """Let a learner choose shop categories before creating test data."""
     catalog = demo_catalog()
     catalog_by_id = {str(item["id"]): item for item in catalog}
-    product_ids = list(catalog_by_id)
+    category_ids = list(catalog_by_id)
 
-    st.markdown("#### Bạn muốn thử bán mặt hàng nào?")
-    st.caption("Tìm theo tên hoặc loại hàng, chọn từng mặt hàng, hoặc để hệ thống chọn ngẫu nhiên. Sau đó AI tạo dữ liệu mô phỏng 12 tháng riêng cho lựa chọn của bạn.")
+    st.markdown("#### Bạn muốn thử mở loại shop nào?")
+    st.caption(
+        "Mỗi loại shop tự tạo 5 sản phẩm phù hợp trong cùng ngành, rồi tạo đơn hàng, tồn kho và quảng cáo mô phỏng trong 12 tháng. "
+        "Bạn không cần tự nhập CSV khi đang thử nghiệm."
+    )
     query = st.text_input(
-        "Tìm kiếm mặt hàng hoặc ngành hàng",
+        "Tìm loại shop hoặc sản phẩm muốn bán",
         placeholder="Ví dụ: hoa quả, đồ điện tử, bánh kẹo, quần áo, gear máy tính...",
         key="seller_demo_search",
     )
@@ -658,48 +667,62 @@ def render_demo_assortment_builder(
         if matches:
             result_id = st.selectbox(
                 "Kết quả phù hợp", [str(item["id"]) for item in matches],
-                format_func=lambda product_id: f"{catalog_by_id[product_id]['category']} — {catalog_by_id[product_id]['product_name']}",
+                format_func=lambda category_id: f"{catalog_by_id[category_id]['category']} · {catalog_by_id[category_id]['product_count']} sản phẩm demo",
                 key="seller_demo_search_result",
             )
             st.button(
-                "Thêm mặt hàng này", icon=":material/add:",
-                key="add_demo_product", on_click=add_demo_product_to_selection, args=(result_id,)
+                "Thêm loại shop này", icon=":material/add:",
+                key="add_demo_category", on_click=add_demo_category_to_selection, args=(result_id,)
             )
         else:
             st.info("Chưa có kết quả gần đúng. Hãy thử từ khóa ngắn hơn, ví dụ “điện tử”, “hoa quả” hoặc “quần áo”.", icon=":material/search_off:")
 
     with st.container(horizontal=True):
-        st.button("Chọn ngẫu nhiên 5 loại", icon=":material/casino:", key="random_demo_5", on_click=set_random_demo_selection, args=(5,))
-        st.button("Chọn ngẫu nhiên 10 loại", icon=":material/casino:", key="random_demo_10", on_click=set_random_demo_selection, args=(10,))
-        st.button("Chọn cả 50 loại", icon=":material/select_all:", key="select_all_demo", on_click=select_all_demo_products)
+        st.button("Chọn ngẫu nhiên 5 loại shop", icon=":material/casino:", key="random_demo_5", on_click=set_random_demo_selection, args=(5,))
+        st.button("Chọn ngẫu nhiên 10 loại shop", icon=":material/casino:", key="random_demo_10", on_click=set_random_demo_selection, args=(10,))
+        st.button("Chọn cả 50 loại shop", icon=":material/select_all:", key="select_all_demo", on_click=select_all_demo_categories)
 
     selected_ids = st.multiselect(
-        "Mặt hàng được đưa vào bộ dữ liệu demo", product_ids,
-        format_func=lambda product_id: f"{catalog_by_id[product_id]['category']} — {catalog_by_id[product_id]['product_name']}",
-        key="seller_demo_selected_ids", placeholder="Chưa chọn mặt hàng nào",
+        "Loại shop được đưa vào bộ dữ liệu demo", category_ids,
+        format_func=lambda category_id: f"{catalog_by_id[category_id]['category']} · {catalog_by_id[category_id]['product_count']} sản phẩm demo",
+        key="seller_demo_selected_ids", placeholder="Chưa chọn loại shop nào",
     )
     if selected_ids:
-        selected_catalog = pd.DataFrame([catalog_by_id[product_id] for product_id in selected_ids])
+        selected_catalog = pd.DataFrame([
+            {
+                "category": catalog_by_id[category_id]["category"],
+                "product_count": catalog_by_id[category_id]["product_count"],
+                "product_examples": " · ".join(str(product) for product in catalog_by_id[category_id]["product_examples"]),
+            }
+            for category_id in selected_ids
+        ])
+        total_products = int(selected_catalog["product_count"].sum())
+        st.success(
+            f"Đã chọn {len(selected_ids)} loại shop → sẽ có {total_products} sản phẩm mô phỏng và {total_products * len(DEMO_PERIODS):,} dòng đơn hàng trong 12 tháng.",
+            icon=":material/storefront:",
+        )
         st.dataframe(
-            selected_catalog[["category", "product_name", "list_price_vnd"]], hide_index=True,
+            selected_catalog[["category", "product_count", "product_examples"]], hide_index=True,
             column_config={
-                "category": "Loại hàng", "product_name": "Sản phẩm mô phỏng",
-                "list_price_vnd": st.column_config.NumberColumn("Giá niêm yết mô phỏng", format="%,.0f đ"),
+                "category": "Loại shop", "product_count": "Số sản phẩm",
+                "product_examples": "5 sản phẩm tương thích sẽ được tạo",
             },
         )
     if st.button(
-        "Tạo dữ liệu 12 tháng theo lựa chọn", icon=":material/auto_awesome:",
+        "Tạo danh mục và dữ liệu 12 tháng", icon=":material/auto_awesome:",
         key="create_selected_demo", type="primary", disabled=not selected_ids,
     ):
         library.seed_demo(selected_ids)
+        total_products = sum(int(catalog_by_id[category_id]["product_count"]) for category_id in selected_ids)
         st.session_state.seller_upload_message = (
-            f"Đã tạo dữ liệu mô phỏng 12 tháng cho {len(selected_ids)} loại hàng."
+            f"Đã tạo {total_products} sản phẩm mô phỏng thuộc {len(selected_ids)} loại shop trong 12 tháng."
         )
         st.rerun()
 
     if saved_rows is not None:
-        count = len(saved_rows["products.csv"])
-        st.caption(f"Bộ demo đang lưu có {count} loại hàng. Tạo bộ mới sẽ thay bộ demo cũ, không ảnh hưởng dữ liệu Chủ shop.")
+        product_count = len(saved_rows["products.csv"])
+        category_count = len({row["category"] for row in saved_rows["products.csv"]})
+        st.caption(f"Bộ demo đang lưu có {product_count} sản phẩm thuộc {category_count} loại shop. Tạo bộ mới sẽ thay bộ demo cũ, không ảnh hưởng dữ liệu Chủ shop.")
 
 
 def render_data_library() -> None:
@@ -735,7 +758,7 @@ def render_data_library() -> None:
 
     if is_demo:
         st.info(
-            "Danh mục có 50 loại hàng đại diện cho các mảng phổ biến trên sàn. Dữ liệu là mô phỏng, "
+            "Danh mục có 50 loại shop đại diện cho các mảng phổ biến trên sàn. Mỗi loại tạo 5 sản phẩm tương thích. Dữ liệu là mô phỏng, "
             "không phải danh mục hoặc số liệu trực tiếp từ Shopee.",
             icon=":material/lightbulb:",
         )

@@ -28,10 +28,13 @@ DEFAULT_LIBRARY_PATH = PROJECT_ROOT / "data" / "local_store" / "shop_data_librar
 REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
 
 
-# ``id, product name, business category, cost, list price, search aliases``.
-# These are representative and permitted demo ideas, not Shopee's immutable live
-# category tree.  The live tree and restrictions can change at any time.
-DEMO_PRODUCTS = (
+# ``id, lead product, business category, cost, list price, search aliases``.
+# Each row describes a *shop category*.  It is deliberately not one product
+# pretending to be a shop: every category below expands to a small compatible
+# catalogue in ``DEMO_COMPANION_PRODUCTS``.  These are representative demo
+# ideas, not Shopee's immutable live category tree.  The live tree and
+# restrictions can change at any time.
+DEMO_CATEGORY_SEEDS = (
     ("appliance", "Máy lọc không khí mini", "Đồ điện tử gia dụng", 1150000, 1690000, "gia dụng điện máy lọc không khí"),
     ("computer-gear", "Bàn phím cơ 87 phím", "Gear máy tính", 410000, 690000, "gaming gear bàn phím chuột pc"),
     ("fresh-fruit", "Giỏ táo nhập khẩu 2kg", "Hoa quả tươi", 165000, 249000, "trái cây hoa quả táo thực phẩm tươi"),
@@ -83,6 +86,64 @@ DEMO_PRODUCTS = (
     ("storage", "Hộp đựng đồ trong suốt", "Lưu trữ & sắp xếp", 85000, 159000, "hộp đựng đồ lưu trữ sắp xếp"),
     ("seasonal", "Đèn lồng trang trí lễ hội", "Trang trí theo mùa", 68000, 135000, "lễ hội tết giáng sinh trang trí"),
 )
+
+
+# Four companions plus the lead product above give every selected shop category
+# five coherent SKUs.  Five is intentionally the small end of the 5--12 range:
+# it is easy to inspect in a defence demo while still behaving like a real
+# assortment rather than a shop with one random item.
+DEMO_COMPANION_PRODUCTS: dict[str, tuple[str, ...]] = {
+    "appliance": ("Quạt tuần hoàn không khí", "Máy hút ẩm gia đình", "Máy tạo ẩm tinh dầu", "Máy sưởi mini để bàn"),
+    "computer-gear": ("Chuột gaming không dây", "Tai nghe gaming có mic", "Lót chuột cỡ lớn", "Giá đỡ laptop nhôm"),
+    "fresh-fruit": ("Cam sành canh tác sạch 3kg", "Nho xanh không hạt 1kg", "Lê Hàn Quốc 2kg", "Hộp dâu tây tươi 500g"),
+    "snacks": ("Kẹo dẻo trái cây", "Hạt điều rang muối 500g", "Khoai tây lát vị phô mai", "Socola hạnh nhân hộp quà"),
+    "phone-accessories": ("Cáp sạc Type-C bọc dù", "Ốp lưng trong suốt chống sốc", "Củ sạc nhanh 25W", "Giá đỡ điện thoại để bàn"),
+    "audio": ("Loa Bluetooth mini", "Tai nghe có dây in-ear", "Micro cài áo không dây", "Dây chuyển âm thanh 3.5mm"),
+    "camera": ("Đèn ring light 26cm", "Tripod điện thoại 1.6m", "Thẻ nhớ 64GB", "Túi chống sốc máy ảnh"),
+    "computer": ("Chuột văn phòng không dây", "Ổ cứng SSD 512GB", "Balo laptop 15.6 inch", "Hub chuyển đổi USB-C"),
+    "mens-fashion": ("Áo polo pique", "Quần jean slim fit", "Áo khoác gió nhẹ", "Quần short kaki"),
+    "womens-fashion": ("Áo sơ mi nữ cổ nơ", "Quần ống rộng cạp cao", "Áo len cardigan", "Chân váy chữ A"),
+    "womens-shoes": ("Sandal quai mảnh", "Giày búp bê mũi nhọn", "Dép lê đế mềm", "Boot cổ ngắn"),
+    "mens-shoes": ("Giày sneaker nam", "Dép quai ngang thể thao", "Giày lười da mềm", "Giày chạy bộ nhẹ"),
+    "bags": ("Balo chống nước 15 inch", "Ví cầm tay da PU", "Túi đeo chéo mini", "Túi du lịch gấp gọn"),
+    "fashion-accessories": ("Mũ lưỡi trai thêu", "Thắt lưng da khóa tự động", "Khăn choàng mỏng", "Kẹp tóc ngọc trai"),
+    "jewelry": ("Dây chuyền bạc chữ cái", "Nhẫn bạc đính đá", "Khuyên tai tròn nhỏ", "Lắc chân bạc"),
+    "skincare": ("Sữa rửa mặt dịu nhẹ", "Serum cấp ẩm", "Kem dưỡng phục hồi", "Mặt nạ giấy 10 miếng"),
+    "makeup": ("Phấn phủ kiềm dầu", "Má hồng dạng kem", "Chì kẻ mày", "Bảng phấn mắt 9 màu"),
+    "personal-care": ("Sữa tắm hương hoa", "Kem đánh răng than hoạt tính", "Bàn chải điện", "Máy sấy tóc gấp gọn"),
+    "baby": ("Khăn ướt em bé 100 tờ", "Bình sữa PPSU", "Đồ chơi xúc xắc", "Yếm ăn dặm silicon"),
+    "pet": ("Cát vệ sinh cho mèo 5L", "Dây dắt chó phản quang", "Bát ăn đôi thú cưng", "Đồ chơi bóng cao su"),
+    "books": ("Sách quản trị tài chính cá nhân", "Truyện tranh thiếu nhi", "Sổ tay học tiếng Anh", "Tiểu thuyết trinh thám"),
+    "stationery": ("Sổ lò xo A5", "Giấy note nhiều màu", "Bút highlight 6 màu", "Hộp đựng bút để bàn"),
+    "toys": ("Xe điều khiển từ xa", "Búp bê thời trang", "Bộ đất nặn an toàn", "Trò chơi cờ tỷ phú"),
+    "hobbies": ("Mô hình figure nhân vật", "Album thẻ sưu tầm", "Bộ dụng cụ vẽ tranh", "Puzzle gỗ 3D"),
+    "sports": ("Dây kháng lực tập gym", "Bình nước thể thao 1L", "Găng tay tập tạ", "Áo tập thể thao nhanh khô"),
+    "travel": ("Túi đựng mỹ phẩm du lịch", "Gối cổ chữ U", "Cân hành lý điện tử", "Balo du lịch 30L"),
+    "motorcycle": ("Găng tay đi xe máy", "Áo mưa bộ chống thấm", "Giá đỡ điện thoại xe máy", "Khóa đĩa chống trộm"),
+    "automotive": ("Giá đỡ điện thoại ô tô", "Máy bơm lốp cầm tay", "Khăn lau xe microfiber", "Nước hoa xe hơi"),
+    "furniture": ("Bàn làm việc gấp gọn", "Ghế tựa lưng văn phòng", "Tủ đầu giường mini", "Kệ sách đứng 5 tầng"),
+    "home-decor": ("Tranh treo tường tối giản", "Bình hoa gốm", "Gương để bàn trang điểm", "Thảm chùi chân họa tiết"),
+    "kitchen": ("Chảo chống dính 24cm", "Bộ dao nhà bếp", "Máy xay sinh tố mini", "Hộp đựng thực phẩm thủy tinh"),
+    "bedding": ("Chăn hè mỏng", "Gối ngủ cao su non", "Vỏ chăn họa tiết", "Thảm lông phòng ngủ"),
+    "cleaning": ("Nước rửa chén 3.8L", "Khăn lau đa năng", "Bàn chải vệ sinh", "Túi rác tự hủy"),
+    "tools": ("Kìm đa năng", "Máy khoan cầm tay", "Thước cuộn 5m", "Băng keo điện"),
+    "garden": ("Chậu cây tự tưới", "Đất trồng hữu cơ 5L", "Bình tưới cây 2L", "Kéo cắt tỉa cành"),
+    "fresh-food": ("Xúc xích tiệt trùng", "Chà bông heo 250g", "Cơm cháy chà bông", "Nem chua rán đông lạnh"),
+    "dry-food": ("Yến mạch cán dẹt 1kg", "Mì Ý spaghetti", "Đậu đen xanh lòng 500g", "Nấm hương khô 100g"),
+    "coffee": ("Trà ô long túi lọc", "Cà phê hòa tan hộp", "Bình pha cà phê French press", "Cốc giữ nhiệt cà phê"),
+    "household": ("Móc treo quần áo inox", "Chổi lau nhà xoay", "Thau nhựa đa năng", "Ổ cắm điện 4 cổng"),
+    "lighting": ("Bóng đèn LED 12W", "Đèn pin sạc cầm tay", "Dây đèn led trang trí", "Đèn học chống cận"),
+    "health-fitness": ("Cân sức khỏe điện tử", "Máy đo huyết áp bắp tay", "Đai hỗ trợ lưng", "Gối chườm nóng lạnh"),
+    "watches": ("Đồng hồ dây da cổ điển", "Đồng hồ thông minh cơ bản", "Dây đeo silicon thay thế", "Hộp đựng đồng hồ 6 ngăn"),
+    "eyewear": ("Kính râm phân cực", "Gọng kính cận nhẹ", "Khăn lau kính microfiber", "Hộp đựng kính cứng"),
+    "underwear": ("Áo ngực không gọng", "Quần lót cotton 5 chiếc", "Bộ đồ ngủ satin", "Áo giữ nhiệt mỏng"),
+    "musical": ("Dây đàn ukulele thay thế", "Capo đàn guitar", "Giá đỡ nhạc cụ", "Micro thu âm USB"),
+    "sewing": ("Bộ kim chỉ may vá", "Len sợi cotton", "Kéo cắt vải", "Bộ dụng cụ đan móc"),
+    "gifts": ("Thiệp chúc mừng thủ công", "Gấu bông mini", "Khung ảnh để bàn", "Hoa sáp bó nhỏ"),
+    "office-equipment": ("Máy hủy tài liệu mini", "Máy tính cầm tay", "Máy ép plastic A4", "Máy chấm công vân tay"),
+    "storage": ("Túi hút chân không", "Kệ giày 5 tầng", "Giỏ đựng đồ có nắp", "Móc treo đa năng"),
+    "seasonal": ("Bao lì xì họa tiết", "Cây thông mini để bàn", "Dây treo trang trí Tết", "Nến thơm mùa lễ hội"),
+}
 DEMO_PERIODS = tuple(
     f"{year:04d}-{month:02d}"
     for year, month in ((2025, month) for month in range(10, 13))
@@ -90,31 +151,35 @@ DEMO_PERIODS = tuple(
 
 
 def demo_catalog() -> list[dict[str, object]]:
-    """Return searchable demo product choices without exposing implementation tuples."""
+    """Return searchable demo *shop-category* choices and their SKU previews."""
     return [
         {
-            "id": product_id,
-            "product_name": product_name,
+            "id": category_id,
             "category": category,
-            "cost_per_unit_vnd": cost,
-            "list_price_vnd": list_price,
+            "product_examples": (lead_product, *DEMO_COMPANION_PRODUCTS[category_id]),
+            "product_count": 1 + len(DEMO_COMPANION_PRODUCTS[category_id]),
             "search_terms": search_terms,
         }
-        for product_id, product_name, category, cost, list_price, search_terms in DEMO_PRODUCTS
+        for category_id, lead_product, category, _cost, _list_price, search_terms in DEMO_CATEGORY_SEEDS
     ]
 
 
+def random_demo_category_ids(count: int = 5, seed: int = 20260928) -> list[str]:
+    """Pick reproducible shop categories for a learner's starter shop."""
+    category_ids = [str(category["id"]) for category in demo_catalog()]
+    return random.Random(seed + count).sample(category_ids, k=min(count, len(category_ids)))
+
+
 def random_demo_product_ids(count: int = 5, seed: int = 20260928) -> list[str]:
-    """Pick a reproducible random starter assortment from the full catalogue."""
-    product_ids = [str(product["id"]) for product in demo_catalog()]
-    return random.Random(seed + count).sample(product_ids, k=min(count, len(product_ids)))
+    """Backward-compatible alias; IDs now identify shop categories, not a SKU."""
+    return random_demo_category_ids(count, seed)
 
 
 def build_demo_rows(
-    selected_product_ids: Iterable[str] | None = None,
+    selected_category_ids: Iterable[str] | None = None,
     seed: int = 20260928,
 ) -> dict[str, list[dict[str, str]]]:
-    """Build reproducible simulated data for selected products across 12 months.
+    """Build reproducible simulated data for selected shop categories over 12 months.
 
     The seed makes the pseudo-random values repeatable for a defence demo and
     tests, while still looking like varied day-to-day shop activity.
@@ -124,40 +189,51 @@ def build_demo_rows(
     orders: list[dict[str, str]] = []
     inventory: list[dict[str, str]] = []
     ads: list[dict[str, str]] = []
-    wanted_ids = set(selected_product_ids) if selected_product_ids is not None else None
-    selected_products = [product for product in DEMO_PRODUCTS if wanted_ids is None or product[0] in wanted_ids]
-    if not selected_products:
-        raise ValueError("Chọn ít nhất một mặt hàng để tạo dữ liệu demo.")
-    for index, (_, product_name, category, cost, list_price, _) in enumerate(selected_products, start=1):
-        sku = f"DEMO-{index:03d}"
-        products.append({
-            "sku": sku, "product_name": product_name, "category": category,
-            "cost_per_unit_vnd": str(cost), "list_price_vnd": str(list_price),
-        })
-        reorder_point = rng.randint(5, 16)
-        available = reorder_point + rng.randint(-4, 24)
-        reserved = rng.randint(0, min(5, max(available, 0)))
-        inventory.append({
-            "sku": sku, "on_hand": str(max(available + reserved, 0)), "reserved": str(reserved),
-            "reorder_point": str(reorder_point), "last_updated": "2026-09-28",
-        })
+    wanted_ids = set(selected_category_ids) if selected_category_ids is not None else None
+    selected_categories = [
+        category for category in DEMO_CATEGORY_SEEDS
+        if wanted_ids is None or category[0] in wanted_ids
+    ]
+    if not selected_categories:
+        raise ValueError("Chọn ít nhất một loại shop để tạo dữ liệu demo.")
 
-        for period_index, period in enumerate(DEMO_PERIODS, start=1):
-            quantity = rng.randint(1, 5)
-            sold_price = int(list_price * rng.uniform(0.88, 1.0))
-            gmv = quantity * sold_price
-            seller_discount = int(gmv * rng.choice((0, 0, 0.03, 0.05, 0.08)))
-            status = "completed" if rng.random() > 0.08 else "cancelled"
-            orders.append({
-                "order_id": f"DEMO-{period.replace('-', '')}-{index:03d}",
-                "order_date": f"{period}-{rng.randint(1, 27):02d}", "status": status, "sku": sku,
-                "quantity": str(quantity), "gross_merchandise_value_vnd": str(gmv),
-                "seller_discount_vnd": str(seller_discount), "platform_discount_vnd": str(int(gmv * 0.02)),
-                "estimated_transaction_fee_vnd": str(int(gmv * 0.05)),
-                "estimated_service_fee_vnd": str(int(gmv * 0.025)),
+    price_factors = (0.76, 0.88, 1.0, 1.12, 1.28)
+    for category_index, (category_id, lead_product, category, anchor_cost, anchor_price, _) in enumerate(selected_categories, start=1):
+        product_names = (lead_product, *DEMO_COMPANION_PRODUCTS[category_id])
+        for product_index, product_name in enumerate(product_names, start=1):
+            factor = price_factors[product_index - 1]
+            list_price = max(10_000, int(round(anchor_price * factor / 1000) * 1000))
+            cost_ratio = anchor_cost / anchor_price
+            cost = max(5_000, int(round(list_price * cost_ratio * rng.uniform(0.94, 1.05) / 1000) * 1000))
+            sku = f"DEMO-{category_index:02d}-{product_index:02d}"
+            products.append({
+                "sku": sku, "product_name": product_name, "category": category,
+                "cost_per_unit_vnd": str(cost), "list_price_vnd": str(list_price),
+            })
+            reorder_point = rng.randint(5, 16)
+            available = reorder_point + rng.randint(-4, 24)
+            reserved = rng.randint(0, min(5, max(available, 0)))
+            inventory.append({
+                "sku": sku, "on_hand": str(max(available + reserved, 0)), "reserved": str(reserved),
+                "reorder_point": str(reorder_point), "last_updated": "2026-09-28",
             })
 
-    campaign_categories = list(dict.fromkeys(product[2] for product in selected_products))[:3]
+            for period in DEMO_PERIODS:
+                quantity = rng.randint(1, 5)
+                sold_price = int(list_price * rng.uniform(0.88, 1.0))
+                gmv = quantity * sold_price
+                seller_discount = int(gmv * rng.choice((0, 0, 0.03, 0.05, 0.08)))
+                status = "completed" if rng.random() > 0.08 else "cancelled"
+                orders.append({
+                    "order_id": f"DEMO-{period.replace('-', '')}-{category_index:02d}{product_index:02d}",
+                    "order_date": f"{period}-{rng.randint(1, 27):02d}", "status": status, "sku": sku,
+                    "quantity": str(quantity), "gross_merchandise_value_vnd": str(gmv),
+                    "seller_discount_vnd": str(seller_discount), "platform_discount_vnd": str(int(gmv * 0.02)),
+                    "estimated_transaction_fee_vnd": str(int(gmv * 0.05)),
+                    "estimated_service_fee_vnd": str(int(gmv * 0.025)),
+                })
+
+    campaign_categories = [category[2] for category in selected_categories[:3]]
     for period in DEMO_PERIODS:
         for campaign_index, category in enumerate(campaign_categories, start=1):
             spend = rng.randrange(80000, 260000, 5000)
@@ -274,10 +350,10 @@ class ShopDataLibrary:
         return validated
 
     def seed_demo(
-        self, selected_product_ids: Iterable[str] | None = None
+        self, selected_category_ids: Iterable[str] | None = None
     ) -> dict[str, list[dict[str, str]]]:
         """Persist an explicit simulated assortment for the learner workspace."""
-        rows = DEMO_ROWS if selected_product_ids is None else build_demo_rows(selected_product_ids)
+        rows = DEMO_ROWS if selected_category_ids is None else build_demo_rows(selected_category_ids)
         return self.save("demo", deepcopy(rows))
 
     def clear(self, library_key: str) -> None:

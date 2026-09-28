@@ -15,6 +15,7 @@ from agent.shop_data_library import (
     ShopDataLibrary,
     clean_and_validate_rows,
     demo_catalog,
+    random_demo_category_ids,
     random_demo_product_ids,
 )
 from agent.shop_data_tool import ShopDataValidationError
@@ -25,26 +26,39 @@ class ShopDataLibraryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             library = ShopDataLibrary(Path(directory) / "library.sqlite")
             saved = library.seed_demo()
-            self.assertEqual(len(saved["products.csv"]), 50)
+            self.assertEqual(len(saved["products.csv"]), 50 * 5)
             self.assertEqual(len({row["category"] for row in saved["products.csv"]}), 50)
-            self.assertEqual(len(saved["orders.csv"]), 50 * 12)
+            self.assertEqual(len(saved["orders.csv"]), 50 * 5 * 12)
             self.assertEqual(len(DEMO_PERIODS), 12)
             self.assertEqual(library.load("demo"), saved)
 
     def test_demo_catalog_can_build_a_random_small_assortment(self) -> None:
-        selection = random_demo_product_ids(5)
+        selection = random_demo_category_ids(5)
         self.assertEqual(len(selection), 5)
-        self.assertEqual(len({item["id"] for item in demo_catalog()}), 50)
+        catalog = demo_catalog()
+        self.assertEqual(len({item["id"] for item in catalog}), 50)
+        self.assertTrue(all(5 <= int(item["product_count"]) <= 12 for item in catalog))
+        self.assertEqual(random_demo_product_ids(5), selection)
         with tempfile.TemporaryDirectory() as directory:
             saved = ShopDataLibrary(Path(directory) / "library.sqlite").seed_demo(selection)
-        self.assertEqual(len(saved["products.csv"]), 5)
-        self.assertEqual(len(saved["orders.csv"]), 5 * 12)
+        expected_products = sum(int(item["product_count"]) for item in catalog if item["id"] in selection)
+        self.assertEqual(len(saved["products.csv"]), expected_products)
+        self.assertEqual(len(saved["orders.csv"]), expected_products * 12)
+
+    def test_one_selected_shop_category_creates_a_related_five_product_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            saved = ShopDataLibrary(Path(directory) / "library.sqlite").seed_demo(["fresh-fruit"])
+        products = saved["products.csv"]
+        self.assertEqual(len(products), 5)
+        self.assertEqual({row["category"] for row in products}, {"Hoa quả tươi"})
+        self.assertEqual(len({row["product_name"] for row in products}), 5)
+        self.assertEqual(len(saved["orders.csv"]), 5 * len(DEMO_PERIODS))
 
     def test_blank_editor_rows_are_ignored(self) -> None:
         rows = {name: list(values) for name, values in DEMO_ROWS.items()}
         rows["products.csv"].append({key: "" for key in DEMO_ROWS["products.csv"][0]})
         validated = clean_and_validate_rows(rows)
-        self.assertEqual(len(validated["products.csv"]), 50)
+        self.assertEqual(len(validated["products.csv"]), 50 * 5)
 
     def test_required_tables_are_enforced(self) -> None:
         with self.assertRaises(ShopDataValidationError):

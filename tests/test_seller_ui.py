@@ -71,12 +71,12 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="choose_learner").click().run()
         app.button(key="open_demo_library_from_chat").click().run()
 
-        self.assertIn("Tìm kiếm mặt hàng hoặc ngành hàng", [item.label for item in app.text_input])
+        self.assertIn("Tìm loại shop hoặc sản phẩm muốn bán", [item.label for item in app.text_input])
         app.button(key="random_demo_5").click().run()
         self.assertEqual(len(app.multiselect(key="seller_demo_selected_ids").value), 5)
         self.assertFalse(app.button(key="create_selected_demo").disabled)
 
-    def test_learner_can_search_and_add_a_close_product_match(self) -> None:
+    def test_learner_can_search_and_add_a_close_shop_category_match(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
@@ -84,7 +84,7 @@ class SellerFacingUiTests(unittest.TestCase):
 
         app.text_input(key="seller_demo_search").input("hoa qua").run()
         self.assertEqual(app.selectbox(key="seller_demo_search_result").value, "fresh-fruit")
-        app.button(key="add_demo_product").click().run()
+        app.button(key="add_demo_category").click().run()
         self.assertIn("fresh-fruit", app.multiselect(key="seller_demo_selected_ids").value)
 
 
