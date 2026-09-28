@@ -25,7 +25,6 @@ from agent.market_intelligence import (
     market_categories,
     price_comparison,
     product_opportunities,
-    source_status,
 )
 from agent.market_sources import fetch_configured_sources
 from agent.planner import Planner
@@ -732,11 +731,6 @@ def render_market_intelligence() -> None:
                             width="stretch",
                             column_config={"Liên kết": st.column_config.LinkColumn("Mở nguồn")},
                         )
-
-    with st.expander("Tình trạng nguồn dữ liệu", icon=":material/source:"):
-        st.caption("Phân biệt rõ Market Demo với các nguồn trực tuyến cần quyền truy cập riêng.")
-        st.dataframe(pd.DataFrame(source_status()), hide_index=True, width="stretch")
-
 
 def filter_dashboard_rows(
     rows: dict[str, list[dict[str, str]]], scope: str
