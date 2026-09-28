@@ -44,7 +44,9 @@ st.markdown(
       [data-testid="stAppViewContainer"] h1,
       [data-testid="stAppViewContainer"] h2,
       [data-testid="stAppViewContainer"] h3 { color: #252525 !important; }
-      .block-container { max-width: 1100px; padding-top: 2.5rem; padding-bottom: 7rem; }
+      .block-container, [data-testid="stMainBlockContainer"] {
+        max-width: 1100px; padding-top: 2.25rem !important; padding-bottom: 7rem;
+      }
 
       /* Clear, seller-facing navigation */
       [data-testid="stSidebar"] .stButton > button {
