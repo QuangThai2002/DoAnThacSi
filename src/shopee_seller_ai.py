@@ -135,6 +135,18 @@ st.markdown(
       }
       .empty-state h2 { margin: 0 0 .55rem; font-size: 1.75rem; }
       .empty-state p { margin: 0; color: #756d69 !important; }
+
+      /* The market adviser remains available while the seller reads charts. */
+      [class*="st-key-market_advisor_toggle"] {
+        position: fixed !important; right: 2rem; bottom: 5.8rem; z-index: 1000;
+      }
+      [class*="st-key-market_advisor_toggle"] button {
+        width: 62px !important; min-width: 62px !important; height: 62px !important; min-height: 62px !important;
+        padding: 0 !important; border-radius: 50% !important; background: #ee4d2d !important;
+        color: #ffffff !important; border: 2px solid #ffffff !important; box-shadow: 0 8px 24px rgba(187, 61, 31, .32) !important;
+        font-size: .86rem !important; font-weight: 750 !important;
+      }
+      [class*="st-key-market_advisor_toggle"] button:hover { background: #d83f20 !important; transform: translateY(-2px); }
     </style>
     """,
     unsafe_allow_html=True,
@@ -186,6 +198,8 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_library_scope", "owner")
     st.session_state.setdefault("seller_demo_selected_ids", [])
     st.session_state.setdefault("seller_market_scenario_seed", random.SystemRandom().randint(1, 999_999_999))
+    st.session_state.setdefault("seller_market_advisor_messages", [])
+    st.session_state.setdefault("seller_market_advisor_open", False)
 
 
 def active_runner() -> AgentRunner:
@@ -271,6 +285,15 @@ def open_market_intelligence() -> None:
 def refresh_market_scenario() -> None:
     """Create another reproducible-in-session seller and competitor scenario."""
     st.session_state.seller_market_scenario_seed = random.SystemRandom().randint(1, 999_999_999)
+    st.session_state.seller_market_advisor_messages = []
+
+
+def open_market_advisor() -> None:
+    st.session_state.seller_market_advisor_open = True
+
+
+def close_market_advisor() -> None:
+    st.session_state.seller_market_advisor_open = False
 
 
 def open_chat_view() -> None:
@@ -491,6 +514,96 @@ def market_own_prices(category: str) -> tuple[list[float], str]:
     return prices, source
 
 
+def market_advisor_response(question: str, category: str, marketplace: dict[str, Any]) -> str:
+    """Give an evidence-led, plain-language recommendation for this demo scene."""
+    shops = list(marketplace["shops"])
+    listings = list(marketplace["listings"])
+    own_shop = next(item for item in shops if item["shop_type"] == "Shop của bạn")
+    comparable_shops = [item for item in shops if item["shop_type"] != "Shop của bạn"]
+    leader = max(comparable_shops, key=lambda item: float(item["gmv_12m_vnd"]))
+    typical_price = sum(float(item["average_price_vnd"]) for item in comparable_shops) / len(comparable_shops)
+    own_listings = [item for item in listings if item["shop_type"] == "Shop của bạn"]
+    strongest_product = max(own_listings, key=lambda item: float(item["product_score"]))
+    text = question.lower()
+    price_gap = float(own_shop["average_price_vnd"]) - typical_price
+    price_direction = (
+        "cao hơn" if price_gap > 0 else "thấp hơn" if price_gap < 0 else "gần bằng"
+    )
+    base = (
+        f"**Tóm tắt kịch bản {category}:** Shop của bạn có {int(own_shop['listing_count'])} sản phẩm, "
+        f"giá bán trung bình {currency(float(own_shop['average_price_vnd']))}, "
+        f"GMV 12 tháng {currency(float(own_shop['gmv_12m_vnd']))} và điểm shop {float(own_shop['shop_score']):.1f}/100."
+    )
+    if any(token in text for token in ("giá", "định giá", "rẻ", "cao", "khuyến mãi")):
+        return (
+            f"{base}\n\n"
+            f"Giá trung bình của shop bạn đang **{price_direction} {currency(abs(price_gap))}** so với nhóm shop tương tự. "
+            f"Shop có GMV cao nhất trong nhóm là **{leader['shop_name']}** với giá trung bình "
+            f"{currency(float(leader['average_price_vnd']))}.\n\n"
+            "**Hướng thử trước:** không giảm giá toàn bộ. Hãy chọn 1–2 sản phẩm có điểm cao, thử ưu đãi nhỏ hoặc combo trong một kỳ, "
+            "sau đó so số đơn, GMV và lợi nhuận với kỳ trước."
+        )
+    if any(token in text for token in ("sản phẩm", "mặt hàng", "bán gì", "ưu tiên", "tồn kho")):
+        return (
+            f"{base}\n\n"
+            f"Sản phẩm nên ưu tiên kiểm chứng trước là **{strongest_product['product_name']}**: điểm sản phẩm "
+            f"{float(strongest_product['product_score']):.1f}/100, lượng bán mô phỏng "
+            f"{int(strongest_product['units_sold_12m']):,} trong 12 tháng.\n\n"
+            "**Hướng thử trước:** giữ sẵn tồn kho cho sản phẩm này, kiểm tra ảnh/mô tả và thử ghép nó với một sản phẩm bổ trợ. "
+            "Đây là gợi ý từ kịch bản demo, không phải dự báo doanh số thật."
+        )
+    if any(token in text for token in ("doanh thu", "gmv", "yếu", "mạnh", "cạnh tranh", "shop")):
+        gmv_gap = float(leader["gmv_12m_vnd"]) - float(own_shop["gmv_12m_vnd"])
+        return (
+            f"{base}\n\n"
+            f"Mốc để học hỏi là **{leader['shop_name']}**: GMV cao hơn shop bạn {currency(gmv_gap)}, "
+            f"điểm shop {float(leader['shop_score']):.1f}/100 và {int(leader['review_count']):,} lượt đánh giá.\n\n"
+            "**Hướng đi:** ưu tiên tăng chất lượng trang sản phẩm và trải nghiệm sau mua để có đánh giá tốt, rồi mới mở rộng quảng cáo. "
+            "So sánh từng sản phẩm ở tab “Sản phẩm cùng thị trường” để chọn nơi cần cải thiện."
+        )
+    return (
+        f"{base}\n\n"
+        f"Trong nhóm đang xem có {int(marketplace['reference_count'])} shop tương tự. Sản phẩm có tín hiệu tốt nhất của shop bạn là "
+        f"**{strongest_product['product_name']}**.\n\n"
+        "Bạn có thể hỏi tiếp: “Tôi nên điều chỉnh giá thế nào?”, “Sản phẩm nào nên ưu tiên?” hoặc “Shop tôi đang yếu ở đâu?”."
+    )
+
+
+@st.dialog("Trợ lý định hướng shop", width="large")
+def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> None:
+    st.caption("Hỏi nhanh về kịch bản thị trường đang xem. Câu trả lời dựa trên bộ dữ liệu mô phỏng hiện tại.")
+    messages: list[dict[str, str]] = st.session_state.seller_market_advisor_messages
+    if not messages:
+        st.info("Gợi ý: hỏi về cách đặt giá, sản phẩm nên ưu tiên hoặc điểm cần cải thiện của shop.", icon=":material/auto_awesome:")
+        suggestion_columns = st.columns(3)
+        suggestions = [
+            "Tôi nên điều chỉnh giá thế nào?",
+            "Sản phẩm nào nên ưu tiên?",
+            "Shop tôi đang yếu ở đâu?",
+        ]
+        for column, suggestion in zip(suggestion_columns, suggestions):
+            with column:
+                if st.button(suggestion, key=f"market_advisor_suggestion_{suggestions.index(suggestion)}", width="stretch"):
+                    messages.extend([
+                        {"role": "user", "content": suggestion},
+                        {"role": "assistant", "content": market_advisor_response(suggestion, category, marketplace)},
+                    ])
+                    st.rerun()
+    for message in messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    question = st.chat_input("Hỏi về giá, sản phẩm hoặc hướng phát triển shop...", key="market_advisor_input")
+    if question:
+        messages.extend([
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": market_advisor_response(question, category, marketplace)},
+        ])
+        st.rerun()
+    if st.button("Đóng trợ lý", key="close_market_advisor", icon=":material/close:"):
+        close_market_advisor()
+        st.rerun()
+
+
 def render_market_intelligence() -> None:
     """Show a useful but explicitly simulated market-analysis workspace."""
     st.markdown('<div class="seller-eyebrow">MARKET INTELLIGENCE · DEMO</div>', unsafe_allow_html=True)
@@ -642,6 +755,15 @@ def render_market_intelligence() -> None:
         display = shown.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Review", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
         st.dataframe(display[["Shop", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Review", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
         st.info("Điểm sản phẩm cân bằng lượng bán, GMV và review. Nó không phải dự báo chắc chắn; dùng để chọn mặt hàng cần thử trước.", icon=":material/insights:")
+
+    st.button(
+        "AI",
+        key="market_advisor_toggle",
+        help="Mở Trợ lý định hướng shop",
+        on_click=open_market_advisor,
+    )
+    if st.session_state.seller_market_advisor_open:
+        render_market_advisor_dialog(str(selected["category"]), marketplace)
 
 def filter_dashboard_rows(
     rows: dict[str, list[dict[str, str]]], scope: str
@@ -940,8 +1062,22 @@ def render_data_library() -> None:
         render_demo_assortment_builder(library, saved_rows)
 
     if saved_rows is not None:
-        action_label = "Dùng bộ demo trong chat" if is_demo else "Dùng dữ liệu shop trong chat"
-        st.button(action_label, icon=":material/play_circle:", type="primary", on_click=activate_library_data, args=(scope,))
+        if is_demo:
+            st.button(
+                "Mở phân tích thị trường demo",
+                icon=":material/insights:",
+                type="primary",
+                on_click=open_market_intelligence,
+            )
+            st.caption("Từ đây bạn sẽ xem shop demo, các shop tương tự và hỏi Trợ lý AI về hướng phát triển.")
+        else:
+            st.button(
+                "Dùng dữ liệu shop trong chat",
+                icon=":material/play_circle:",
+                type="primary",
+                on_click=activate_library_data,
+                args=(scope,),
+            )
         render_management_dashboard(saved_rows, scope)
         st.space("small")
 

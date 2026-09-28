@@ -62,7 +62,21 @@ class SellerFacingUiTests(unittest.TestCase):
 
         self.assertEqual([title.value for title in app.title], ["Phân tích thị trường"])
         self.assertEqual(len(app.selectbox(key="seller_market_category_id").options), 50)
+        self.assertEqual(app.button(key="market_advisor_toggle").label, "AI")
         self.assertTrue(any("Market Demo" in warning.value for warning in app.warning))
+        self.assertEqual(len(app.error), 0)
+
+    def test_market_adviser_opens_a_chat_for_the_current_demo_scene(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="open_market_intelligence").click().run()
+        app.button(key="market_advisor_toggle").click().run()
+
+        self.assertTrue(app.session_state["seller_market_advisor_open"])
+        self.assertEqual(len(app.chat_input), 1)
+        self.assertEqual(app.chat_input[0].placeholder, "Hỏi về giá, sản phẩm hoặc hướng phát triển shop...")
+        app.chat_input[0].set_value("Tôi nên điều chỉnh giá thế nào?").run()
+        self.assertEqual(len(app.chat_message), 2)
+        self.assertTrue(any("Giá trung bình" in markdown.value for markdown in app.markdown))
         self.assertEqual(len(app.error), 0)
 
     def test_learner_opens_the_demo_shelf(self) -> None:
