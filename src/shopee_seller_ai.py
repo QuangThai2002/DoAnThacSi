@@ -6,11 +6,9 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
-from difflib import SequenceMatcher
 from pathlib import Path
 import sys
 from typing import Any
-import unicodedata
 
 import altair as alt
 import pandas as pd
@@ -30,7 +28,6 @@ from agent.shop_data_library import (
     clean_and_validate_rows,
     demo_catalog,
     empty_rows,
-    random_demo_category_ids,
 )
 
 
@@ -181,7 +178,6 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_data_origin", None)
     st.session_state.setdefault("seller_library_scope", "owner")
     st.session_state.setdefault("seller_demo_selected_ids", [])
-    st.session_state.setdefault("seller_demo_random_seed", 20260928)
 
 
 def active_runner() -> AgentRunner:
@@ -600,43 +596,11 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
                 )
 
 
-def search_key(text: str) -> str:
-    """Accent-insensitive matching for Vietnamese product ideas."""
-    normalized = unicodedata.normalize("NFD", str(text)).casefold()
-    normalized = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
-    return normalized.replace("đ", "d")
-
-
-def set_random_demo_selection(count: int) -> None:
-    seed = int(st.session_state.seller_demo_random_seed)
-    st.session_state.seller_demo_selected_ids = random_demo_category_ids(count, seed=seed)
-    st.session_state.seller_demo_random_seed = seed + 1
-
-
 def add_demo_category_to_selection(category_id: str) -> None:
     selected = list(st.session_state.seller_demo_selected_ids)
     if category_id and category_id not in selected:
         selected.append(category_id)
     st.session_state.seller_demo_selected_ids = selected
-
-
-def select_all_demo_categories() -> None:
-    st.session_state.seller_demo_selected_ids = [str(item["id"]) for item in demo_catalog()]
-
-
-def matches_demo_search(query_key: str, item: dict[str, object]) -> bool:
-    examples = " ".join(str(product) for product in item["product_examples"])
-    searchable = search_key(f"{item['category']} {examples} {item['search_terms']}")
-    if not query_key:
-        return True
-    if query_key in searchable:
-        return True
-    tokens = query_key.split()
-    # Fuzzy matching is useful for a one-word typo, but with a multi-word
-    # Vietnamese search it would otherwise surface unrelated categories.
-    if len(tokens) > 1:
-        return False
-    return SequenceMatcher(None, query_key, searchable).ratio() >= 0.28
 
 
 def render_demo_assortment_builder(
@@ -652,35 +616,20 @@ def render_demo_assortment_builder(
         "Mỗi loại shop tự tạo 5 sản phẩm phù hợp trong cùng ngành, rồi tạo đơn hàng, tồn kho và quảng cáo mô phỏng trong 12 tháng. "
         "Bạn không cần tự nhập CSV khi đang thử nghiệm."
     )
-    query = st.text_input(
-        "Tìm loại shop hoặc sản phẩm muốn bán",
-        placeholder="Ví dụ: hoa quả, đồ điện tử, bánh kẹo, quần áo, gear máy tính...",
-        key="seller_demo_search",
+    selected_category = st.selectbox(
+        "Tìm và chọn loại shop muốn test",
+        category_ids,
+        index=None,
+        placeholder="Bấm để mở 50 loại shop, hoặc gõ tên sản phẩm/ngành hàng...",
+        format_func=lambda category_id: f"{catalog_by_id[category_id]['category']} · {catalog_by_id[category_id]['product_count']} sản phẩm demo",
+        key="seller_demo_category_picker",
+        filter_mode="contains",
     )
-    query_key = search_key(query)
-    matches = [
-        item for item in catalog
-        if matches_demo_search(query_key, item)
-    ]
-    if query_key:
-        st.caption(f"Tìm thấy {len(matches)} lựa chọn gần đúng.")
-        if matches:
-            result_id = st.selectbox(
-                "Kết quả phù hợp", [str(item["id"]) for item in matches],
-                format_func=lambda category_id: f"{catalog_by_id[category_id]['category']} · {catalog_by_id[category_id]['product_count']} sản phẩm demo",
-                key="seller_demo_search_result",
-            )
-            st.button(
-                "Thêm loại shop này", icon=":material/add:",
-                key="add_demo_category", on_click=add_demo_category_to_selection, args=(result_id,)
-            )
-        else:
-            st.info("Chưa có kết quả gần đúng. Hãy thử từ khóa ngắn hơn, ví dụ “điện tử”, “hoa quả” hoặc “quần áo”.", icon=":material/search_off:")
-
-    with st.container(horizontal=True):
-        st.button("Chọn ngẫu nhiên 5 loại shop", icon=":material/casino:", key="random_demo_5", on_click=set_random_demo_selection, args=(5,))
-        st.button("Chọn ngẫu nhiên 10 loại shop", icon=":material/casino:", key="random_demo_10", on_click=set_random_demo_selection, args=(10,))
-        st.button("Chọn cả 50 loại shop", icon=":material/select_all:", key="select_all_demo", on_click=select_all_demo_categories)
+    st.caption("Bấm mũi tên để xem toàn bộ 50 loại shop; khi gõ, danh sách sẽ lọc theo tên loại shop.")
+    st.button(
+        "Thêm loại shop này", icon=":material/add:", key="add_demo_category",
+        on_click=add_demo_category_to_selection, args=(selected_category,), disabled=selected_category is None,
+    )
 
     selected_ids = st.multiselect(
         "Loại shop được đưa vào bộ dữ liệu demo", category_ids,
