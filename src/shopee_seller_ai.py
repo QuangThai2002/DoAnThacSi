@@ -23,7 +23,6 @@ from agent.agent_runner import AgentRunner
 from agent.market_intelligence import (
     MARKET_SNAPSHOT_DATE,
     market_categories,
-    price_comparison,
     simulated_marketplace,
 )
 from agent.planner import Planner
@@ -487,33 +486,6 @@ def currency(value: float) -> str:
     return f"{value:,.0f} đ"
 
 
-def market_own_prices(category: str) -> tuple[list[float], str]:
-    """Get comparable list prices without silently inventing a shop price."""
-    rows = st.session_state.get("seller_uploaded_rows")
-    source = data_note(st.session_state.get("seller_data_origin"))
-    if rows is None:
-        rows = library_repository().load("owner")
-        source = (
-            "Dữ liệu dùng để đối chiếu: bảng Chủ shop đang lưu trong Thư viện dữ liệu."
-            if rows is not None
-            else "Chưa có bảng Chủ shop; biểu đồ chỉ hiển thị dải giá tham chiếu mô phỏng."
-        )
-    if not rows:
-        return [], source
-    products = rows.get("products.csv", [])
-    prices = [
-        number(row.get("list_price_vnd"))
-        for row in products
-        if str(row.get("category", "")).strip() == category
-        and number(row.get("list_price_vnd")) > 0
-    ]
-    if prices and source:
-        source += f" Tìm thấy {len(prices)} giá niêm yết cùng ngành hàng."
-    elif source:
-        source += " Chưa có sản phẩm cùng ngành hàng để đặt giá shop vào biểu đồ."
-    return prices, source
-
-
 def market_advisor_response(question: str, category: str, marketplace: dict[str, Any]) -> str:
     """Give an evidence-led, plain-language recommendation for this demo scene."""
     shops = list(marketplace["shops"])
@@ -567,6 +539,33 @@ def market_advisor_response(question: str, category: str, marketplace: dict[str,
         f"**{strongest_product['product_name']}**.\n\n"
         "Bạn có thể hỏi tiếp: “Tôi nên điều chỉnh giá thế nào?”, “Sản phẩm nào nên ưu tiên?” hoặc “Shop tôi đang yếu ở đâu?”."
     )
+
+
+def market_scene_price_summary(marketplace: dict[str, Any]) -> dict[str, Any]:
+    """Calculate every displayed price comparison from the same random scene."""
+    shops = list(marketplace["shops"])
+    own_shop = next(item for item in shops if item["shop_type"] == "Shop của bạn")
+    comparable_shops = [item for item in shops if item["shop_type"] != "Shop của bạn"]
+    comparison_prices = sorted(float(item["average_price_vnd"]) for item in comparable_shops)
+    own_price = float(own_shop["average_price_vnd"])
+    lower_price = comparison_prices[0]
+    typical_price = float(pd.Series(comparison_prices).median())
+    upper_price = comparison_prices[-1]
+    if own_price < lower_price:
+        position = "Giá shop bạn đang thấp hơn nhóm tham chiếu"
+    elif own_price > upper_price:
+        position = "Giá shop bạn đang cao hơn nhóm tham chiếu"
+    else:
+        position = "Giá shop bạn đang nằm trong vùng cạnh tranh"
+    return {
+        "own_shop": own_shop,
+        "references": comparable_shops,
+        "lower_price_vnd": lower_price,
+        "typical_price_vnd": typical_price,
+        "upper_price_vnd": upper_price,
+        "own_price_vnd": own_price,
+        "position": position,
+    }
 
 
 @st.dialog("Trợ lý định hướng shop", width="large")
@@ -637,38 +636,35 @@ def render_market_intelligence() -> None:
         icon=":material/autorenew:",
         on_click=refresh_market_scenario,
     )
-    own_prices, own_note = market_own_prices(str(selected["category"]))
-    summary = price_comparison(str(category_id), own_prices)
+    marketplace = simulated_marketplace(
+        str(category_id), int(st.session_state.seller_market_scenario_seed)
+    )
+    summary = market_scene_price_summary(marketplace)
 
     with st.container(horizontal=True):
         st.metric("Giá thấp tham chiếu", currency(float(summary["lower_price_vnd"])), help="Mốc thấp của dải giá tham chiếu, không phải giá nên bán bắt buộc.", border=True)
         st.metric("Mặt bằng tham chiếu", currency(float(summary["typical_price_vnd"])), help="Mức giá ở giữa của các shop tham chiếu mô phỏng.", border=True)
         st.metric("Giá cao tham chiếu", currency(float(summary["upper_price_vnd"])), help="Mốc cao của dải giá tham chiếu; cần có giá trị khác biệt để bán ở vùng này.", border=True)
-    own_label = currency(float(summary["own_price_vnd"])) if summary["own_price_vnd"] is not None else "Chưa có"
     with st.container(horizontal=True):
-        st.metric("Giá shop của bạn", own_label, help="Lấy trung vị giá niêm yết của các sản phẩm cùng ngành trong bảng Chủ shop.", border=True)
-        st.metric("Vị trí giá", str(summary["position"]), help="Kết luận chỉ dựa trên vị trí giá, không khẳng định doanh số hay chất lượng.", border=True)
-    st.caption(own_note)
+        st.metric("Giá shop của bạn", currency(float(summary["own_price_vnd"])), help="Giá trung bình của shop ngẫu nhiên trong kịch bản demo này.", border=True)
+        st.metric("Vị trí giá", str(summary["position"]), help="So sánh trực tiếp với đúng 7 shop cùng ngành trong kịch bản hiện tại.", border=True)
+    st.caption("Shop của bạn và 7 shop tương tự đều được tạo lại cùng lúc khi bấm “Tạo lại shop và thị trường demo”.")
     with st.container(border=True):
         st.markdown("**Đọc nhanh trong 15 giây**")
-        st.write("1. So sánh giá shop với dải tham chiếu.  2. Nhìn đánh giá và review để chọn giả thuyết cần kiểm chứng.  3. Thử một thay đổi nhỏ rồi đo lại đơn hàng và lợi nhuận.")
+        st.write("1. So sánh giá shop của bạn với 7 shop cùng ngành.  2. Nhìn đánh giá và review để chọn điểm cần cải thiện.  3. Hỏi nút AI để nhận một hướng thử nghiệm cụ thể.")
 
     price_tab, shop_tab, product_tab = st.tabs(["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"])
     references = list(summary["references"])
-    marketplace = simulated_marketplace(
-        str(category_id), int(st.session_state.seller_market_scenario_seed)
-    )
     with price_tab:
         st.subheader(str(summary["position"]))
-        st.write(str(summary["interpretation"]))
+        st.write("Mỗi cột là giá bán trung bình của một shop trong cùng kịch bản. Dùng chênh lệch này để chọn giả thuyết thử giá, không phải để sao chép giá của shop khác.")
         chart_rows = [
-            {"Nhãn": row["shop_name"], "Giá niêm yết (VND)": row["listed_price_vnd"], "Loại": "Shop tham chiếu"}
+            {"Nhãn": row["shop_name"], "Giá niêm yết (VND)": row["average_price_vnd"], "Loại": "Shop tham chiếu"}
             for row in references
         ]
-        if summary["own_price_vnd"] is not None:
-            chart_rows.append(
-                {"Nhãn": "Giá shop của bạn", "Giá niêm yết (VND)": summary["own_price_vnd"], "Loại": "Shop của bạn"}
-            )
+        chart_rows.append(
+            {"Nhãn": "Shop của bạn · Demo", "Giá niêm yết (VND)": summary["own_price_vnd"], "Loại": "Shop của bạn"}
+        )
         chart_data = pd.DataFrame(chart_rows)
         price_chart = (
             alt.Chart(chart_data)
@@ -686,7 +682,7 @@ def render_market_intelligence() -> None:
             .properties(height=310)
         )
         quality_data = pd.DataFrame(references).rename(
-            columns={"shop_name": "Shop", "listed_price_vnd": "Giá (VND)", "rating": "Đánh giá", "review_count": "Số review"}
+            columns={"shop_name": "Shop", "average_price_vnd": "Giá (VND)", "rating": "Đánh giá", "review_count": "Số review"}
         )
         quality_chart = (
             alt.Chart(quality_data)
@@ -710,7 +706,7 @@ def render_market_intelligence() -> None:
             st.caption("Chấm to hơn nghĩa là nhiều review hơn; đây là dữ liệu mô phỏng để học cách đọc biểu đồ.")
             st.altair_chart(quality_chart, width="stretch")
         st.caption(
-            f"Dải giá dùng 6/8 giá ở giữa của {summary['reference_count']} shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
+            f"Dải giá được tính từ đúng 7 shop tham chiếu mô phỏng của kịch bản này; snapshot demo {MARKET_SNAPSHOT_DATE}."
         )
 
     with shop_tab:

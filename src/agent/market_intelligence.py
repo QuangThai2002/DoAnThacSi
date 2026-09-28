@@ -228,18 +228,23 @@ def product_opportunities() -> list[dict[str, object]]:
     return results
 
 
+SIMILAR_SHOPS_PER_CATEGORY = 7
+
+
 def simulated_marketplace(category_id: str, scenario_seed: int = 0) -> dict[str, list[dict[str, object]]]:
     """Create a consistent mixed catalogue for one realistic demo market.
 
-    It contains one clearly labelled randomly generated seller demo and from
-    five to eight shops of different sizes. Products are intentionally interleaved so
-    the UI can compare the same market rather than show isolated examples.
+    It contains one clearly labelled randomly generated seller demo and exactly
+    seven comparable shops. Across 50 categories this models 350 competitor-shop
+    profiles; only the selected category is generated for the screen at a time.
+    Products are intentionally interleaved so the UI compares one market rather
+    than isolated examples.
     """
     _id, _lead, category, _cost, anchor_price, _aliases = _category_seed(category_id)
     catalogue = next(item for item in market_categories() if item["id"] == category_id)
     products = [str(name) for name in catalogue["product_examples"]]
     market_rng = random.Random(f"market-scenario:{category_id}:{scenario_seed}")
-    reference_count = market_rng.randint(5, 8)
+    reference_count = SIMILAR_SHOPS_PER_CATEGORY
     size_pool = ["Shop nhỏ", "Shop nhỏ", "Shop vừa", "Shop vừa", "Shop vừa", "Shop lớn", "Shop lớn", "Shop dẫn đầu"]
     market_rng.shuffle(size_pool)
     profiles: list[tuple[str, str, float]] = [
