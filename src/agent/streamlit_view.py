@@ -38,6 +38,7 @@ def initialize_agent_state() -> None:
     st.session_state.setdefault("agent_uploaded_rows", None)
     st.session_state.setdefault("agent_uploaded_filenames", ())
     st.session_state.setdefault("agent_upload_success_message", None)
+    st.session_state.setdefault("agent_upload_error", None)
 
 
 def clear_agent_conversation() -> None:
@@ -64,6 +65,7 @@ def clear_uploaded_shop_data() -> None:
     st.session_state.agent_uploaded_rows = None
     st.session_state.agent_uploaded_filenames = ()
     st.session_state.agent_upload_success_message = None
+    st.session_state.agent_upload_error = None
     for widget_key in (
         "agent_orders_upload",
         "agent_products_upload",
@@ -78,7 +80,10 @@ def render_operational_data_controls() -> bool:
     """Render session-scoped CSV upload controls and return the active source."""
     using_uploaded_data = st.session_state.get("agent_uploaded_rows") is not None
 
-    with st.expander("Dữ liệu vận hành", expanded=False):
+    with st.expander(
+        "Dữ liệu vận hành",
+        expanded=bool(st.session_state.get("agent_upload_error")),
+    ):
         if using_uploaded_data:
             if st.button(
                 "Dùng lại dữ liệu mô phỏng",
@@ -107,6 +112,9 @@ def render_operational_data_controls() -> bool:
             "attributed_revenue_vnd, orders",
             language="text",
         )
+        upload_error = st.session_state.get("agent_upload_error")
+        if upload_error:
+            st.error(upload_error, icon=":material/error:")
 
         with st.form("agent_operational_csv_upload", border=False):
             orders_file = st.file_uploader(
@@ -148,7 +156,10 @@ def render_operational_data_controls() -> bool:
                 if uploaded_files[name] is None
             ]
             if missing_files:
-                st.error("Cần tải đủ: " + ", ".join(missing_files))
+                st.session_state.agent_upload_error = (
+                    "Cần tải đủ: " + ", ".join(missing_files)
+                )
+                st.rerun()
             else:
                 try:
                     content = {
@@ -158,13 +169,15 @@ def render_operational_data_controls() -> bool:
                     }
                     tool = ShopDataTool.from_uploaded_csvs(content)
                 except ShopDataValidationError as exc:
-                    st.error(str(exc))
+                    st.session_state.agent_upload_error = str(exc)
+                    st.rerun()
                 else:
                     st.session_state.agent_uploaded_rows = tool.uploaded_rows
                     st.session_state.agent_uploaded_filenames = tuple(content)
                     st.session_state.agent_upload_success_message = (
                         "Đã nạp dữ liệu CSV thành công."
                     )
+                    st.session_state.agent_upload_error = None
                     clear_agent_conversation()
                     st.rerun()
 
