@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping
@@ -67,6 +67,26 @@ def as_number(value: Decimal) -> int | float:
     if value == value.to_integral_value():
         return int(value)
     return float(value)
+
+
+def normalize_date(value: str) -> str:
+    """Normalize common CSV-export date formats to ISO-8601.
+
+    Excel exports frequently contain ``8/31/2026`` instead of ``2026-08-31``.
+    Storing the normalized form also keeps month filtering deterministic.
+    """
+    cleaned = str(value or "").strip()
+    try:
+        return date.fromisoformat(cleaned).isoformat()
+    except ValueError:
+        pass
+
+    for date_format in ("%m/%d/%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(cleaned, date_format).date().isoformat()
+        except ValueError:
+            continue
+    raise ValueError(f"Invalid date: {value!r}")
 
 
 class ShopDataTool:
@@ -156,6 +176,16 @@ class ShopDataTool:
         ]
         if not rows:
             raise ShopDataValidationError(f"{name} chưa có dòng dữ liệu.")
+
+        date_column = {"orders.csv": "order_date", "inventory.csv": "last_updated"}.get(name)
+        if date_column:
+            for row in rows:
+                try:
+                    row[date_column] = normalize_date(row[date_column])
+                except ValueError:
+                    # Keep the original value so the existing validation below can
+                    # report a consistent Vietnamese error with its row number.
+                    pass
 
         cls._validate_uploaded_rows(name, rows)
         return rows
