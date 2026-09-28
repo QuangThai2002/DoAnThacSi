@@ -613,7 +613,7 @@ def render_demo_assortment_builder(
 
     st.markdown("#### Bạn muốn thử mở loại shop nào?")
     st.caption(
-        "Mỗi loại shop tự tạo 5 sản phẩm phù hợp trong cùng ngành, rồi tạo đơn hàng, tồn kho và quảng cáo mô phỏng trong 12 tháng. "
+        "Mỗi loại shop tự tạo từ 5 đến 12 sản phẩm phù hợp trong cùng ngành, rồi tạo đơn hàng, tồn kho và quảng cáo mô phỏng trong 12 tháng. "
         "Bạn không cần tự nhập CSV khi đang thử nghiệm."
     )
     selected_category = st.selectbox(
@@ -637,26 +637,32 @@ def render_demo_assortment_builder(
         key="seller_demo_selected_ids", placeholder="Chưa chọn loại shop nào",
     )
     if selected_ids:
-        selected_catalog = pd.DataFrame([
-            {
-                "category": catalog_by_id[category_id]["category"],
-                "product_count": catalog_by_id[category_id]["product_count"],
-                "product_examples": " · ".join(str(product) for product in catalog_by_id[category_id]["product_examples"]),
-            }
-            for category_id in selected_ids
-        ])
-        total_products = int(selected_catalog["product_count"].sum())
+        total_products = sum(int(catalog_by_id[category_id]["product_count"]) for category_id in selected_ids)
         st.success(
             f"Đã chọn {len(selected_ids)} loại shop → sẽ có {total_products} sản phẩm mô phỏng và {total_products * len(DEMO_PERIODS):,} dòng đơn hàng trong 12 tháng.",
             icon=":material/storefront:",
         )
-        st.dataframe(
-            selected_catalog[["category", "product_count", "product_examples"]], hide_index=True,
-            column_config={
-                "category": "Loại shop", "product_count": "Số sản phẩm",
-                "product_examples": "5 sản phẩm tương thích sẽ được tạo",
-            },
-        )
+        with st.container(border=True):
+            st.markdown("##### Danh mục sản phẩm sắp được tạo")
+            st.caption(
+                "Đây chưa phải bảng doanh thu. Mỗi khối là một loại shop bạn chọn; con số là số sản phẩm AI sẽ tạo. "
+                "Bấm vào từng khối để xem chính xác các sản phẩm trong shop demo."
+            )
+            for category_id in selected_ids:
+                item = catalog_by_id[category_id]
+                product_names = list(item["product_examples"])
+                with st.expander(
+                    f"{item['category']} · {item['product_count']} sản phẩm",
+                    expanded=len(selected_ids) == 1,
+                    icon=":material/inventory_2:",
+                ):
+                    st.dataframe(
+                        pd.DataFrame({"Sản phẩm AI sẽ tạo cho loại shop này": product_names}),
+                        hide_index=True,
+                        column_config={
+                            "Sản phẩm AI sẽ tạo cho loại shop này": st.column_config.TextColumn("Sản phẩm AI sẽ tạo cho loại shop này", pinned=True),
+                        },
+                    )
     if st.button(
         "Tạo danh mục và dữ liệu 12 tháng", icon=":material/auto_awesome:",
         key="create_selected_demo", type="primary", disabled=not selected_ids,
@@ -707,7 +713,7 @@ def render_data_library() -> None:
 
     if is_demo:
         st.info(
-            "Danh mục có 50 loại shop đại diện cho các mảng phổ biến trên sàn. Mỗi loại tạo 5 sản phẩm tương thích. Dữ liệu là mô phỏng, "
+            "Danh mục có 50 loại shop đại diện cho các mảng phổ biến trên sàn. Mỗi loại tạo từ 5 đến 12 sản phẩm tương thích. Dữ liệu là mô phỏng, "
             "không phải danh mục hoặc số liệu trực tiếp từ Shopee.",
             icon=":material/lightbulb:",
         )

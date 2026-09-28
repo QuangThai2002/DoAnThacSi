@@ -88,10 +88,10 @@ DEMO_CATEGORY_SEEDS = (
 )
 
 
-# Four companions plus the lead product above give every selected shop category
-# five coherent SKUs.  Five is intentionally the small end of the 5--12 range:
-# it is easy to inspect in a defence demo while still behaving like a real
-# assortment rather than a shop with one random item.
+# Four companions plus the lead product above form the core five coherent SKUs
+# in every selected shop category. Additional listing variants make catalogue
+# sizes vary from 5 to 12, which better resembles real shops with a mix of
+# products, sizes, bundles and premium versions.
 DEMO_COMPANION_PRODUCTS: dict[str, tuple[str, ...]] = {
     "appliance": ("Quạt tuần hoàn không khí", "Máy hút ẩm gia đình", "Máy tạo ẩm tinh dầu", "Máy sưởi mini để bàn"),
     "computer-gear": ("Chuột gaming không dây", "Tai nghe gaming có mic", "Lót chuột cỡ lớn", "Giá đỡ laptop nhôm"),
@@ -144,10 +144,38 @@ DEMO_COMPANION_PRODUCTS: dict[str, tuple[str, ...]] = {
     "storage": ("Túi hút chân không", "Kệ giày 5 tầng", "Giỏ đựng đồ có nắp", "Móc treo đa năng"),
     "seasonal": ("Bao lì xì họa tiết", "Cây thông mini để bàn", "Dây treo trang trí Tết", "Nến thơm mùa lễ hội"),
 }
+
+
+# The sequence intentionally cycles through every size in the requested 5--12
+# range. It is deterministic, so the same category always produces the same
+# number of products during a defence demo.
+DEMO_ASSORTMENT_SIZES = {
+    category_id: 5 + (index * 5 % 8)
+    for index, (category_id, *_rest) in enumerate(DEMO_CATEGORY_SEEDS)
+}
+DEMO_VARIANT_SUFFIXES = (
+    "bản size nhỏ",
+    "bản tiêu chuẩn",
+    "combo tiết kiệm",
+    "bản nâng cao",
+    "combo quà tặng",
+    "phiên bản cao cấp",
+    "bộ phụ kiện đồng bộ",
+)
 DEMO_PERIODS = tuple(
     f"{year:04d}-{month:02d}"
     for year, month in ((2025, month) for month in range(10, 13))
 ) + tuple(f"2026-{month:02d}" for month in range(1, 10))
+
+
+def demo_product_names(category_id: str, lead_product: str) -> tuple[str, ...]:
+    """Return the coherent 5--12 product catalogue for one demo shop type."""
+    core_products = (lead_product, *DEMO_COMPANION_PRODUCTS[category_id])
+    product_count = DEMO_ASSORTMENT_SIZES[category_id]
+    additional_products = tuple(
+        f"{lead_product} – {suffix}" for suffix in DEMO_VARIANT_SUFFIXES
+    )
+    return (core_products + additional_products)[:product_count]
 
 
 def demo_catalog() -> list[dict[str, object]]:
@@ -156,8 +184,8 @@ def demo_catalog() -> list[dict[str, object]]:
         {
             "id": category_id,
             "category": category,
-            "product_examples": (lead_product, *DEMO_COMPANION_PRODUCTS[category_id]),
-            "product_count": 1 + len(DEMO_COMPANION_PRODUCTS[category_id]),
+            "product_examples": demo_product_names(category_id, lead_product),
+            "product_count": DEMO_ASSORTMENT_SIZES[category_id],
             "search_terms": search_terms,
         }
         for category_id, lead_product, category, _cost, _list_price, search_terms in DEMO_CATEGORY_SEEDS
@@ -197,9 +225,9 @@ def build_demo_rows(
     if not selected_categories:
         raise ValueError("Chọn ít nhất một loại shop để tạo dữ liệu demo.")
 
-    price_factors = (0.76, 0.88, 1.0, 1.12, 1.28)
+    price_factors = (0.72, 0.80, 0.88, 0.96, 1.04, 1.12, 1.22, 1.34, 1.46, 1.60, 1.76, 1.94)
     for category_index, (category_id, lead_product, category, anchor_cost, anchor_price, _) in enumerate(selected_categories, start=1):
-        product_names = (lead_product, *DEMO_COMPANION_PRODUCTS[category_id])
+        product_names = demo_product_names(category_id, lead_product)
         for product_index, product_name in enumerate(product_names, start=1):
             factor = price_factors[product_index - 1]
             list_price = max(10_000, int(round(anchor_price * factor / 1000) * 1000))
