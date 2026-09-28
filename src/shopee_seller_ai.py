@@ -680,6 +680,28 @@ def render_demo_assortment_builder(
         st.caption(f"Bộ demo đang lưu có {product_count} sản phẩm thuộc {category_count} loại shop. Tạo bộ mới sẽ thay bộ demo cũ, không ảnh hưởng dữ liệu Chủ shop.")
 
 
+def render_business_terms_guide() -> None:
+    """Explain the three operational terms that appear in the shop dashboard."""
+    with st.expander("Giải thích nhanh: SKU, GMV và ROAS", icon=":material/help:"):
+        st.markdown(
+            """
+**SKU — mã riêng của từng sản phẩm**
+
+SKU giúp phân biệt và nối đúng *một sản phẩm* với đơn hàng và tồn kho của nó. Ví dụ, `FRUIT-TAO-001` có thể là mã của giỏ táo; nhờ mã này, AI biết được giỏ táo đã bán bao nhiêu và còn bao nhiêu trong kho.
+
+**GMV — tổng tiền hàng đã bán**
+
+GMV là tổng giá trị đơn hoàn tất trước khi trừ khuyến mãi của shop và các khoản phí ước tính. Ví dụ: khách mua 2 sản phẩm, mỗi sản phẩm 250.000 đ → **GMV = 500.000 đ**. GMV chưa phải lợi nhuận, vì còn giá vốn, khuyến mãi và phí.
+
+**ROAS — hiệu quả của tiền quảng cáo**
+
+ROAS = doanh thu quy gán từ quảng cáo ÷ tiền chạy quảng cáo. Ví dụ: chi 100.000 đ quảng cáo và tạo ra 400.000 đ doanh thu → **ROAS = 4,0**. Nghĩa là mỗi 1 đ quảng cáo mang về 4 đ doanh thu; chỉ số này cũng chưa trừ giá vốn hay phí.
+
+:small[Mẹo nhớ: SKU = mã sản phẩm · GMV = tổng tiền hàng bán · ROAS = số tiền thu về trên mỗi đồng quảng cáo.]
+"""
+        )
+
+
 def render_data_library() -> None:
     """The persistent local shop-data workspace, reached via the bookshelf."""
     st.markdown('<div class="seller-eyebrow">THƯ VIỆN DỮ LIỆU</div>', unsafe_allow_html=True)
@@ -710,6 +732,7 @@ def render_data_library() -> None:
     )
     st.subheader(scope_title)
     st.caption(scope_note)
+    render_business_terms_guide()
 
     if is_demo:
         st.info(
