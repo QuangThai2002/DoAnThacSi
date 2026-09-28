@@ -19,6 +19,13 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from agent.agent_runner import AgentRunner
+from agent.market_intelligence import (
+    MARKET_SNAPSHOT_DATE,
+    market_categories,
+    price_comparison,
+    source_status,
+    trend_brief,
+)
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 from agent.shop_data_library import (
@@ -255,6 +262,11 @@ def open_data_library() -> None:
     st.session_state.seller_view = "library"
 
 
+def open_market_intelligence() -> None:
+    """Open the transparent market-demo workspace."""
+    st.session_state.seller_view = "market"
+
+
 def open_chat_view() -> None:
     st.session_state.seller_view = "chat"
 
@@ -444,6 +456,142 @@ def number(value: object) -> float:
 
 def currency(value: float) -> str:
     return f"{value:,.0f} đ"
+
+
+def market_own_prices(category: str) -> tuple[list[float], str]:
+    """Get comparable list prices without silently inventing a shop price."""
+    rows = st.session_state.get("seller_uploaded_rows")
+    source = data_note(st.session_state.get("seller_data_origin"))
+    if rows is None:
+        rows = library_repository().load("owner")
+        source = (
+            "Dữ liệu dùng để đối chiếu: bảng Chủ shop đang lưu trong Thư viện dữ liệu."
+            if rows is not None
+            else "Chưa có bảng Chủ shop; biểu đồ chỉ hiển thị dải giá tham chiếu mô phỏng."
+        )
+    if not rows:
+        return [], source
+    products = rows.get("products.csv", [])
+    prices = [
+        number(row.get("list_price_vnd"))
+        for row in products
+        if str(row.get("category", "")).strip() == category
+        and number(row.get("list_price_vnd")) > 0
+    ]
+    if prices and source:
+        source += f" Tìm thấy {len(prices)} giá niêm yết cùng ngành hàng."
+    elif source:
+        source += " Chưa có sản phẩm cùng ngành hàng để đặt giá shop vào biểu đồ."
+    return prices, source
+
+
+def render_market_intelligence() -> None:
+    """Show a useful but explicitly simulated market-analysis workspace."""
+    st.markdown('<div class="seller-eyebrow">MARKET INTELLIGENCE · DEMO</div>', unsafe_allow_html=True)
+    header, back = st.columns([8, 2], vertical_alignment="center")
+    with header:
+        st.title("Phân tích thị trường")
+        st.caption("So sánh giá, shop tham chiếu và hướng thử nghiệm cho một ngành hàng.")
+    with back:
+        st.button("Quay lại chat", key="market_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
+
+    st.warning(
+        "Đây là Market Demo: giá, shop tham chiếu và tín hiệu xu hướng đều là dữ liệu mô phỏng có thể lặp lại khi demo. "
+        "Hệ thống chưa kết nối Shopee, YouTube, Facebook/Instagram hoặc TikTok để lấy dữ liệu trực tiếp.",
+        icon=":material/info:",
+    )
+    catalog = market_categories()
+    labels = {
+        str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm demo"
+        for item in catalog
+    }
+    category_id = st.selectbox(
+        "Chọn ngành hàng để phân tích",
+        options=list(labels),
+        format_func=lambda item: labels[str(item)],
+        key="seller_market_category_id",
+    )
+    selected = next(item for item in catalog if item["id"] == category_id)
+    own_prices, own_note = market_own_prices(str(selected["category"]))
+    summary = price_comparison(str(category_id), own_prices)
+
+    metrics = st.columns(4)
+    metrics[0].metric("Giá thấp tham chiếu", currency(float(summary["lower_price_vnd"])))
+    metrics[1].metric("Mặt bằng tham chiếu", currency(float(summary["typical_price_vnd"])))
+    metrics[2].metric("Giá cao tham chiếu", currency(float(summary["upper_price_vnd"])))
+    own_label = currency(float(summary["own_price_vnd"])) if summary["own_price_vnd"] is not None else "Chưa có"
+    metrics[3].metric("Giá shop của bạn", own_label)
+    st.caption(own_note)
+
+    price_tab, shop_tab, trend_tab = st.tabs(["So sánh giá", "Shop tham chiếu", "Xu hướng thử nghiệm"])
+    references = list(summary["references"])
+    with price_tab:
+        st.subheader(str(summary["position"]))
+        st.write(str(summary["interpretation"]))
+        chart_rows = [
+            {"Nhãn": row["shop_name"], "Giá niêm yết (VND)": row["listed_price_vnd"], "Loại": "Shop tham chiếu"}
+            for row in references
+        ]
+        if summary["own_price_vnd"] is not None:
+            chart_rows.append(
+                {"Nhãn": "Giá shop của bạn", "Giá niêm yết (VND)": summary["own_price_vnd"], "Loại": "Shop của bạn"}
+            )
+        chart_data = pd.DataFrame(chart_rows)
+        chart = (
+            alt.Chart(chart_data)
+            .mark_bar(cornerRadiusEnd=4)
+            .encode(
+                x=alt.X("Giá niêm yết (VND):Q", title="Giá niêm yết (VND)", axis=alt.Axis(format=",d")),
+                y=alt.Y("Nhãn:N", sort="-x", title=None),
+                color=alt.Color(
+                    "Loại:N",
+                    scale=alt.Scale(domain=["Shop tham chiếu", "Shop của bạn"], range=["#f7a28f", "#ee4d2d"]),
+                    legend=alt.Legend(title=None),
+                ),
+                tooltip=["Nhãn:N", alt.Tooltip("Giá niêm yết (VND):Q", format=",d"), "Loại:N"],
+            )
+            .properties(height=310)
+        )
+        st.altair_chart(chart, width="stretch")
+        st.caption(
+            f"Dải giá dùng 6/8 giá ở giữa của {summary['reference_count']} shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
+        )
+
+    with shop_tab:
+        st.caption("Các tên shop và tín hiệu dưới đây chỉ là mẫu tham chiếu mô phỏng, không phải đối thủ thật hay dữ liệu doanh số.")
+        table = pd.DataFrame(references).rename(
+            columns={
+                "shop_name": "Shop tham chiếu",
+                "product_name": "Sản phẩm đại diện",
+                "listed_price_vnd": "Giá niêm yết (VND)",
+                "rating": "Đánh giá",
+                "review_count": "Số review",
+                "observed_signal": "Tín hiệu quan sát",
+            }
+        )
+        st.dataframe(
+            table[["Shop tham chiếu", "Sản phẩm đại diện", "Giá niêm yết (VND)", "Đánh giá", "Số review", "Tín hiệu quan sát"]],
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Giá niêm yết (VND)": st.column_config.NumberColumn(format="%,d đ"),
+                "Đánh giá": st.column_config.NumberColumn(format="%.2f"),
+                "Số review": st.column_config.NumberColumn(format="%,d"),
+            },
+        )
+
+    with trend_tab:
+        st.caption("Các thẻ dưới đây là giả thuyết để thử nghiệm bán hàng, không phải bản tin trích xuất từ mạng xã hội.")
+        for item in trend_brief(str(category_id)):
+            with st.container(border=True):
+                st.markdown(f"#### {item['headline']}")
+                st.caption(item["signal"])
+                st.write(item["detail"])
+                st.info(f"Việc nên thử: {item['action']}", icon=":material/experiment:")
+
+    with st.expander("Tình trạng nguồn dữ liệu", icon=":material/source:"):
+        st.caption("Bảng này giúp phân biệt phần demo hiện có với các kết nối cần triển khai sau này.")
+        st.dataframe(pd.DataFrame(source_status()), hide_index=True, width="stretch")
 
 
 def filter_dashboard_rows(
@@ -950,6 +1098,7 @@ with st.sidebar:
             st.rerun()
         st.button(" ", key="compact_new_chat", icon=":material/add_comment:", help="Cuộc trò chuyện mới", width="stretch", on_click=show_chat_picker)
         st.button(" ", key="compact_data_library", icon=":material/auto_stories:", help="Thư viện dữ liệu", width="stretch", on_click=open_data_library)
+        st.button(" ", key="compact_market_intelligence", icon=":material/insights:", help="Phân tích thị trường", width="stretch", on_click=open_market_intelligence)
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
             selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
@@ -972,6 +1121,7 @@ with st.sidebar:
                 st.rerun()
         st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
         st.button("Thư viện dữ liệu", key="open_data_library", icon=":material/auto_stories:", width="stretch", on_click=open_data_library)
+        st.button("Phân tích thị trường", key="open_market_intelligence", icon=":material/insights:", width="stretch", on_click=open_market_intelligence)
         st.caption("Cuộc trò chuyện gần đây")
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
@@ -995,5 +1145,7 @@ if st.session_state.seller_upload_error:
 
 if st.session_state.seller_view == "library":
     render_data_library()
+elif st.session_state.seller_view == "market":
+    render_market_intelligence()
 else:
     render_assistant()

@@ -56,6 +56,15 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertIn("Dữ liệu shop · Chủ shop", app.segmented_control(key="seller_library_scope").options)
         self.assertEqual(len(app.error), 0)
 
+    def test_market_workspace_labels_its_reference_data_as_a_demo(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="open_market_intelligence").click().run()
+
+        self.assertEqual([title.value for title in app.title], ["Phân tích thị trường"])
+        self.assertEqual(len(app.selectbox(key="seller_market_category_id").options), 50)
+        self.assertTrue(any("Market Demo" in warning.value for warning in app.warning))
+        self.assertEqual(len(app.error), 0)
+
     def test_learner_opens_the_demo_shelf(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="new_chat_main").click().run()
