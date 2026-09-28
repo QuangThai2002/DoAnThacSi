@@ -31,29 +31,75 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      :root {color-scheme: light !important;}
-      html, body, .stApp, [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"] {background: #fbfbfd !important; color: #202124 !important;}
-      [data-testid="stHeader"] {background: rgba(251, 251, 253, .92);}
-      [data-testid="stSidebar"] {background: #ffffff; border-right: 1px solid #f0f0f2;}
-      [data-testid="stSidebar"] * {color: #202124;}
+      :root { color-scheme: light !important; }
+      html, body, .stApp, [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+        background: #fffaf8 !important; color: #2b2b2b !important;
+      }
+      [data-testid="stHeader"] { background: rgba(255, 255, 255, .94) !important; border-bottom: 1px solid #f5e8e3; }
+      [data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid #f1e7e2; min-width: 272px; }
+      [data-testid="stSidebar"] * { color: #333333 !important; }
       [data-testid="stAppViewContainer"] p,
       [data-testid="stAppViewContainer"] li,
-      [data-testid="stAppViewContainer"] span {color: #202124;}
+      [data-testid="stAppViewContainer"] span { color: #4b4b4b !important; }
       [data-testid="stAppViewContainer"] h1,
       [data-testid="stAppViewContainer"] h2,
-      [data-testid="stAppViewContainer"] h3 {color: #202124;}
-      [data-testid="stChatInput"] {background: #ffffff; border: 1px solid #e7e2df;}
-      [data-testid="stChatInput"] textarea {color: #202124;}
-      [data-testid="stChatMessage"] {background: #ffffff; border-radius: 12px;}
-      [data-testid="stPills"] button {background: #ffffff; border-color: #eadfd9; color: #9d3f13;}
-      [data-testid="stPills"] button[aria-pressed="true"] {background: #fff0e8; border-color: #e85d04;}
-      .stButton > button[kind="primary"] {background: #e85d04; border-color: #e85d04; color: #ffffff;}
-      .block-container {max-width: 1120px; padding-top: 2rem; padding-bottom: 5rem;}
-      [data-testid="stSidebar"] {min-width: 260px;}
-      .seller-eyebrow {color: #e85d04; font-weight: 650; font-size: .88rem;}
-      .seller-subtitle {color: #5f6368; margin-top: -.35rem;}
-      .empty-state {padding: 4rem 0 2rem; text-align: center;}
-      .empty-state h2 {margin-bottom: .35rem;}
+      [data-testid="stAppViewContainer"] h3 { color: #252525 !important; }
+      .block-container { max-width: 1100px; padding-top: 2.5rem; padding-bottom: 7rem; }
+
+      /* Clear, seller-facing navigation */
+      [data-testid="stSidebar"] .stButton > button {
+        background: #fff1ec !important; border: 1px solid #ffd7ca !important; color: #d83f20 !important;
+        border-radius: 10px !important; font-weight: 600 !important;
+      }
+      [data-testid="stSidebar"] .stButton > button:hover { background: #ffe5dc !important; border-color: #ee4d2d !important; }
+      [data-testid="stSidebar"] [data-testid="stRadio"] label { padding: .45rem .55rem; border-radius: 8px; }
+      [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+        background: #fff0eb !important; color: #d83f20 !important; font-weight: 650;
+      }
+      [data-testid="stSidebar"] input[type="radio"] { accent-color: #ee4d2d !important; }
+
+      /* Keep the composer light even if a global Streamlit theme is dark. */
+      [data-testid="stChatInput"], [data-testid="stChatInput"] > div, [data-testid="stChatInput"] form {
+        background: #ffffff !important; border-color: #f0d5cb !important; box-shadow: 0 5px 18px rgba(115, 51, 27, .08) !important;
+      }
+      [data-testid="stChatInput"] textarea, [data-testid="stChatInput"] textarea::placeholder { color: #5f5f5f !important; }
+      [data-testid="stChatInput"] button { background: #ee4d2d !important; color: #ffffff !important; border-radius: 8px !important; }
+      [data-testid="stBottom"], [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"], .stBottom {
+        background: #fffaf8 !important; border-top: 1px solid #f4e3dc !important;
+      }
+      [data-testid="stChatMessage"] { background: #ffffff !important; border: 1px solid #f4e7e1; border-radius: 14px; padding: .4rem .85rem; }
+      [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) { background: #fff3ee !important; }
+
+      [data-testid="stPills"] { justify-content: center; }
+      [data-testid="stPills"] button {
+        background: #ffffff !important; border: 1px solid #f3cdbf !important; color: #c94124 !important;
+        border-radius: 999px !important; font-weight: 600 !important;
+      }
+      [data-testid="stPills"] button:hover, [data-testid="stPills"] button[aria-pressed="true"] {
+        background: #fff0ea !important; border-color: #ee4d2d !important; color: #b5371e !important;
+      }
+      [class*="st-key-seller_suggestion"] button {
+        background: #ffffff !important; border: 1px solid #f3cdbf !important; color: #c94124 !important;
+        border-radius: 999px !important; font-weight: 600 !important;
+      }
+      [class*="st-key-seller_suggestion"] button:hover {
+        background: #fff0ea !important; border-color: #ee4d2d !important; color: #b5371e !important;
+      }
+      .stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
+        background: #ee4d2d !important; border-color: #ee4d2d !important; color: #ffffff !important;
+        border-radius: 9px !important; font-weight: 650 !important;
+      }
+      .stButton > button[kind="primary"]:hover, [data-testid="stFormSubmitButton"] > button:hover { background: #d83f20 !important; border-color: #d83f20 !important; }
+
+      .seller-eyebrow { color: #ee4d2d !important; font-weight: 750; font-size: .76rem; letter-spacing: .08em; }
+      .seller-subtitle { color: #6b625f !important; margin-top: -.4rem; font-size: 1.05rem; }
+      .empty-state {
+        max-width: 690px; margin: 3.8rem auto 2.2rem; padding: 2.4rem 1.5rem;
+        text-align: center; background: #ffffff; border: 1px solid #f5e5df; border-radius: 18px;
+        box-shadow: 0 10px 32px rgba(122, 60, 33, .05);
+      }
+      .empty-state h2 { margin: 0 0 .55rem; font-size: 1.75rem; }
+      .empty-state p { margin: 0; color: #756d69 !important; }
     </style>
     """,
     unsafe_allow_html=True,
