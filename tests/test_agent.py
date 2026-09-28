@@ -29,6 +29,11 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.intent, "out_of_scope")
         self.assertEqual(plan.tools, ())
 
+    def test_cost_question_routes_to_shop_data_and_calculator(self) -> None:
+        plan = Planner().plan("Khoản chi phí nào ảnh hưởng nhiều nhất trong tháng 8 năm 2026?")
+        self.assertEqual(plan.period, "2026-08")
+        self.assertEqual(plan.tools, ("shop_data", "calculator"))
+
 
 class ShopDataToolTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -70,6 +75,20 @@ class ShopDataToolTests(unittest.TestCase):
                 }
             )
 
+    def test_uploaded_ads_accept_month_year_export_format(self) -> None:
+        upload_files = {
+            name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
+            for name in ("orders.csv", "products.csv", "inventory.csv", "ads.csv")
+        }
+        upload_files["ads.csv"] = upload_files["ads.csv"].replace(
+            b"2026-08", b"8/2026"
+        )
+
+        summary = ShopDataTool.from_uploaded_csvs(upload_files).advertising_summary("2026-08")
+
+        self.assertEqual(summary["campaign_count"], 3)
+        self.assertEqual(summary["ad_spend_vnd"], 360_000)
+
 
 class CalculatorAndRunnerTests(unittest.TestCase):
     def test_rank_costs_returns_largest_item(self) -> None:
@@ -79,7 +98,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
 
     def test_runner_keeps_mock_data_disclaimer(self) -> None:
         result = AgentRunner().run("Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?")
-        self.assertIn("dữ liệu vận hành mô phỏng", result["answer"])
+        self.assertIn("dữ liệu mô phỏng", result["answer"])
         self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
 
     def test_runner_labels_uploaded_csv_data(self) -> None:
@@ -95,6 +114,35 @@ class CalculatorAndRunnerTests(unittest.TestCase):
 
         self.assertIn("CSV bạn tải lên", result["answer"])
         self.assertIn("uploaded in the current session", result["limitations"][0])
+
+    def test_runner_calculates_largest_cost_from_shop_data(self) -> None:
+        result = AgentRunner().run(
+            "Khoản chi phí nào ảnh hưởng nhiều nhất trong tháng 8 năm 2026?"
+        )
+
+        self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
+        self.assertIn("seller discount (205,000 VND, 46.3%)", result["answer"])
+
+    def test_policy_answer_is_direct_and_does_not_claim_csv_use(self) -> None:
+        class FixedFeeRAG:
+            def search(self, _question: str) -> dict:
+                return {
+                    "evidence": [
+                        {
+                            "document_id": "fee-1",
+                            "title": "Biểu phí cố định",
+                            "page": "7",
+                            "excerpt": "Phí Cố Định được cấn trừ trên từng đơn hàng.",
+                        }
+                    ]
+                }
+
+        result = AgentRunner(rag_tool=FixedFeeRAG()).run(
+            "Phí cố định của Shopee áp dụng theo nguyên tắc nào?"
+        )
+
+        self.assertIn("Phí cố định được tính bằng", result["answer"])
+        self.assertNotIn("dữ liệu CSV", result["answer"])
 
 
 if __name__ == "__main__":

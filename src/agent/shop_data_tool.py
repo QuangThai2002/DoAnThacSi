@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -87,6 +88,23 @@ def normalize_date(value: str) -> str:
         except ValueError:
             continue
     raise ValueError(f"Invalid date: {value!r}")
+
+
+def normalize_month(value: str) -> str:
+    """Normalize common spreadsheet month values to ``YYYY-MM``."""
+    cleaned = str(value or "").strip()
+    if len(cleaned) == 7 and cleaned[4:5] == "-":
+        year, month = cleaned.split("-", maxsplit=1)
+        if year.isdigit() and month.isdigit() and 1 <= int(month) <= 12:
+            return f"{int(year):04d}-{int(month):02d}"
+
+    month_year = re.fullmatch(r"(\d{1,2})/(\d{4})", cleaned)
+    if month_year:
+        month, year = (int(part) for part in month_year.groups())
+        if 1 <= month <= 12:
+            return f"{year:04d}-{month:02d}"
+
+    return normalize_date(cleaned)[:7]
 
 
 class ShopDataTool:
@@ -185,6 +203,13 @@ class ShopDataTool:
                 except ValueError:
                     # Keep the original value so the existing validation below can
                     # report a consistent Vietnamese error with its row number.
+                    pass
+
+        if name == "ads.csv":
+            for row in rows:
+                try:
+                    row["month"] = normalize_month(row["month"])
+                except ValueError:
                     pass
 
         cls._validate_uploaded_rows(name, rows)

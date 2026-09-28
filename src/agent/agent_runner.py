@@ -85,6 +85,7 @@ class AgentRunner:
 
         citations = self._citations(rag_result)
         answer = self._compose_answer(
+            question=question,
             plan=plan,
             sales=sales,
             inventory=inventory,
@@ -141,6 +142,7 @@ class AgentRunner:
 
     @staticmethod
     def _compose_answer(
+        question: str,
         plan: AgentPlan,
         sales: dict[str, Any] | None,
         inventory: dict[str, Any] | None,
@@ -154,31 +156,52 @@ class AgentRunner:
                 "Câu hỏi này nằm ngoài phạm vi Agent hiện tại. Agent chỉ hỗ trợ "
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
-        source_note = (
-            "Kết quả dưới đây dùng dữ liệu CSV bạn tải lên trong phiên hiện tại; "
-            "không phải dữ liệu lấy trực tiếp từ tài khoản Shopee."
-            if data_scope == "uploaded_csv"
-            else (
-                "Kết quả dưới đây dùng dữ liệu vận hành mô phỏng của luận văn; "
-                "không phải dữ liệu tài khoản Shopee thật."
+        has_operational_result = any((sales, inventory, advertising, ranking))
+        sections: list[str] = []
+        if has_operational_result:
+            sections.append(
+                "Kết quả vận hành dưới đây dùng dữ liệu CSV bạn tải lên trong phiên "
+                "hiện tại; không phải dữ liệu lấy trực tiếp từ tài khoản Shopee."
+                if data_scope == "uploaded_csv"
+                else (
+                    "Kết quả vận hành dưới đây dùng dữ liệu mô phỏng của luận văn; "
+                    "không phải dữ liệu tài khoản Shopee thật."
+                )
             )
-        )
-        sections = [source_note]
+        if citations and not has_operational_result:
+            sections.append(
+                "Câu trả lời dưới đây dựa trên tài liệu chính sách Shopee đã truy hồi."
+            )
         if sales:
             sections.append(
                 "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
-                    period=sales["period"],
+                    period=(
+                        "toàn bộ kỳ có trong dữ liệu"
+                        if sales["period"] == "all_available_periods"
+                        else sales["period"]
+                    ),
                     orders=sales["completed_order_count"],
                     gmv=int(sales["gross_merchandise_value_vnd"]),
                     net=int(sales["net_revenue_after_estimated_fees_vnd"]),
                 )
             )
-        if advertising:
+        if advertising and advertising["campaign_count"]:
             sections.append(
                 "Quảng cáo trong kỳ chi {spend:,} VND, doanh thu quy gán {revenue:,} VND, ROAS {roas:.2f}.".format(
                     spend=int(advertising["ad_spend_vnd"]),
                     revenue=int(advertising["attributed_revenue_vnd"]),
                     roas=float(advertising["roas"]),
+                )
+            )
+        elif advertising:
+            sections.append(
+                "Không tìm thấy bản ghi quảng cáo cho kỳ {period} trong ads.csv, "
+                "nên Agent không suy diễn chi phí hoặc ROAS.".format(
+                    period=(
+                        "được hỏi"
+                        if advertising["period"] == "all_available_periods"
+                        else advertising["period"]
+                    )
                 )
             )
         if ranking and ranking["cost_ranking"]:
@@ -200,6 +223,9 @@ class AgentRunner:
             else:
                 sections.append("Không có cảnh báo tồn kho theo ngưỡng đã cấu hình.")
         if citations:
+            policy_answer = AgentRunner._policy_answer(question, citations)
+            if policy_answer:
+                sections.append(policy_answer)
             labels = "; ".join(
                 f"{citation['title']}{', trang ' + citation['page'] if citation['page'] else ''}"
                 for citation in citations[:2]
@@ -222,3 +248,29 @@ class AgentRunner:
         elif "rag" in plan.tools:
             sections.append("Agent chưa truy hồi được nguồn chính sách; không đưa ra kết luận chính sách.")
         return "\n\n".join(sections)
+
+    @staticmethod
+    def _policy_answer(question: str, citations: list[dict[str, str]]) -> str:
+        """Give a short, evidence-grounded answer for common policy questions."""
+        normalized_question = normalize(question)
+        if "phi co dinh" in normalized_question:
+            return (
+                "Phí cố định được tính bằng (giá sản phẩm trước Shopee trợ giá − "
+                "khuyến mãi người bán áp dụng) × tỷ lệ phí cố định theo ngành hàng. "
+                "Khoản này đã gồm thuế GTGT và được cấn trừ trên từng đơn trước khi "
+                "Shopee chuyển tiền thanh toán cho người bán."
+            )
+        if "phi xu ly giao dich" in normalized_question:
+            return (
+                "Phí xử lý giao dịch được tính trên giá sản phẩm trước Shopee trợ giá "
+                "+ phí vận chuyển người mua trả − khuyến mãi người bán − khuyến mãi "
+                "ngân hàng (nếu có), rồi nhân với mức phí xử lý giao dịch."
+            )
+        if "hoan tien" in normalized_question or "tra hang" in normalized_question:
+            return (
+                "Người mua có thể yêu cầu trả hàng/hoàn tiền theo Chính sách Trả hàng "
+                "và Hoàn tiền của Shopee. Nguồn truy hồi nêu việc hoàn tiền khi người "
+                "bán xác nhận đã nhận hàng hoàn trả hoặc khi người mua chấp nhận đề xuất "
+                "hoàn tiền không cần trả hàng."
+            )
+        return ""

@@ -60,6 +60,13 @@ class Planner:
         "chi phi cua shop",
         "loi nhuan",
     )
+    COST_ANALYSIS_TERMS = (
+        "khoan chi phi",
+        "chi phi nao",
+        "chi phi lon nhat",
+        "khoan phi lon nhat",
+        "anh huong nhieu nhat",
+    )
     CALCULATION_TERMS = (
         "tinh",
         "bao nhieu",
@@ -98,7 +105,13 @@ class Planner:
                 needs_private_shop_data=False,
                 rationale=("Câu hỏi nằm ngoài phạm vi chính sách và vận hành Shopee.",),
             )
-        needs_shop = any(term in normalized for term in self.SHOP_TERMS)
+        needs_cost_analysis = any(
+            term in normalized for term in self.COST_ANALYSIS_TERMS
+        )
+        needs_shop = (
+            any(term in normalized for term in self.SHOP_TERMS)
+            or needs_cost_analysis
+        )
         needs_policy = any(term in normalized for term in self.POLICY_TERMS)
         needs_calculation = any(term in normalized for term in self.CALCULATION_TERMS)
 
