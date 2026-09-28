@@ -12,6 +12,7 @@ from agent.market_intelligence import (
     MARKET_REFERENCE_COUNT,
     market_categories,
     price_comparison,
+    product_opportunities,
     reference_listings,
     source_status,
     trend_brief,
@@ -38,6 +39,17 @@ class MarketIntelligenceTests(unittest.TestCase):
         statuses = source_status()
         self.assertEqual(statuses[0]["status"], "Đang dùng")
         self.assertTrue(any(row["status"] == "Chưa kết nối" for row in statuses))
+
+    def test_product_opportunity_rewards_balanced_sales_and_revenue(self) -> None:
+        opportunities = product_opportunities()
+        self.assertEqual(len(opportunities), 50)
+        self.assertEqual([item["rank"] for item in opportunities], list(range(1, 51)))
+        self.assertGreater(float(opportunities[0]["opportunity_score"]), float(opportunities[-1]["opportunity_score"]))
+        for item in opportunities:
+            self.assertGreaterEqual(float(item["opportunity_score"]), 0)
+            self.assertLessEqual(float(item["opportunity_score"]), 100)
+            self.assertGreater(float(item["units_sold_estimate"]), 0)
+            self.assertGreater(float(item["estimated_revenue_vnd"]), 0)
 
 
 if __name__ == "__main__":

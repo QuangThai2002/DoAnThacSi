@@ -24,8 +24,8 @@ from agent.market_intelligence import (
     MARKET_SNAPSHOT_DATE,
     market_categories,
     price_comparison,
+    product_opportunities,
     source_status,
-    trend_brief,
 )
 from agent.market_sources import fetch_configured_sources
 from agent.planner import Planner
@@ -558,7 +558,7 @@ def render_market_intelligence() -> None:
         st.markdown("**Đọc nhanh trong 15 giây**")
         st.write("1. So sánh giá shop với dải tham chiếu.  2. Nhìn đánh giá và review để chọn giả thuyết cần kiểm chứng.  3. Thử một thay đổi nhỏ rồi đo lại đơn hàng và lợi nhuận.")
 
-    price_tab, shop_tab, trend_tab, source_tab = st.tabs(["So sánh giá", "Shop tham chiếu", "Xu hướng thử nghiệm", "Nguồn trực tuyến"])
+    price_tab, shop_tab, product_tab, source_tab = st.tabs(["So sánh giá", "Shop tham chiếu", "Cơ hội mặt hàng", "Nguồn trực tuyến"])
     references = list(summary["references"])
     with price_tab:
         st.subheader(str(summary["position"]))
@@ -638,14 +638,50 @@ def render_market_intelligence() -> None:
             },
         )
 
-    with trend_tab:
-        st.caption("Các thẻ dưới đây là giả thuyết để thử nghiệm bán hàng, không phải bản tin trích xuất từ mạng xã hội.")
-        for item in trend_brief(str(category_id)):
-            with st.container(border=True):
-                st.markdown(f"#### {item['headline']}")
-                st.caption(item["signal"])
-                st.write(item["detail"])
-                st.info(f"Việc nên thử: {item['action']}", icon=":material/experiment:")
+    with product_tab:
+        opportunities = product_opportunities()
+        current = next(item for item in opportunities if item["category_id"] == category_id)
+        st.subheader(f"#{current['rank']} · {current['category']}")
+        st.caption("Điểm cơ hội không lấy từ mạng xã hội. Nó cân bằng số lượng bán, doanh thu, giá, review và tính lâu dài.")
+        with st.container(horizontal=True):
+            st.metric("Điểm cơ hội", f"{current['opportunity_score']}/100", help="Điểm tổng hợp; cao hơn nghĩa là đáng ưu tiên thử nghiệm hơn trong Market Demo.", border=True)
+            st.metric("Số lượng bán ước tính", f"{int(current['units_sold_estimate']):,}", help="Ước tính 12 tháng mô phỏng.", border=True)
+            st.metric("Doanh thu ước tính", currency(float(current["estimated_revenue_vnd"])), help="Ước tính 12 tháng mô phỏng, không phải doanh thu thật.", border=True)
+
+        components = pd.DataFrame(
+            [
+                {"Tiêu chí": "Cân bằng lượng bán và doanh thu", "Điểm": current["balance_score"]},
+                {"Tiêu chí": "Giá phù hợp thị trường", "Điểm": current["price_fit_score"]},
+                {"Tiêu chí": "Review tích cực", "Điểm": current["positive_review_score"]},
+                {"Tiêu chí": "Tính ổn định dài hạn", "Điểm": current["longevity_score"]},
+            ]
+        )
+        top = pd.DataFrame(opportunities[:10])
+        component_col, ranking_col = st.columns(2)
+        with component_col:
+            st.markdown("**Vì sao mặt hàng này có điểm như vậy?**")
+            component_chart = alt.Chart(components).mark_bar(cornerRadiusEnd=4).encode(
+                x=alt.X("Điểm:Q", scale=alt.Scale(domain=[0, 100]), title="Điểm / 100"),
+                y=alt.Y("Tiêu chí:N", sort="-x", title=None),
+                color=alt.value("#ee4d2d"),
+                tooltip=["Tiêu chí:N", alt.Tooltip("Điểm:Q", format=".1f")],
+            ).properties(height=250)
+            st.altair_chart(component_chart, width="stretch")
+        with ranking_col:
+            st.markdown("**10 ngành hàng nên ưu tiên thử nghiệm**")
+            ranking_chart = alt.Chart(top).mark_bar(cornerRadiusEnd=4).encode(
+                x=alt.X("opportunity_score:Q", scale=alt.Scale(domain=[0, 100]), title="Điểm cơ hội / 100"),
+                y=alt.Y("category:N", sort="-x", title=None),
+                color=alt.value("#f7a28f"),
+                tooltip=["category:N", alt.Tooltip("opportunity_score:Q", format=".1f"), "lead_product:N"],
+            ).properties(height=250)
+            st.altair_chart(ranking_chart, width="stretch")
+        st.info(
+            "Cách đọc: sản phẩm bán nhiều nhưng giá quá thấp sẽ bị điểm doanh thu kéo xuống; sản phẩm giá cao nhưng ít đơn cũng bị điểm lượng bán kéo xuống. "
+            "Chỉ khi hai phần cân bằng, kèm giá hợp lý, review tốt và ổn định dài hạn thì điểm mới cao.",
+            icon=":material/balance:",
+        )
+        st.caption("Toàn bộ lượng bán, doanh thu và review trong tab này là mô phỏng. Khi có dữ liệu vận hành thật, cùng công thức có thể áp dụng cho sản phẩm của shop.")
 
     with source_tab:
         st.subheader("Nguồn trực tuyến có kiểm soát")

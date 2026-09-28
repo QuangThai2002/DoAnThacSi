@@ -170,6 +170,64 @@ def trend_brief(category_id: str) -> list[dict[str, str]]:
     ]
 
 
+def product_opportunities() -> list[dict[str, object]]:
+    """Rank category opportunities by a balanced, explicitly simulated model.
+
+    The score intentionally rewards the *combination* of demand and revenue.
+    A cheap product with volume alone, or an expensive product with too few
+    orders, cannot dominate the list merely because of one dimension.
+    """
+    raw: list[dict[str, float | str]] = []
+    for item in market_categories():
+        category_id = str(item["id"])
+        references = reference_listings(category_id)
+        rng = random.Random(f"market-opportunity:{category_id}")
+        units = rng.randint(280, 6200)
+        average_price = float(median([float(row["listed_price_vnd"]) for row in references]))
+        revenue = int(units * average_price)
+        average_rating = sum(float(row["rating"]) for row in references) / len(references)
+        raw.append(
+            {
+                "category_id": category_id,
+                "category": str(item["category"]),
+                "lead_product": str(item["product_examples"][0]),
+                "units_sold_estimate": float(units),
+                "estimated_revenue_vnd": float(revenue),
+                "price_fit_score": float(rng.randint(62, 96)),
+                "positive_review_score": round(min(98.0, average_rating / 5 * 100), 1),
+                "longevity_score": float(rng.randint(58, 95)),
+            }
+        )
+
+    max_units = max(float(row["units_sold_estimate"]) for row in raw)
+    max_revenue = max(float(row["estimated_revenue_vnd"]) for row in raw)
+    results: list[dict[str, object]] = []
+    for row in raw:
+        volume = float(row["units_sold_estimate"]) / max_units * 100
+        revenue = float(row["estimated_revenue_vnd"]) / max_revenue * 100
+        balance = min(volume, revenue)
+        score = (
+            balance * 0.30
+            + ((volume + revenue) / 2) * 0.15
+            + float(row["price_fit_score"]) * 0.20
+            + float(row["positive_review_score"]) * 0.20
+            + float(row["longevity_score"]) * 0.15
+        )
+        results.append(
+            {
+                **row,
+                "volume_score": round(volume, 1),
+                "revenue_score": round(revenue, 1),
+                "balance_score": round(balance, 1),
+                "opportunity_score": round(score, 1),
+            }
+        )
+    results.sort(key=lambda item: float(item["opportunity_score"]), reverse=True)
+    for rank, item in enumerate(results, start=1):
+        item["rank"] = rank
+    return results
+
+
 def source_status() -> list[Mapping[str, str]]:
     """Expose connector readiness without implying any live integration."""
     return list(SOURCE_STATUS)
