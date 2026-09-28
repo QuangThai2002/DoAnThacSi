@@ -401,9 +401,7 @@ def render_assistant() -> None:
 
     chat_type = CHAT_TYPES[mode]
     st.markdown('<div class="seller-eyebrow">TRỢ LÝ BÁN HÀNG AI</div>', unsafe_allow_html=True)
-    with st.container(horizontal=True, horizontal_alignment="distribute"):
-        st.title(chat_type["name"])
-        st.badge(chat_type["name"], icon=chat_type["icon"], color="orange" if mode == "owner" else "gray")
+    st.subheader(f"{chat_type['icon']} {chat_type['name']}")
     st.caption(chat_type["description"])
 
     if mode == "owner" and not is_uploaded():
@@ -468,7 +466,6 @@ with st.sidebar:
         if st.button(label, key=f"open_{conversation['id']}", icon=chat_type["icon"], width="stretch", disabled=selected):
             open_conversation(conversation["id"])
             st.rerun()
-    st.caption("Nhãn :material/school: là chat Người mới; :material/storefront: là chat Chủ shop.")
 
 if st.session_state.seller_show_chat_picker:
     choose_chat_type()
