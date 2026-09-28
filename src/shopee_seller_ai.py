@@ -44,9 +44,10 @@ st.markdown(
       [data-testid="stAppViewContainer"] h1,
       [data-testid="stAppViewContainer"] h2,
       [data-testid="stAppViewContainer"] h3 { color: #252525 !important; }
-      .block-container, [data-testid="stMainBlockContainer"] {
-        max-width: 1440px; padding-top: 2.25rem !important; padding-bottom: 7rem;
+      .block-container, .stMainBlockContainer, [data-testid="stMainBlockContainer"] {
+        max-width: 1440px; padding-top: 3.25rem !important; padding-bottom: 7rem;
       }
+      [data-testid="stSidebarCollapseButton"] { display: none !important; }
 
       /* Clear, seller-facing navigation */
       [data-testid="stSidebar"] .stButton > button {
@@ -162,6 +163,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_active_chat_id", None)
     st.session_state.setdefault("seller_conversations", [])
     st.session_state.setdefault("seller_show_chat_picker", False)
+    st.session_state.setdefault("seller_sidebar_compact", False)
 
 
 def active_runner() -> AgentRunner:
@@ -221,6 +223,26 @@ def open_conversation(chat_id: str) -> None:
 
 def show_chat_picker() -> None:
     st.session_state.seller_show_chat_picker = True
+
+
+def toggle_sidebar_compact() -> None:
+    st.session_state.seller_sidebar_compact = not st.session_state.seller_sidebar_compact
+
+
+def render_sidebar_layout_css() -> None:
+    if not st.session_state.seller_sidebar_compact:
+        return
+    st.markdown(
+        """
+        <style>
+          [data-testid="stSidebar"] { min-width: 76px !important; max-width: 76px !important; width: 76px !important; }
+          [data-testid="stSidebar"] > div:first-child { width: 76px !important; }
+          [data-testid="stSidebar"] [data-testid="stSidebarContent"] { padding: .8rem .45rem !important; }
+          [data-testid="stSidebar"] .stButton > button { min-height: 42px; padding: .45rem !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def human_title(question: str) -> str:
@@ -457,17 +479,49 @@ def render_assistant() -> None:
 
 
 initialise_state()
+render_sidebar_layout_css()
 with st.sidebar:
-    st.markdown("### :material/storefront: Trợ lý AI")
-    st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
-    st.caption("Cuộc trò chuyện gần đây")
-    for conversation in reversed(st.session_state.seller_conversations[-5:]):
-        chat_type = CHAT_TYPES[conversation["mode"]]
-        selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
-        label = f"{chat_type['name']} · {conversation['title']}"
-        if st.button(label, key=f"open_{conversation['id']}", icon=chat_type["icon"], width="stretch", disabled=selected):
-            open_conversation(conversation["id"])
+    compact = st.session_state.seller_sidebar_compact
+    if compact:
+        if st.button(" ", key="expand_sidebar", icon=":material/chevron_right:", help="Mở rộng danh sách chat", width="stretch"):
+            toggle_sidebar_compact()
             st.rerun()
+        st.button(" ", key="compact_new_chat", icon=":material/add_comment:", help="Cuộc trò chuyện mới", width="stretch", on_click=show_chat_picker)
+        for conversation in reversed(st.session_state.seller_conversations[-5:]):
+            chat_type = CHAT_TYPES[conversation["mode"]]
+            selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
+            label = f"{chat_type['name']} · {conversation['title']}"
+            st.button(
+                " ",
+                key=f"compact_open_{conversation['id']}",
+                icon=chat_type["icon"],
+                help=label,
+                width="stretch",
+                disabled=selected,
+                on_click=open_conversation,
+                args=(conversation["id"],),
+            )
+    else:
+        with st.container(horizontal=True, horizontal_alignment="distribute"):
+            st.markdown("### :material/storefront: Trợ lý AI")
+            if st.button(" ", key="collapse_sidebar", icon=":material/chevron_left:", help="Thu gọn danh sách chat"):
+                toggle_sidebar_compact()
+                st.rerun()
+        st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
+        st.caption("Cuộc trò chuyện gần đây")
+        for conversation in reversed(st.session_state.seller_conversations[-5:]):
+            chat_type = CHAT_TYPES[conversation["mode"]]
+            selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
+            label = f"{chat_type['name']} · {conversation['title']}"
+            st.button(
+                label,
+                key=f"open_{conversation['id']}",
+                icon=chat_type["icon"],
+                width="stretch",
+                disabled=selected,
+                on_click=open_conversation,
+                args=(conversation["id"],),
+            )
 
 if st.session_state.seller_show_chat_picker:
     choose_chat_type()

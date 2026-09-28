@@ -38,6 +38,14 @@ class SellerFacingUiTests(unittest.TestCase):
         )
         self.assertEqual(len(app.error), 0)
 
+    def test_sidebar_compacts_to_icon_controls(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="collapse_sidebar").click().run()
+
+        self.assertTrue(app.session_state["seller_sidebar_compact"])
+        self.assertEqual(app.button(key="expand_sidebar").icon, ":material/chevron_right:")
+        self.assertEqual(app.button(key="compact_new_chat").icon, ":material/add_comment:")
+
 
 if __name__ == "__main__":
     unittest.main()
