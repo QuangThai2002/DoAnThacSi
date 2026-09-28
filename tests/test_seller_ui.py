@@ -65,6 +65,28 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertEqual(app.segmented_control(key="seller_library_scope").value, "demo")
         self.assertIn("Bộ dữ liệu demo cho người mới", [header.value for header in app.subheader])
 
+    def test_learner_can_start_with_a_random_demo_assortment(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+        app.button(key="open_demo_library_from_chat").click().run()
+
+        self.assertIn("Tìm kiếm mặt hàng hoặc ngành hàng", [item.label for item in app.text_input])
+        app.button(key="random_demo_5").click().run()
+        self.assertEqual(len(app.multiselect(key="seller_demo_selected_ids").value), 5)
+        self.assertFalse(app.button(key="create_selected_demo").disabled)
+
+    def test_learner_can_search_and_add_a_close_product_match(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+        app.button(key="open_demo_library_from_chat").click().run()
+
+        app.text_input(key="seller_demo_search").input("hoa qua").run()
+        self.assertEqual(app.selectbox(key="seller_demo_search_result").value, "fresh-fruit")
+        app.button(key="add_demo_product").click().run()
+        self.assertIn("fresh-fruit", app.multiselect(key="seller_demo_selected_ids").value)
+
 
 if __name__ == "__main__":
     unittest.main()

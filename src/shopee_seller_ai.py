@@ -6,9 +6,11 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 from pathlib import Path
 import sys
 from typing import Any
+import unicodedata
 
 import altair as alt
 import pandas as pd
@@ -25,7 +27,9 @@ from agent.shop_data_library import (
     REQUIRED_FILES as LIBRARY_REQUIRED_FILES,
     ShopDataLibrary,
     clean_and_validate_rows,
+    demo_catalog,
     empty_rows,
+    random_demo_product_ids,
 )
 
 
@@ -175,6 +179,8 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_view", "chat")
     st.session_state.setdefault("seller_data_origin", None)
     st.session_state.setdefault("seller_library_scope", "owner")
+    st.session_state.setdefault("seller_demo_selected_ids", [])
+    st.session_state.setdefault("seller_demo_random_seed", 20260928)
 
 
 def active_runner() -> AgentRunner:
@@ -593,6 +599,109 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
                 )
 
 
+def search_key(text: str) -> str:
+    """Accent-insensitive matching for Vietnamese product ideas."""
+    normalized = unicodedata.normalize("NFD", str(text)).casefold()
+    normalized = "".join(char for char in normalized if unicodedata.category(char) != "Mn")
+    return normalized.replace("đ", "d")
+
+
+def set_random_demo_selection(count: int) -> None:
+    seed = int(st.session_state.seller_demo_random_seed)
+    st.session_state.seller_demo_selected_ids = random_demo_product_ids(count, seed=seed)
+    st.session_state.seller_demo_random_seed = seed + 1
+
+
+def add_demo_product_to_selection(product_id: str) -> None:
+    selected = list(st.session_state.seller_demo_selected_ids)
+    if product_id and product_id not in selected:
+        selected.append(product_id)
+    st.session_state.seller_demo_selected_ids = selected
+
+
+def select_all_demo_products() -> None:
+    st.session_state.seller_demo_selected_ids = [str(item["id"]) for item in demo_catalog()]
+
+
+def matches_demo_search(query_key: str, item: dict[str, object]) -> bool:
+    searchable = search_key(f"{item['product_name']} {item['category']} {item['search_terms']}")
+    if not query_key:
+        return True
+    tokens = query_key.split()
+    if all(token in searchable for token in tokens):
+        return True
+    return SequenceMatcher(None, query_key, searchable).ratio() >= 0.28
+
+
+def render_demo_assortment_builder(
+    library: ShopDataLibrary, saved_rows: dict[str, list[dict[str, str]]] | None
+) -> None:
+    """Let a learner choose a sellable assortment before creating test data."""
+    catalog = demo_catalog()
+    catalog_by_id = {str(item["id"]): item for item in catalog}
+    product_ids = list(catalog_by_id)
+
+    st.markdown("#### Bạn muốn thử bán mặt hàng nào?")
+    st.caption("Tìm theo tên hoặc loại hàng, chọn từng mặt hàng, hoặc để hệ thống chọn ngẫu nhiên. Sau đó AI tạo dữ liệu mô phỏng 12 tháng riêng cho lựa chọn của bạn.")
+    query = st.text_input(
+        "Tìm kiếm mặt hàng hoặc ngành hàng",
+        placeholder="Ví dụ: hoa quả, đồ điện tử, bánh kẹo, quần áo, gear máy tính...",
+        key="seller_demo_search",
+    )
+    query_key = search_key(query)
+    matches = [
+        item for item in catalog
+        if matches_demo_search(query_key, item)
+    ]
+    if query_key:
+        st.caption(f"Tìm thấy {len(matches)} lựa chọn gần đúng.")
+        if matches:
+            result_id = st.selectbox(
+                "Kết quả phù hợp", [str(item["id"]) for item in matches],
+                format_func=lambda product_id: f"{catalog_by_id[product_id]['category']} — {catalog_by_id[product_id]['product_name']}",
+                key="seller_demo_search_result",
+            )
+            st.button(
+                "Thêm mặt hàng này", icon=":material/add:",
+                key="add_demo_product", on_click=add_demo_product_to_selection, args=(result_id,)
+            )
+        else:
+            st.info("Chưa có kết quả gần đúng. Hãy thử từ khóa ngắn hơn, ví dụ “điện tử”, “hoa quả” hoặc “quần áo”.", icon=":material/search_off:")
+
+    with st.container(horizontal=True):
+        st.button("Chọn ngẫu nhiên 5 loại", icon=":material/casino:", key="random_demo_5", on_click=set_random_demo_selection, args=(5,))
+        st.button("Chọn ngẫu nhiên 10 loại", icon=":material/casino:", key="random_demo_10", on_click=set_random_demo_selection, args=(10,))
+        st.button("Chọn cả 50 loại", icon=":material/select_all:", key="select_all_demo", on_click=select_all_demo_products)
+
+    selected_ids = st.multiselect(
+        "Mặt hàng được đưa vào bộ dữ liệu demo", product_ids,
+        format_func=lambda product_id: f"{catalog_by_id[product_id]['category']} — {catalog_by_id[product_id]['product_name']}",
+        key="seller_demo_selected_ids", placeholder="Chưa chọn mặt hàng nào",
+    )
+    if selected_ids:
+        selected_catalog = pd.DataFrame([catalog_by_id[product_id] for product_id in selected_ids])
+        st.dataframe(
+            selected_catalog[["category", "product_name", "list_price_vnd"]], hide_index=True,
+            column_config={
+                "category": "Loại hàng", "product_name": "Sản phẩm mô phỏng",
+                "list_price_vnd": st.column_config.NumberColumn("Giá niêm yết mô phỏng", format="%,.0f đ"),
+            },
+        )
+    if st.button(
+        "Tạo dữ liệu 12 tháng theo lựa chọn", icon=":material/auto_awesome:",
+        key="create_selected_demo", type="primary", disabled=not selected_ids,
+    ):
+        library.seed_demo(selected_ids)
+        st.session_state.seller_upload_message = (
+            f"Đã tạo dữ liệu mô phỏng 12 tháng cho {len(selected_ids)} loại hàng."
+        )
+        st.rerun()
+
+    if saved_rows is not None:
+        count = len(saved_rows["products.csv"])
+        st.caption(f"Bộ demo đang lưu có {count} loại hàng. Tạo bộ mới sẽ thay bộ demo cũ, không ảnh hưởng dữ liệu Chủ shop.")
+
+
 def render_data_library() -> None:
     """The persistent local shop-data workspace, reached via the bookshelf."""
     st.markdown('<div class="seller-eyebrow">THƯ VIỆN DỮ LIỆU</div>', unsafe_allow_html=True)
@@ -626,15 +735,11 @@ def render_data_library() -> None:
 
     if is_demo:
         st.info(
-            "Bộ demo gồm 20 mặt hàng thuộc nhiều ngành hàng, 240 đơn mô phỏng trong 12 tháng và 36 dòng quảng cáo. "
-            "Số liệu được tạo giả lập có kiểm soát để luôn lặp lại khi demo.",
+            "Danh mục có 50 loại hàng đại diện cho các mảng phổ biến trên sàn. Dữ liệu là mô phỏng, "
+            "không phải danh mục hoặc số liệu trực tiếp từ Shopee.",
             icon=":material/lightbulb:",
         )
-        demo_action = "Nạp bộ dữ liệu demo 12 tháng" if saved_rows is None else "Tạo lại bộ dữ liệu demo 12 tháng"
-        if st.button(demo_action, key="seed_demo_library", type="primary", icon=":material/auto_awesome:"):
-            library.seed_demo()
-            st.session_state.seller_upload_message = "Đã lưu bộ demo gồm 20 mặt hàng và 12 tháng dữ liệu."
-            st.rerun()
+        render_demo_assortment_builder(library, saved_rows)
 
     if saved_rows is not None:
         action_label = "Dùng bộ demo trong chat" if is_demo else "Dùng dữ liệu shop trong chat"
