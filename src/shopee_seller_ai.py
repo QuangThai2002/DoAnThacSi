@@ -6,6 +6,7 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -26,6 +27,7 @@ from agent.market_intelligence import (
     source_status,
     trend_brief,
 )
+from agent.market_sources import fetch_configured_sources
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 from agent.shop_data_library import (
@@ -458,6 +460,34 @@ def currency(value: float) -> str:
     return f"{value:,.0f} đ"
 
 
+def market_credential(name: str) -> str:
+    """Read a local secret without ever rendering it back to the browser."""
+    try:
+        value = st.secrets[name] if name in st.secrets else os.environ.get(name, "")
+    except (FileNotFoundError, RuntimeError):
+        value = os.environ.get(name, "")
+    return str(value or "")
+
+
+def market_credentials() -> dict[str, str]:
+    return {
+        name: market_credential(name)
+        for name in (
+            "YOUTUBE_API_KEY",
+            "META_PAGE_ID",
+            "META_PAGE_ACCESS_TOKEN",
+            "TIKTOK_RESEARCH_CLIENT_KEY",
+            "TIKTOK_RESEARCH_CLIENT_SECRET",
+        )
+    }
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def load_live_market_sources(query: str, credentials: tuple[tuple[str, str], ...]) -> list[dict[str, object]]:
+    """Cache user-triggered live calls briefly to respect API quotas."""
+    return fetch_configured_sources(query, dict(credentials))
+
+
 def market_own_prices(category: str) -> tuple[list[float], str]:
     """Get comparable list prices without silently inventing a shop price."""
     rows = st.session_state.get("seller_uploaded_rows")
@@ -515,15 +545,20 @@ def render_market_intelligence() -> None:
     own_prices, own_note = market_own_prices(str(selected["category"]))
     summary = price_comparison(str(category_id), own_prices)
 
-    metrics = st.columns(4)
-    metrics[0].metric("Giá thấp tham chiếu", currency(float(summary["lower_price_vnd"])))
-    metrics[1].metric("Mặt bằng tham chiếu", currency(float(summary["typical_price_vnd"])))
-    metrics[2].metric("Giá cao tham chiếu", currency(float(summary["upper_price_vnd"])))
+    with st.container(horizontal=True):
+        st.metric("Giá thấp tham chiếu", currency(float(summary["lower_price_vnd"])), help="Mốc thấp của dải giá tham chiếu, không phải giá nên bán bắt buộc.", border=True)
+        st.metric("Mặt bằng tham chiếu", currency(float(summary["typical_price_vnd"])), help="Mức giá ở giữa của các shop tham chiếu mô phỏng.", border=True)
+        st.metric("Giá cao tham chiếu", currency(float(summary["upper_price_vnd"])), help="Mốc cao của dải giá tham chiếu; cần có giá trị khác biệt để bán ở vùng này.", border=True)
     own_label = currency(float(summary["own_price_vnd"])) if summary["own_price_vnd"] is not None else "Chưa có"
-    metrics[3].metric("Giá shop của bạn", own_label)
+    with st.container(horizontal=True):
+        st.metric("Giá shop của bạn", own_label, help="Lấy trung vị giá niêm yết của các sản phẩm cùng ngành trong bảng Chủ shop.", border=True)
+        st.metric("Vị trí giá", str(summary["position"]), help="Kết luận chỉ dựa trên vị trí giá, không khẳng định doanh số hay chất lượng.", border=True)
     st.caption(own_note)
+    with st.container(border=True):
+        st.markdown("**Đọc nhanh trong 15 giây**")
+        st.write("1. So sánh giá shop với dải tham chiếu.  2. Nhìn đánh giá và review để chọn giả thuyết cần kiểm chứng.  3. Thử một thay đổi nhỏ rồi đo lại đơn hàng và lợi nhuận.")
 
-    price_tab, shop_tab, trend_tab = st.tabs(["So sánh giá", "Shop tham chiếu", "Xu hướng thử nghiệm"])
+    price_tab, shop_tab, trend_tab, source_tab = st.tabs(["So sánh giá", "Shop tham chiếu", "Xu hướng thử nghiệm", "Nguồn trực tuyến"])
     references = list(summary["references"])
     with price_tab:
         st.subheader(str(summary["position"]))
@@ -537,7 +572,7 @@ def render_market_intelligence() -> None:
                 {"Nhãn": "Giá shop của bạn", "Giá niêm yết (VND)": summary["own_price_vnd"], "Loại": "Shop của bạn"}
             )
         chart_data = pd.DataFrame(chart_rows)
-        chart = (
+        price_chart = (
             alt.Chart(chart_data)
             .mark_bar(cornerRadiusEnd=4)
             .encode(
@@ -552,7 +587,30 @@ def render_market_intelligence() -> None:
             )
             .properties(height=310)
         )
-        st.altair_chart(chart, width="stretch")
+        quality_data = pd.DataFrame(references).rename(
+            columns={"shop_name": "Shop", "listed_price_vnd": "Giá (VND)", "rating": "Đánh giá", "review_count": "Số review"}
+        )
+        quality_chart = (
+            alt.Chart(quality_data)
+            .mark_circle(opacity=0.82)
+            .encode(
+                x=alt.X("Giá (VND):Q", title="Giá niêm yết", axis=alt.Axis(format=",d")),
+                y=alt.Y("Đánh giá:Q", title="Đánh giá", scale=alt.Scale(domain=[4.2, 5.0])),
+                size=alt.Size("Số review:Q", title="Số review", scale=alt.Scale(range=[90, 900])),
+                color=alt.value("#ee4d2d"),
+                tooltip=["Shop:N", alt.Tooltip("Giá (VND):Q", format=",d"), "Đánh giá:Q", alt.Tooltip("Số review:Q", format=",d")],
+            )
+            .properties(height=310)
+        )
+        left_chart, right_chart = st.columns(2)
+        with left_chart:
+            st.markdown("**Biểu đồ 1 · Giá từng shop**")
+            st.caption("Cột đỏ chỉ xuất hiện khi bảng Chủ shop có sản phẩm cùng ngành.")
+            st.altair_chart(price_chart, width="stretch")
+        with right_chart:
+            st.markdown("**Biểu đồ 2 · Giá, đánh giá và review**")
+            st.caption("Chấm to hơn nghĩa là nhiều review hơn; đây là dữ liệu mô phỏng để học cách đọc biểu đồ.")
+            st.altair_chart(quality_chart, width="stretch")
         st.caption(
             f"Dải giá dùng 6/8 giá ở giữa của {summary['reference_count']} shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
         )
@@ -589,8 +647,58 @@ def render_market_intelligence() -> None:
                 st.write(item["detail"])
                 st.info(f"Việc nên thử: {item['action']}", icon=":material/experiment:")
 
+    with source_tab:
+        st.subheader("Nguồn trực tuyến có kiểm soát")
+        st.caption("Chỉ gọi API khi bạn tự cấu hình khóa/quyền hợp lệ. Không có chức năng quét dữ liệu hoặc lấy thông tin tài khoản người khác.")
+        credentials = market_credentials()
+        configured = [
+            label
+            for label, names in {
+                "YouTube": ("YOUTUBE_API_KEY",),
+                "Facebook Page": ("META_PAGE_ID", "META_PAGE_ACCESS_TOKEN"),
+                "TikTok Research": ("TIKTOK_RESEARCH_CLIENT_KEY", "TIKTOK_RESEARCH_CLIENT_SECRET"),
+            }.items()
+            if all(credentials[name] for name in names)
+        ]
+        if configured:
+            st.success("Đã sẵn sàng: " + ", ".join(configured), icon=":material/link:")
+        else:
+            st.info(
+                "Chưa có khóa API. Bạn vẫn dùng được Market Demo; để bật dữ liệu trực tuyến, cấu hình secrets theo file docs/market_secrets.example.toml.",
+                icon=":material/key:",
+            )
+        query = str(selected["search_terms"])
+        if st.button(
+            "Làm mới nguồn trực tuyến",
+            key="refresh_live_market_sources",
+            icon=":material/refresh:",
+            type="primary",
+            disabled=not configured,
+        ):
+            st.session_state.seller_live_market_results = load_live_market_sources(
+                query, tuple(sorted(credentials.items()))
+            )
+            st.session_state.seller_live_market_query = query
+
+        live_results = st.session_state.get("seller_live_market_results", [])
+        if live_results and st.session_state.get("seller_live_market_query") == query:
+            for result in live_results:
+                with st.container(border=True):
+                    st.markdown(f"**{result['platform']} · {result['status']}**")
+                    st.caption(str(result["message"]))
+                    items = list(result.get("items", []))
+                    if items:
+                        st.dataframe(
+                            pd.DataFrame(items).rename(
+                                columns={"title": "Nội dung", "creator": "Kênh / tín hiệu", "published_at": "Ngày", "url": "Liên kết"}
+                            ),
+                            hide_index=True,
+                            width="stretch",
+                            column_config={"Liên kết": st.column_config.LinkColumn("Mở nguồn")},
+                        )
+
     with st.expander("Tình trạng nguồn dữ liệu", icon=":material/source:"):
-        st.caption("Bảng này giúp phân biệt phần demo hiện có với các kết nối cần triển khai sau này.")
+        st.caption("Phân biệt rõ Market Demo với các nguồn trực tuyến cần quyền truy cập riêng.")
         st.dataframe(pd.DataFrame(source_status()), hide_index=True, width="stretch")
 
 
