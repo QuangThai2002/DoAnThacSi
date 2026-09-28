@@ -46,6 +46,25 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertEqual(app.button(key="expand_sidebar").icon, ":material/chevron_right:")
         self.assertEqual(app.button(key="compact_new_chat").icon, ":material/add_comment:")
 
+    def test_bookshelf_opens_the_local_data_workspace(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="open_data_library").click().run()
+
+        self.assertEqual([title.value for title in app.title], ["Dữ liệu và báo cáo quản lý"])
+        self.assertIn("Lưu bảng dữ liệu", [button.label for button in app.button])
+        self.assertIn("Bộ demo · Người mới", app.segmented_control(key="seller_library_scope").options)
+        self.assertIn("Dữ liệu shop · Chủ shop", app.segmented_control(key="seller_library_scope").options)
+        self.assertEqual(len(app.error), 0)
+
+    def test_learner_opens_the_demo_shelf(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+        app.button(key="open_demo_library_from_chat").click().run()
+
+        self.assertEqual(app.segmented_control(key="seller_library_scope").value, "demo")
+        self.assertIn("Bộ dữ liệu demo cho người mới", [header.value for header in app.subheader])
+
 
 if __name__ == "__main__":
     unittest.main()

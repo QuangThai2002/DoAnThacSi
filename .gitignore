@@ -26,3 +26,4 @@ data/processed/agent_benchmark_review/
 thesis_review_package_*/
 
 .streamlit/
+data/local_store/

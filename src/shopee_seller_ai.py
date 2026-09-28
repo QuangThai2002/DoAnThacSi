@@ -10,6 +10,8 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import altair as alt
+import pandas as pd
 import streamlit as st
 
 SRC_DIR = Path(__file__).resolve().parent
@@ -19,6 +21,12 @@ if str(SRC_DIR) not in sys.path:
 from agent.agent_runner import AgentRunner
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
+from agent.shop_data_library import (
+    REQUIRED_FILES as LIBRARY_REQUIRED_FILES,
+    ShopDataLibrary,
+    clean_and_validate_rows,
+    empty_rows,
+)
 
 
 st.set_page_config(
@@ -164,6 +172,9 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_conversations", [])
     st.session_state.setdefault("seller_show_chat_picker", False)
     st.session_state.setdefault("seller_sidebar_compact", False)
+    st.session_state.setdefault("seller_view", "chat")
+    st.session_state.setdefault("seller_data_origin", None)
+    st.session_state.setdefault("seller_library_scope", "owner")
 
 
 def active_runner() -> AgentRunner:
@@ -207,6 +218,14 @@ def start_conversation(mode: str) -> None:
     st.session_state.seller_chat_mode = mode
     st.session_state.seller_active_chat_id = chat_id
     st.session_state.seller_show_chat_picker = False
+    st.session_state.seller_view = "chat"
+    active_origin = st.session_state.get("seller_data_origin")
+    if (mode == "owner" and active_origin == "demo_library") or (
+        mode == "learner" and active_origin == "owner_library"
+    ):
+        st.session_state.seller_uploaded_rows = None
+        st.session_state.seller_uploaded_names = ()
+        st.session_state.seller_data_origin = None
     clear_active_conversation()
     st.session_state.seller_conversations.append(
         {"id": chat_id, "mode": mode, "title": conversation_title([], mode), "messages": []}
@@ -218,11 +237,23 @@ def open_conversation(chat_id: str) -> None:
     st.session_state.seller_active_chat_id = conversation["id"]
     st.session_state.seller_chat_mode = conversation["mode"]
     st.session_state.seller_messages = list(conversation["messages"])
+    st.session_state.seller_view = "chat"
     st.session_state.pop("seller_suggestion", None)
 
 
 def show_chat_picker() -> None:
     st.session_state.seller_show_chat_picker = True
+
+
+def open_data_library() -> None:
+    """Open the right shelf for the active user role."""
+    mode = st.session_state.get("seller_chat_mode")
+    st.session_state.seller_library_scope = "demo" if mode == "learner" else "owner"
+    st.session_state.seller_view = "library"
+
+
+def open_chat_view() -> None:
+    st.session_state.seller_view = "chat"
 
 
 def toggle_sidebar_compact() -> None:
@@ -255,6 +286,10 @@ def data_note(source: str | None) -> str | None:
         return "Dữ liệu sử dụng: báo cáo bạn tải lên trong phiên này."
     if source == "mock_shop_data":
         return "Dữ liệu sử dụng: dữ liệu mô phỏng phục vụ demo."
+    if source == "demo_library":
+        return "Dữ liệu sử dụng: bộ dữ liệu demo trong Thư viện dữ liệu."
+    if source == "owner_library":
+        return "Dữ liệu sử dụng: bảng dữ liệu cửa hàng đã lưu trên máy này."
     return None
 
 
@@ -324,7 +359,256 @@ def answer_question(question: str) -> dict[str, Any]:
     result["confidence"] = (
         "Cao" if result.get("citations") or result.get("data_source") else "Trung bình"
     )
+    origin = st.session_state.get("seller_data_origin")
+    if origin in {"demo_library", "owner_library"} and result.get("data_source") == "uploaded_csv":
+        result["data_source"] = origin
     return result
+
+
+TABLE_SPECS = {
+    "orders.csv": {
+        "title": "Đơn hàng",
+        "help": "Mỗi dòng là một đơn. Chỉ các đơn có trạng thái completed được tính vào doanh thu.",
+        "columns": [
+            "order_id", "order_date", "status", "sku", "quantity",
+            "gross_merchandise_value_vnd", "seller_discount_vnd", "platform_discount_vnd",
+            "estimated_transaction_fee_vnd", "estimated_service_fee_vnd",
+        ],
+    },
+    "products.csv": {
+        "title": "Sản phẩm",
+        "help": "Danh mục sản phẩm và giá vốn để hệ thống ước tính hiệu quả từng mặt hàng.",
+        "columns": ["sku", "product_name", "category", "cost_per_unit_vnd", "list_price_vnd"],
+    },
+    "inventory.csv": {
+        "title": "Tồn kho",
+        "help": "Tồn thực tế, lượng đã giữ chỗ và ngưỡng cần nhập thêm.",
+        "columns": ["sku", "on_hand", "reserved", "reorder_point", "last_updated"],
+    },
+    "ads.csv": {
+        "title": "Quảng cáo (tùy chọn)",
+        "help": "Có thể để trống nếu shop chưa chạy quảng cáo.",
+        "columns": ["campaign_id", "month", "campaign_name", "spend_vnd", "attributed_revenue_vnd", "orders"],
+    },
+}
+
+
+def library_repository() -> ShopDataLibrary:
+    return ShopDataLibrary()
+
+
+def activate_library_data(scope: str) -> None:
+    rows = library_repository().load(scope)
+    if rows is None:
+        st.session_state.seller_upload_error = "Hãy lưu đủ bảng dữ liệu trước khi dùng trong chat."
+        return
+    st.session_state.seller_uploaded_rows = rows
+    st.session_state.seller_uploaded_names = tuple(rows)
+    st.session_state.seller_data_origin = f"{scope}_library"
+    st.session_state.seller_upload_message = (
+        "Đã dùng bộ dữ liệu demo cho cuộc trò chuyện này."
+        if scope == "demo"
+        else "Đã dùng dữ liệu cửa hàng đã lưu cho cuộc trò chuyện này."
+    )
+    st.session_state.seller_view = "chat"
+
+
+def editor_dataframe(rows: list[dict[str, str]], columns: list[str]) -> pd.DataFrame:
+    """Keep empty data editors typed and in the intended column order."""
+    if not rows:
+        return pd.DataFrame({column: pd.Series(dtype="string") for column in columns})
+    return pd.DataFrame(rows).reindex(columns=columns).fillna("")
+
+
+def number(value: object) -> float:
+    try:
+        return float(str(value or 0))
+    except ValueError:
+        return 0.0
+
+
+def currency(value: float) -> str:
+    return f"{value:,.0f} đ"
+
+
+def render_management_dashboard(rows: dict[str, list[dict[str, str]]]) -> None:
+    """Show directly usable operational views from the same saved tables."""
+    tool = ShopDataTool(uploaded_rows=rows)
+    sales = tool.sales_summary()
+    inventory = tool.inventory_alerts()
+    ads = tool.advertising_summary()
+
+    with st.container(horizontal=True):
+        st.metric("Doanh thu sau phí ước tính", currency(number(sales["net_revenue_after_estimated_fees_vnd"])), border=True)
+        st.metric("Đơn hoàn tất", f"{sales['completed_order_count']}", border=True)
+        st.metric("Sản phẩm cần nhập thêm", f"{inventory['alert_count']}", border=True)
+        st.metric("ROAS quảng cáo", f"{number(ads['roas']):.2f}", border=True)
+
+    orders = pd.DataFrame(rows["orders.csv"])
+    completed = orders[orders["status"].str.lower() == "completed"].copy()
+    for column in (
+        "gross_merchandise_value_vnd", "seller_discount_vnd",
+        "estimated_transaction_fee_vnd", "estimated_service_fee_vnd", "quantity",
+    ):
+        completed[column] = pd.to_numeric(completed[column], errors="coerce").fillna(0)
+    products = pd.DataFrame(rows["products.csv"])[["sku", "product_name", "cost_per_unit_vnd"]].copy()
+    products["cost_per_unit_vnd"] = pd.to_numeric(products["cost_per_unit_vnd"], errors="coerce").fillna(0)
+    product_summary = completed.groupby("sku", as_index=False).agg(
+        GMV=("gross_merchandise_value_vnd", "sum"),
+        quantity=("quantity", "sum"),
+        seller_discount=("seller_discount_vnd", "sum"),
+        transaction_fee=("estimated_transaction_fee_vnd", "sum"),
+        service_fee=("estimated_service_fee_vnd", "sum"),
+    ).merge(products, on="sku", how="left")
+    product_summary["Sản phẩm"] = product_summary["product_name"].fillna(product_summary["sku"])
+    product_summary["Giá vốn ước tính"] = product_summary["quantity"] * product_summary["cost_per_unit_vnd"]
+    product_summary["Lợi nhuận đóng góp ước tính"] = (
+        product_summary["GMV"] - product_summary["seller_discount"]
+        - product_summary["transaction_fee"] - product_summary["service_fee"]
+        - product_summary["Giá vốn ước tính"]
+    )
+
+    chart_col, cost_col = st.columns(2)
+    with chart_col:
+        with st.container(border=True):
+            st.markdown("**Doanh thu theo sản phẩm**")
+            bar = alt.Chart(product_summary).mark_bar(color="#EE4D2D", cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
+                x=alt.X("Sản phẩm:N", sort="-y", title=None),
+                y=alt.Y("GMV:Q", title="GMV (VND)"),
+                tooltip=[alt.Tooltip("Sản phẩm:N"), alt.Tooltip("GMV:Q", format=",.0f"), alt.Tooltip("quantity:Q", title="Số lượng")],
+            )
+            st.altair_chart(bar, width="stretch")
+    with cost_col:
+        with st.container(border=True):
+            st.markdown("**Cơ cấu khoản giảm trừ**")
+            cost_rows = [
+                {"Khoản mục": "Giảm giá người bán", "Giá trị": number(sales["seller_discount_vnd"])},
+                {"Khoản mục": "Phí giao dịch", "Giá trị": number(sales["estimated_transaction_fee_vnd"])},
+                {"Khoản mục": "Phí dịch vụ", "Giá trị": number(sales["estimated_service_fee_vnd"])},
+                {"Khoản mục": "Chi quảng cáo", "Giá trị": number(ads["ad_spend_vnd"])},
+            ]
+            cost_frame = pd.DataFrame(row for row in cost_rows if row["Giá trị"] > 0)
+            if cost_frame.empty:
+                st.caption("Chưa có khoản giảm trừ để vẽ biểu đồ.")
+            else:
+                pie = alt.Chart(cost_frame).mark_arc(innerRadius=45).encode(
+                    theta=alt.Theta("Giá trị:Q"),
+                    color=alt.Color("Khoản mục:N", scale=alt.Scale(range=["#EE4D2D", "#FF9B77", "#F7C65A", "#8CB7D8"])),
+                    tooltip=[alt.Tooltip("Khoản mục:N"), alt.Tooltip("Giá trị:Q", format=",.0f")],
+                )
+                st.altair_chart(pie, width="stretch")
+
+    completed["Tháng"] = completed["order_date"].str.slice(0, 7)
+    monthly = completed.groupby("Tháng", as_index=False)["gross_merchandise_value_vnd"].sum().rename(columns={"gross_merchandise_value_vnd": "GMV"})
+    with st.container(border=True):
+        st.markdown("**So sánh doanh thu theo kỳ**")
+        if len(monthly) > 1:
+            st.bar_chart(monthly, x="Tháng", y="GMV", color="#EE4D2D")
+        else:
+            st.caption("Thêm đơn hàng của ít nhất hai tháng để so sánh biến động doanh thu.")
+
+    details_col, alerts_col = st.columns(2)
+    with details_col:
+        with st.container(border=True):
+            st.markdown("**Hiệu quả ước tính theo sản phẩm**")
+            st.dataframe(
+                product_summary[["Sản phẩm", "GMV", "Giá vốn ước tính", "Lợi nhuận đóng góp ước tính"]],
+                hide_index=True,
+                column_config={
+                    "GMV": st.column_config.NumberColumn(format="%,.0f đ"),
+                    "Giá vốn ước tính": st.column_config.NumberColumn(format="%,.0f đ"),
+                    "Lợi nhuận đóng góp ước tính": st.column_config.NumberColumn(format="%,.0f đ"),
+                },
+            )
+    with alerts_col:
+        with st.container(border=True):
+            st.markdown("**Cảnh báo tồn kho**")
+            alerts = pd.DataFrame(inventory["alerts"])
+            if alerts.empty:
+                st.success("Không có sản phẩm nào chạm ngưỡng cần nhập thêm.", icon=":material/check_circle:")
+            else:
+                st.dataframe(
+                    alerts[["product_name", "available_units", "reorder_point", "shortfall_units"]],
+                    hide_index=True,
+                    column_config={
+                        "product_name": "Sản phẩm",
+                        "available_units": "Có thể bán",
+                        "reorder_point": "Ngưỡng nhập",
+                        "shortfall_units": "Thiếu so với ngưỡng",
+                    },
+                )
+
+
+def render_data_library() -> None:
+    """The persistent local shop-data workspace, reached via the bookshelf."""
+    st.markdown('<div class="seller-eyebrow">THƯ VIỆN DỮ LIỆU</div>', unsafe_allow_html=True)
+    header, back = st.columns([8, 2], vertical_alignment="center")
+    with header:
+        st.title("Dữ liệu và báo cáo quản lý")
+        st.caption("Tạo bảng trực tiếp, lưu trên máy này và dùng lại cho các cuộc trò chuyện.")
+    with back:
+        st.button("Quay lại chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
+
+    scope = st.segmented_control(
+        "Không gian dữ liệu",
+        options=["demo", "owner"],
+        format_func=lambda value: "Bộ demo · Người mới" if value == "demo" else "Dữ liệu shop · Chủ shop",
+        key="seller_library_scope",
+        required=True,
+        width="stretch",
+    )
+    scope = str(scope or "owner")
+    library = library_repository()
+    saved_rows = library.load(scope)
+    is_demo = scope == "demo"
+    scope_title = "Bộ dữ liệu demo cho người mới" if is_demo else "Dữ liệu vận hành của chủ shop"
+    scope_note = (
+        "Dùng để tập thao tác, kiểm tra biểu đồ và thử các câu hỏi phân tích. Đây không phải dữ liệu shop thật."
+        if is_demo
+        else "Dùng để quản lý bảng do chủ shop nhập trực tiếp trên ứng dụng. Dữ liệu được lưu cục bộ trên máy này."
+    )
+    st.subheader(scope_title)
+    st.caption(scope_note)
+
+    if is_demo and saved_rows is None:
+        st.info("Bộ demo chưa được nạp. Nạp một lần để có sẵn dữ liệu thử nghiệm, biểu đồ và cảnh báo.", icon=":material/lightbulb:")
+        if st.button("Nạp bộ dữ liệu demo", type="primary", icon=":material/auto_awesome:"):
+            library.seed_demo()
+            st.session_state.seller_upload_message = "Đã nạp bộ dữ liệu demo vào Thư viện dữ liệu."
+            st.rerun()
+
+    if saved_rows is not None:
+        action_label = "Dùng bộ demo trong chat" if is_demo else "Dùng dữ liệu shop trong chat"
+        st.button(action_label, icon=":material/play_circle:", type="primary", on_click=activate_library_data, args=(scope,))
+        render_management_dashboard(saved_rows)
+        st.space("small")
+
+    st.markdown("#### Chỉnh sửa bảng dữ liệu")
+    st.caption("Nhập trực tiếp hoặc thêm/xóa dòng. Ba bảng Đơn hàng, Sản phẩm và Tồn kho là bắt buộc; Quảng cáo là tùy chọn.")
+    editable_rows = saved_rows or empty_rows()
+    with st.form(f"library_editor_form_{scope}", border=True):
+        edited: dict[str, pd.DataFrame] = {}
+        for name, spec in TABLE_SPECS.items():
+            with st.expander(spec["title"], expanded=name in LIBRARY_REQUIRED_FILES and saved_rows is None, icon=":material/table_chart:"):
+                st.caption(spec["help"])
+                edited[name] = st.data_editor(
+                    editor_dataframe(editable_rows.get(name, []), spec["columns"]),
+                    key=f"library_editor_{scope}_{name}",
+                    num_rows="dynamic",
+                    hide_index=True,
+                    width="stretch",
+                )
+        submitted = st.form_submit_button("Lưu bảng dữ liệu", type="primary", icon=":material/save:", width="stretch")
+    if submitted:
+        try:
+            rows = {name: frame.to_dict("records") for name, frame in edited.items()}
+            validated = clean_and_validate_rows(rows)
+            library.save(scope, validated)
+        except ShopDataValidationError as exc:
+            st.error(str(exc), icon=":material/error:")
+            return
+        st.session_state.seller_upload_message = "Đã lưu bảng dữ liệu thành công."
+        st.rerun()
 
 
 def render_data_upload(*, inline: bool = False) -> None:
@@ -348,6 +632,7 @@ def render_data_upload(*, inline: bool = False) -> None:
         if st.button("Thay dữ liệu shop", icon=":material/upload_file:"):
             st.session_state.seller_uploaded_rows = None
             st.session_state.seller_uploaded_names = ()
+            st.session_state.seller_data_origin = None
             clear_active_conversation()
             save_active_conversation()
             st.rerun()
@@ -378,6 +663,7 @@ def render_data_upload(*, inline: bool = False) -> None:
         return
     st.session_state.seller_uploaded_rows = tool.uploaded_rows
     st.session_state.seller_uploaded_names = tuple(content)
+    st.session_state.seller_data_origin = "uploaded_csv"
     if st.session_state.get("seller_chat_mode") is None:
         start_conversation("owner")
     clear_active_conversation()
@@ -429,8 +715,14 @@ def render_assistant() -> None:
     st.caption(chat_type["description"])
 
     if mode == "owner" and not is_uploaded():
-        with st.expander("Thêm dữ liệu bán hàng để phân tích doanh thu", icon=":material/upload_file:"):
+        with st.container(border=True):
+            st.markdown("**Chưa có dữ liệu vận hành cho chat này**")
+            st.caption("Tạo bảng trực tiếp trong Thư viện dữ liệu để quản lý và phân tích; tải CSV chỉ là lựa chọn phụ.")
+            st.button("Mở thư viện dữ liệu", key="open_library_from_chat", icon=":material/auto_stories:", on_click=open_data_library)
+        with st.expander("Nhập từ CSV (tùy chọn)", icon=":material/upload_file:"):
             render_data_upload(inline=True)
+    elif mode == "learner" and not is_uploaded():
+        st.button("Dùng bộ dữ liệu demo để thử phân tích", key="open_demo_library_from_chat", icon=":material/auto_stories:", on_click=open_data_library)
 
     for message in st.session_state.seller_messages:
         if message["role"] == "user":
@@ -487,6 +779,7 @@ with st.sidebar:
             toggle_sidebar_compact()
             st.rerun()
         st.button(" ", key="compact_new_chat", icon=":material/add_comment:", help="Cuộc trò chuyện mới", width="stretch", on_click=show_chat_picker)
+        st.button(" ", key="compact_data_library", icon=":material/auto_stories:", help="Thư viện dữ liệu", width="stretch", on_click=open_data_library)
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
             selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
@@ -508,6 +801,7 @@ with st.sidebar:
                 toggle_sidebar_compact()
                 st.rerun()
         st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
+        st.button("Thư viện dữ liệu", key="open_data_library", icon=":material/auto_stories:", width="stretch", on_click=open_data_library)
         st.caption("Cuộc trò chuyện gần đây")
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
@@ -525,4 +819,11 @@ with st.sidebar:
 
 if st.session_state.seller_show_chat_picker:
     choose_chat_type()
-render_assistant()
+if st.session_state.seller_upload_error:
+    st.toast(st.session_state.seller_upload_error, icon=":material/error:")
+    st.session_state.seller_upload_error = None
+
+if st.session_state.seller_view == "library":
+    render_data_library()
+else:
+    render_assistant()
