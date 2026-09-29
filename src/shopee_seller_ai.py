@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-import json
 import random
 from pathlib import Path
 import sys
@@ -245,9 +244,6 @@ CONVERSATION_CONTEXT_KEYS = (
     "seller_advisor_handoffs",
     "seller_advisor_surface",
     "seller_strategy_last_simulation",
-    "seller_strategy_scenarios",
-    "seller_strategy_experiments",
-    "seller_strategy_audit_log",
     "strategy_category_id",
     "strategy_inventory_category",
     "strategy_target_stock_months",
@@ -283,9 +279,6 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
-    st.session_state.setdefault("seller_strategy_scenarios", [])
-    st.session_state.setdefault("seller_strategy_experiments", [])
-    st.session_state.setdefault("seller_strategy_audit_log", [])
 
 
 def new_conversation_context(mode: str) -> dict[str, Any]:
@@ -304,9 +297,6 @@ def new_conversation_context(mode: str) -> dict[str, Any]:
         "seller_advisor_handoffs": [],
         "seller_advisor_surface": "market",
         "seller_strategy_last_simulation": None,
-        "seller_strategy_scenarios": [],
-        "seller_strategy_experiments": [],
-        "seller_strategy_audit_log": [],
         "strategy_category_id": "appliance",
         "strategy_inventory_category": "appliance",
         "strategy_target_stock_months": 2.0,
@@ -589,11 +579,6 @@ def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
     with st.container(border=True):
         st.markdown(f"**:material/help: Cách dùng nhanh** — Dùng phần này khi {when_to_use}")
         st.caption(" → ".join(f"{index + 1}. {step}" for index, step in enumerate(steps)))
-
-
-def strategy_scenario_label(simulation: dict[str, Any]) -> str:
-    bundle = "có combo" if simulation["use_bundle"] else "không combo"
-    return f"{simulation['category']} · giá {int(simulation['price_change_percent']):+d}% · {bundle} · ads +{int(simulation['ad_budget_change_percent'])}%"
 
 
 def open_chat_view() -> None:
@@ -1020,8 +1005,8 @@ def render_strategy_workspace() -> None:
         st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90% mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
         for source in STRATEGY_EVIDENCE:
             st.markdown(f"- [{source['title']}]({source['url']}) — {source['author']}, {source['year']}. {source['use']}\n  *Ví dụ áp dụng:* {source['adoption']}")
-    radar_tab, simulator_tab, comparison_tab, inventory_tab, plan_tab, diary_tab = st.tabs([
-        "Radar cơ hội", "Mô phỏng chiến lược", "So sánh phương án", "Vốn & tồn kho", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"
+    radar_tab, simulator_tab, inventory_tab, plan_tab = st.tabs([
+        "Radar cơ hội", "Mô phỏng chiến lược", "Vốn & tồn kho", "Kế hoạch 30 ngày"
     ])
 
     with radar_tab:
@@ -1077,18 +1062,6 @@ def render_strategy_workspace() -> None:
                     str(category_id), int(st.session_state.seller_market_scenario_seed), int(price_change), bool(use_bundle), int(ad_change), int(restock)
                 )
                 st.session_state.seller_strategy_last_simulation = simulation_result
-                st.session_state.seller_strategy_audit_log.append({
-                    "Thời điểm": datetime.now().isoformat(timespec="seconds"),
-                    "Sự kiện": "Người dùng xác nhận chạy mô phỏng",
-                    "Ngành hàng": simulation_result["category"],
-                    "Sản phẩm mũi nhọn": simulation_result["lead_product"],
-                    "Thay đổi giá (%)": simulation_result["price_change_percent"],
-                    "Có combo": simulation_result["use_bundle"],
-                    "Tăng quảng cáo (%)": simulation_result["ad_budget_change_percent"],
-                    "Nhập thêm": simulation_result["restock_units"],
-                    "Mức bằng chứng": f"{simulation_result['evidence_score']}%",
-                    "Quy tắc ngôn ngữ": simulation_result["language_policy"],
-                })
                 save_active_conversation()
         simulation = st.session_state.seller_strategy_last_simulation
         if simulation:
@@ -1105,50 +1078,8 @@ def render_strategy_workspace() -> None:
                 st.markdown("**Điều kiện dừng:**")
                 for condition in simulation["stop_conditions"]:
                     st.markdown(f"- {condition}")
-                if st.button("Thêm vào bảng so sánh", key="save_strategy_scenario", icon=":material/add_chart:"):
-                    saved_scenarios: list[dict[str, Any]] = st.session_state.seller_strategy_scenarios
-                    signature = strategy_scenario_label(simulation)
-                    if any(strategy_scenario_label(item) == signature for item in saved_scenarios):
-                        st.info("Phương án này đã có trong bảng so sánh.", icon=":material/info:")
-                    else:
-                        saved_scenarios.append(dict(simulation))
-                        save_active_conversation()
-                        st.toast("Đã thêm phương án để so sánh.", icon=":material/check_circle:")
         else:
             st.caption("Chưa có phương án được mô phỏng. Hãy chọn thay đổi và bấm “Phân tích phương án”.")
-
-    with comparison_tab:
-        st.subheader("So sánh các phương án đã lưu")
-        st.caption("So sánh để chọn một thử nghiệm nhỏ. Các số GMV dưới đây là minh họa của mô phỏng, không phải dự báo chắc chắn.")
-        scenarios: list[dict[str, Any]] = st.session_state.seller_strategy_scenarios
-        if not scenarios:
-            st.info("Hãy tạo một phương án, xác nhận an toàn, rồi bấm “Thêm vào bảng so sánh”.", icon=":material/compare_arrows:")
-        else:
-            scenario_table = pd.DataFrame([
-                {
-                    "Phương án": strategy_scenario_label(item),
-                    "Sản phẩm mũi nhọn": item["lead_product"],
-                    "GMV minh họa": item["estimated_gmv_vnd"],
-                    "Thay đổi GMV": item["gmv_change_percent"],
-                    "Mức bằng chứng": f"{item['evidence_score']}%",
-                    "Rủi ro": item["risk"],
-                }
-                for item in scenarios
-            ])
-            st.dataframe(
-                scenario_table,
-                hide_index=True,
-                width="stretch",
-                column_config={
-                    "GMV minh họa": st.column_config.NumberColumn(format="%,d đ"),
-                    "Thay đổi GMV": st.column_config.NumberColumn(format="%+.1f%%"),
-                },
-            )
-            scenario_index = st.selectbox("Chọn phương án làm kế hoạch 30 ngày", options=list(range(len(scenarios))), format_func=lambda index: strategy_scenario_label(scenarios[index]), key="strategy_plan_scenario")
-            if st.button("Dùng phương án này cho kế hoạch", key="strategy_select_plan", icon=":material/calendar_month:"):
-                st.session_state.seller_strategy_last_simulation = dict(scenarios[scenario_index])
-                save_active_conversation()
-                st.toast("Kế hoạch 30 ngày đã dùng phương án đã chọn.", icon=":material/check_circle:")
 
     with inventory_tab:
         st.subheader("Vốn & tồn kho: nên nhập gì, dừng gì?")
@@ -1252,45 +1183,6 @@ def render_strategy_workspace() -> None:
             plan = pd.DataFrame(action_plan(simulation))
             st.dataframe(plan, hide_index=True, width="stretch")
             st.caption("Nguyên tắc: chỉ thay đổi một vài yếu tố trong một kỳ để biết kết quả đến từ đâu.")
-
-    with diary_tab:
-        st.subheader("Nhật ký thử nghiệm")
-        st.caption("Lưu lại giả thuyết, việc đã làm và kết quả. Đây là phần giúp AI trở thành công cụ học từ các lần thử của doanh nghiệp.")
-        simulation = st.session_state.seller_strategy_last_simulation
-        if simulation:
-            with st.form("strategy_diary_form", border=True):
-                experiment_name = st.text_input("Tên thử nghiệm", value=f"Thử nghiệm {simulation['lead_product']}")
-                result_note = st.text_area("Kết quả hoặc ghi chú", placeholder="Ví dụ: chạy 14 ngày, số đơn tăng nhưng lợi nhuận chưa đạt mục tiêu.")
-                saved = st.form_submit_button("Lưu vào nhật ký", icon=":material/bookmark_add:")
-            if saved:
-                st.session_state.seller_strategy_experiments.append({
-                    "Thử nghiệm": experiment_name.strip() or "Thử nghiệm chưa đặt tên",
-                    "Ngành hàng": simulation["category"],
-                    "Sản phẩm": simulation["lead_product"],
-                    "Phương án": f"Giá {int(simulation['price_change_percent']):+d}%; combo: {'Có' if simulation['use_bundle'] else 'Không'}; quảng cáo: +{int(simulation['ad_budget_change_percent'])}%",
-                    "Ghi chú": result_note.strip() or "Chưa nhập kết quả",
-                })
-                save_active_conversation()
-                st.toast("Đã lưu thử nghiệm vào nhật ký của phiên này.", icon=":material/check_circle:")
-        else:
-            st.info("Chưa có phương án để lưu. Hãy mô phỏng trước rồi quay lại đây.", icon=":material/info:")
-        diary = st.session_state.seller_strategy_experiments
-        if diary:
-            st.dataframe(pd.DataFrame(diary), hide_index=True, width="stretch")
-        else:
-            st.caption("Nhật ký đang trống. Khi đã chạy một phương án, bạn có thể lưu lại để so sánh các lần thử.")
-        audit_log = st.session_state.seller_strategy_audit_log
-        if audit_log:
-            with st.expander("Nhật ký kiểm soát và xác nhận", icon=":material/fact_check:"):
-                st.caption("Bản ghi chỉ lưu trong phiên hiện tại và không có quyền tự thay đổi hoạt động trên Shopee.")
-                st.dataframe(pd.DataFrame(audit_log), hide_index=True, width="stretch")
-                st.download_button(
-                    "Tải bản ghi kiểm soát",
-                    data=json.dumps(audit_log, ensure_ascii=False, indent=2),
-                    file_name="nhat-ky-kiem-soat-chien-luoc.json",
-                    mime="application/json",
-                    icon=":material/download:",
-                )
 
     render_advisor_launcher("strategy")
 
