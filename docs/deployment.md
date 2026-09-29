@@ -14,14 +14,14 @@ docker compose build
 docker compose up -d
 ```
 
-Mở `http://localhost:8501`. Nếu muốn dùng tên miễn phí dễ nhớ là `http://nexa.test:8501`, mở PowerShell **với quyền Quản trị viên** và chạy một lần:
+Mở `http://localhost:8501`. Nếu muốn dùng tên miễn phí dễ nhớ là `http://nexapro.test:8501`, mở PowerShell **với quyền Quản trị viên** và chạy một lần:
 
 ```powershell
-Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 nexa.test"
+Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 nexapro.test"
 ipconfig /flushdns
 ```
 
-`nexa.test` chỉ trỏ về chính máy bạn, không cần mua tên miền và không truy cập được từ Internet. Cấu hình mặc định chỉ nhận truy cập từ chính máy này, không mở cho thiết bị khác trong mạng. Kiểm tra trạng thái container:
+`nexapro.test` chỉ trỏ về chính máy bạn, không cần mua tên miền và không truy cập được từ Internet. Cấu hình mặc định chỉ nhận truy cập từ chính máy này, không mở cho thiết bị khác trong mạng. Kiểm tra trạng thái container:
 
 ```powershell
 docker compose ps

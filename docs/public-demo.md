@@ -1,6 +1,6 @@
-# Đưa Nexa lên Internet miễn phí
+# Đưa NexaPro lên Internet miễn phí
 
-Tài liệu này dùng Streamlit Community Cloud cho **bản demo công khai**. Nền tảng này cung cấp URL dạng `https://nexa.streamlit.app` nếu tên còn trống. Không mua tên miền, không dùng thẻ và không triển khai dữ liệu thật.
+Tài liệu này dùng Streamlit Community Cloud cho **bản demo công khai**. Nền tảng này cung cấp URL dạng `https://nexapro.streamlit.app` nếu tên còn trống. Không mua tên miền, không dùng thẻ và không triển khai dữ liệu thật.
 
 ## Chuẩn bị
 
@@ -17,11 +17,11 @@ Tài liệu này dùng Streamlit Community Cloud cho **bản demo công khai**. 
    - Repository: `QuangThai2002/DoAnThacSi`
    - Branch: `main`
    - File path: `src/shopee_seller_ai.py`
-   - Custom subdomain: `nexa` (nếu còn trống)
+   - Custom subdomain: `nexapro` (nếu còn trống)
 4. Trong **Advanced settings**, chọn Python `3.14`; để trống phần Secrets.
 5. Bấm **Deploy** và chờ log hoàn tất.
 
-Nếu `nexa` đã được dùng, hãy chọn một tên phụ như `nexa-demo-vn`. Streamlit sẽ cung cấp URL công khai có đuôi `.streamlit.app`.
+Nếu `nexapro` đã được dùng, hãy chọn một tên phụ như `nexapro-vn`. Streamlit sẽ cung cấp URL công khai có đuôi `.streamlit.app`.
 
 ## Kiểm tra sau khi public
 
@@ -32,7 +32,7 @@ Nếu `nexa` đã được dùng, hãy chọn một tên phụ như `nexa-demo-v
 
 ## Giới hạn rõ ràng
 
-- Đây là bản trình diễn: dữ liệu shop/thị trường là mô phỏng, không kết nối Shopee. Khi không có chỉ mục vector cục bộ trên cloud, Nexa tự tìm theo từ khóa trong nguồn đã công bố thay vì báo lỗi kỹ thuật.
+- Đây là bản trình diễn: dữ liệu shop/thị trường là mô phỏng, không kết nối Shopee. Khi không có chỉ mục vector cục bộ trên cloud, NexaPro tự tìm theo từ khóa trong nguồn đã công bố thay vì báo lỗi kỹ thuật.
 - Lịch sử chat chỉ thuộc phiên trình duyệt, không phải tài khoản người dùng.
 - Không dùng URL này để xử lý dữ liệu kinh doanh thật, API key hoặc thông tin cá nhân.
 - Nếu nền tảng yêu cầu trả phí, thẻ thanh toán hoặc nâng cấp gói, hãy dừng lại.
