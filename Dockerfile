@@ -9,14 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# curl chỉ dùng cho healthcheck; các dependency hiện có wheel Linux nên không
-# cần kéo theo bộ công cụ biên dịch nặng trong image.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt ./requirements.txt
+# Cài PyTorch bản CPU trước. Nếu để pip tự chọn, nó sẽ tải thêm các thư viện
+# NVIDIA/CUDA rất lớn dù ứng dụng này không sử dụng GPU.
 RUN pip install --upgrade pip \
+    && pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.13.0" \
     && pip install -r requirements.txt
 
 COPY src ./src
@@ -33,6 +30,6 @@ USER appuser
 EXPOSE 8501
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl --fail http://127.0.0.1:8501/_stcore/health || exit 1
+    CMD python -c "from urllib.request import urlopen; urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)" || exit 1
 
 CMD ["streamlit", "run", "src/shopee_seller_ai.py", "--server.address=0.0.0.0", "--server.port=8501"]

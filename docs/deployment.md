@@ -5,6 +5,7 @@ Tài liệu này chỉ hướng dẫn chạy trên máy cá nhân hoặc máy ch
 ## Chạy bằng Docker
 
 Image dùng Python 3.14 để tương thích với NumPy 2.5.x đang khóa trong dự án.
+Image chỉ cài PyTorch bản CPU vì ứng dụng không dùng GPU; lần tải đầu vẫn mất thời gian do có các thư viện AI, nhưng không tải thêm bộ NVIDIA/CUDA dung lượng lớn.
 
 Trong thư mục dự án:
 
