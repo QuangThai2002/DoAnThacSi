@@ -68,6 +68,14 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertTrue(any("Market Demo" in warning.value for warning in app.warning))
         self.assertEqual(len(app.error), 0)
 
+    def test_strategy_workspace_exposes_decision_tools(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="open_strategy_workspace").click().run()
+
+        self.assertEqual([title.value for title in app.title], ["Chiến lược kinh doanh"])
+        self.assertEqual([tab.label for tab in app.tabs], ["Radar cơ hội", "Mô phỏng chiến lược", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"])
+        self.assertEqual(len(app.error), 0)
+
     def test_market_adviser_opens_a_chat_for_the_current_demo_scene(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="open_market_intelligence").click().run()

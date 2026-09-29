@@ -27,6 +27,7 @@ from agent.market_intelligence import (
 )
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
+from agent.strategy_engine import action_plan, opportunity_radar, simulate_strategy
 from agent.shop_data_library import (
     DEMO_PERIODS,
     REQUIRED_FILES as LIBRARY_REQUIRED_FILES,
@@ -242,6 +243,8 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_scenario_seed", random.SystemRandom().randint(1, 999_999_999))
     st.session_state.setdefault("seller_market_advisor_messages", [])
     st.session_state.setdefault("seller_market_advisor_open", False)
+    st.session_state.setdefault("seller_strategy_last_simulation", None)
+    st.session_state.setdefault("seller_strategy_experiments", [])
 
 
 def active_runner() -> AgentRunner:
@@ -322,6 +325,11 @@ def open_data_library() -> None:
 def open_market_intelligence() -> None:
     """Open the transparent market-demo workspace."""
     st.session_state.seller_view = "market"
+
+
+def open_strategy_workspace() -> None:
+    """Open the business decision-support workspace."""
+    st.session_state.seller_view = "strategy"
 
 
 def refresh_market_scenario() -> None:
@@ -662,6 +670,111 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
     if st.button("Đóng trợ lý", key="close_market_advisor", icon=":material/close:"):
         close_market_advisor()
         st.rerun()
+
+
+def render_strategy_workspace() -> None:
+    """Help a seller turn market signals into a small, measurable experiment."""
+    st.markdown('<div class="seller-eyebrow">CHIẾN LƯỢC KINH DOANH · DEMO</div>', unsafe_allow_html=True)
+    header, back = st.columns([8, 2], vertical_alignment="center")
+    with header:
+        st.title("Chiến lược kinh doanh")
+        st.caption("Tìm cơ hội, mô phỏng phương án và tạo kế hoạch hành động. Kết quả là ước tính để chọn thử nghiệm nhỏ, không phải cam kết doanh thu.")
+    with back:
+        st.button("Quay lại chat", key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
+
+    st.info("Không gian này dùng dữ liệu mô phỏng minh bạch. Khi có dữ liệu shop thật, cùng khung quyết định này có thể dùng để phân tích kết quả thực tế.", icon=":material/lightbulb:")
+    radar_tab, simulator_tab, plan_tab, diary_tab = st.tabs(["Radar cơ hội", "Mô phỏng chiến lược", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"])
+
+    with radar_tab:
+        st.subheader("Radar cơ hội mặt hàng")
+        st.caption("Điểm cơ hội cân bằng lượng bán, doanh thu, mức giá, review tích cực và độ bền xu hướng trong bộ dữ liệu demo.")
+        radar = opportunity_radar()
+        radar_frame = pd.DataFrame(radar).rename(columns={
+            "rank": "Xếp hạng", "category": "Ngành hàng", "lead_product": "Sản phẩm gợi ý",
+            "units_sold_estimate": "Lượng bán ước tính", "estimated_revenue_vnd": "Doanh thu ước tính",
+            "positive_review_score": "Review tích cực", "longevity_score": "Độ bền xu hướng",
+            "opportunity_score": "Điểm cơ hội", "recommendation": "Khuyến nghị",
+        })
+        st.dataframe(
+            radar_frame[["Xếp hạng", "Ngành hàng", "Sản phẩm gợi ý", "Lượng bán ước tính", "Doanh thu ước tính", "Review tích cực", "Độ bền xu hướng", "Điểm cơ hội", "Khuyến nghị"]].head(12),
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Doanh thu ước tính": st.column_config.NumberColumn(format="%,d đ"),
+                "Điểm cơ hội": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+                "Review tích cực": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+                "Độ bền xu hướng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+            },
+        )
+        st.caption("Dùng radar để chọn ngành cần thử trước; không dùng một mình để quyết định nhập hàng lớn.")
+
+    with simulator_tab:
+        st.subheader("Mô phỏng một phương án kinh doanh")
+        st.caption("Chọn một thay đổi nhỏ. AI ước tính tương quan với kịch bản hiện tại để giúp bạn so sánh phương án, không thay thế số liệu thực tế.")
+        catalog = market_categories()
+        labels = {str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm" for item in catalog}
+        with st.form("strategy_simulator_form", border=True):
+            category_id = st.selectbox("Ngành hàng muốn thử", options=list(labels), format_func=lambda item: labels[str(item)], key="strategy_category_id")
+            control_left, control_right = st.columns(2)
+            with control_left:
+                price_change = st.slider("Thay đổi giá (%)", min_value=-15, max_value=15, value=0, help="Số âm là giảm giá; số dương là tăng giá.")
+                use_bundle = st.checkbox("Tạo combo/ưu đãi nhỏ", value=False)
+            with control_right:
+                ad_change = st.slider("Tăng ngân sách quảng cáo (%)", min_value=0, max_value=50, value=0)
+                restock = st.number_input("Số lượng dự kiến nhập thêm", min_value=0, max_value=1000, value=0, step=10)
+            simulate = st.form_submit_button("Phân tích phương án", type="primary", icon=":material/psychology:", width="stretch")
+        if simulate:
+            st.session_state.seller_strategy_last_simulation = simulate_strategy(
+                str(category_id), int(st.session_state.seller_market_scenario_seed), int(price_change), bool(use_bundle), int(ad_change), int(restock)
+            )
+        simulation = st.session_state.seller_strategy_last_simulation
+        if simulation:
+            with st.container(border=True):
+                st.markdown(f"**Khuyến nghị thử với: {simulation['lead_product']}**")
+                with st.container(horizontal=True):
+                    st.metric("GMV hiện tại trong demo", currency(float(simulation["baseline_gmv_vnd"])), border=True)
+                    st.metric("GMV theo phương án", currency(float(simulation["estimated_gmv_vnd"])), f"{float(simulation['gmv_change_percent']):+.1f}%", border=True)
+                    st.metric("Lượng bán ước tính", f"{int(simulation['estimated_units']):,}", border=True)
+                st.markdown(f"**Mức rủi ro:** {simulation['risk']}")
+                st.markdown(f"**Bước tiếp theo:** {simulation['action']}")
+        else:
+            st.caption("Chưa có phương án được mô phỏng. Hãy chọn thay đổi và bấm “Phân tích phương án”.")
+
+    with plan_tab:
+        st.subheader("Kế hoạch hành động 30 ngày")
+        simulation = st.session_state.seller_strategy_last_simulation
+        if not simulation:
+            st.info("Hãy tạo một phương án trong tab “Mô phỏng chiến lược” trước; kế hoạch sẽ tự dùng phương án đó.", icon=":material/arrow_back:")
+        else:
+            plan = pd.DataFrame(action_plan(simulation))
+            st.dataframe(plan, hide_index=True, width="stretch")
+            st.caption("Nguyên tắc: chỉ thay đổi một vài yếu tố trong một kỳ để biết kết quả đến từ đâu.")
+
+    with diary_tab:
+        st.subheader("Nhật ký thử nghiệm")
+        st.caption("Lưu lại giả thuyết, việc đã làm và kết quả. Đây là phần giúp AI trở thành công cụ học từ các lần thử của doanh nghiệp.")
+        simulation = st.session_state.seller_strategy_last_simulation
+        if simulation:
+            with st.form("strategy_diary_form", border=True):
+                experiment_name = st.text_input("Tên thử nghiệm", value=f"Thử nghiệm {simulation['lead_product']}")
+                result_note = st.text_area("Kết quả hoặc ghi chú", placeholder="Ví dụ: chạy 14 ngày, số đơn tăng nhưng lợi nhuận chưa đạt mục tiêu.")
+                saved = st.form_submit_button("Lưu vào nhật ký", icon=":material/bookmark_add:")
+            if saved:
+                st.session_state.seller_strategy_experiments.append({
+                    "Thử nghiệm": experiment_name.strip() or "Thử nghiệm chưa đặt tên",
+                    "Ngành hàng": simulation["category"],
+                    "Sản phẩm": simulation["lead_product"],
+                    "Phương án": f"Giá {int(simulation['price_change_percent']):+d}%; combo: {'Có' if simulation['use_bundle'] else 'Không'}; quảng cáo: +{int(simulation['ad_budget_change_percent'])}%",
+                    "Ghi chú": result_note.strip() or "Chưa nhập kết quả",
+                })
+                st.toast("Đã lưu thử nghiệm vào nhật ký của phiên này.", icon=":material/check_circle:")
+        else:
+            st.info("Chưa có phương án để lưu. Hãy mô phỏng trước rồi quay lại đây.", icon=":material/info:")
+        diary = st.session_state.seller_strategy_experiments
+        if diary:
+            st.dataframe(pd.DataFrame(diary), hide_index=True, width="stretch")
+        else:
+            st.caption("Nhật ký đang trống. Khi đã chạy một phương án, bạn có thể lưu lại để so sánh các lần thử.")
 
 
 def render_market_intelligence() -> None:
@@ -1329,6 +1442,7 @@ with st.sidebar:
         st.button(" ", key="compact_new_chat", icon=":material/add_comment:", help="Cuộc trò chuyện mới", width="stretch", on_click=show_chat_picker)
         st.button(" ", key="compact_data_library", icon=":material/auto_stories:", help="Thư viện dữ liệu", width="stretch", on_click=open_data_library)
         st.button(" ", key="compact_market_intelligence", icon=":material/insights:", help="Phân tích thị trường", width="stretch", on_click=open_market_intelligence)
+        st.button(" ", key="compact_strategy_workspace", icon=":material/rocket_launch:", help="Chiến lược kinh doanh", width="stretch", on_click=open_strategy_workspace)
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
             selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
@@ -1352,6 +1466,7 @@ with st.sidebar:
         st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
         st.button("Thư viện dữ liệu", key="open_data_library", icon=":material/auto_stories:", width="stretch", on_click=open_data_library)
         st.button("Phân tích thị trường", key="open_market_intelligence", icon=":material/insights:", width="stretch", on_click=open_market_intelligence)
+        st.button("Chiến lược kinh doanh", key="open_strategy_workspace", icon=":material/rocket_launch:", width="stretch", on_click=open_strategy_workspace)
         st.caption("Cuộc trò chuyện gần đây")
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
@@ -1377,5 +1492,7 @@ if st.session_state.seller_view == "library":
     render_data_library()
 elif st.session_state.seller_view == "market":
     render_market_intelligence()
+elif st.session_state.seller_view == "strategy":
+    render_strategy_workspace()
 else:
     render_assistant()
