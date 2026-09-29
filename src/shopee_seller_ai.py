@@ -242,6 +242,7 @@ CONVERSATION_CONTEXT_KEYS = (
     "market_price_product",
     "market_listing_shops",
     "seller_market_advisor_messages",
+    "seller_advisor_handoffs",
     "seller_advisor_surface",
     "seller_strategy_last_simulation",
     "seller_strategy_scenarios",
@@ -277,6 +278,8 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_demo_selected_ids", [])
     st.session_state.setdefault("seller_market_scenario_seed", random.SystemRandom().randint(1, 999_999_999))
     st.session_state.setdefault("seller_market_advisor_messages", [])
+    st.session_state.setdefault("seller_advisor_handoffs", [])
+    st.session_state.setdefault("seller_pending_main_prompt", None)
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
@@ -298,6 +301,7 @@ def new_conversation_context(mode: str) -> dict[str, Any]:
         "market_price_product": None,
         "market_listing_shops": None,
         "seller_market_advisor_messages": [],
+        "seller_advisor_handoffs": [],
         "seller_advisor_surface": "market",
         "seller_strategy_last_simulation": None,
         "seller_strategy_scenarios": [],
@@ -479,10 +483,92 @@ def close_market_advisor() -> None:
 
 
 def route_from_advisor(view: str) -> None:
-    """Let the adviser open a workspace without sending the user to main chat."""
+    """Open the requested workspace while retaining the current chat context."""
+    if view == "strategy":
+        category = str(st.session_state.get("seller_market_category_id", "appliance"))
+        st.session_state.strategy_category_id = category
+        st.session_state.strategy_inventory_category = category
     st.session_state.seller_market_advisor_open = False
     st.session_state.seller_view = view
     save_active_conversation()
+
+
+def latest_advisor_exchange() -> tuple[str, str] | None:
+    """Return the latest complete question-and-answer pair from the floating adviser."""
+    messages = st.session_state.get("seller_market_advisor_messages", [])
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if message.get("role") != "assistant":
+            continue
+        question = next(
+            (
+                str(previous["content"])
+                for previous in reversed(messages[:index])
+                if previous.get("role") == "user"
+            ),
+            "",
+        )
+        if question:
+            return question, str(message["content"])
+    return None
+
+
+def handoff_advisor_to_main_chat() -> bool:
+    """Store a concise adviser note in the active chat, without merging histories."""
+    exchange = latest_advisor_exchange()
+    if exchange is None or active_conversation() is None:
+        return False
+    question, answer = exchange
+    handoffs: list[dict[str, str]] = st.session_state.seller_advisor_handoffs
+    handoff = {
+        "question": question,
+        "answer": answer,
+        "category_id": str(st.session_state.get("seller_market_category_id", "appliance")),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if not handoffs or handoffs[-1].get("question") != question or handoffs[-1].get("answer") != answer:
+        handoffs.append(handoff)
+    st.session_state.seller_market_advisor_open = False
+    st.session_state.seller_view = "chat"
+    save_active_conversation()
+    return True
+
+
+def market_category_name(category_id: str) -> str:
+    """Translate a saved category id into the seller-facing category name."""
+    return next(
+        (str(item["category"]) for item in market_categories() if str(item["id"]) == category_id),
+        "ngành hàng đang xem",
+    )
+
+
+def render_advisor_handoff() -> None:
+    """Show adviser notes in the main chat without mixing the two histories."""
+    handoffs = st.session_state.get("seller_advisor_handoffs", [])
+    if not handoffs:
+        return
+    latest = handoffs[-1]
+    category_name = market_category_name(str(latest.get("category_id", "")))
+    with st.container(border=True):
+        st.markdown("#### :material/link: Ghi chú từ Chiến lược gia AI")
+        st.caption(
+            f"Đã chuyển từ cửa sổ AI nổi cho **{category_name}**. Đây là bản ghi chú để AI chính có ngữ cảnh; "
+            "lịch sử của hai cửa sổ vẫn được lưu riêng."
+        )
+        st.markdown(f"**Bạn đã hỏi:** {latest['question']}")
+        st.markdown(f"**Gợi ý chiến lược:** {latest['answer']}")
+        with st.container(horizontal=True):
+            if st.button("Mở lại AI nổi", key="reopen_advisor_from_handoff", icon=":material/smart_toy:"):
+                open_market_advisor("chat")
+                st.rerun()
+            if st.button("Hỏi AI chính cần kiểm tra gì", key="ask_main_from_handoff", icon=":material/fact_check:"):
+                answer_excerpt = str(latest["answer"])[:700]
+                st.session_state.seller_pending_main_prompt = (
+                    f"Tôi đang cân nhắc một gợi ý cho ngành {category_name}: {answer_excerpt} "
+                    "Trước khi thử, tôi cần kiểm tra chính sách Shopee hoặc số liệu vận hành nào? "
+                    "Chỉ nêu điều có thể kiểm chứng, không cam kết kết quả kinh doanh."
+                )
+                st.rerun()
 
 
 def render_workspace_context(surface: str) -> None:
@@ -857,11 +943,17 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
     st.caption("Hỏi về giá, sản phẩm hoặc hướng phát triển. Chiến lược gia AI dùng kịch bản thị trường đang xem để gợi ý bước tiếp theo; không tự thay đổi dữ liệu hay hoạt động của shop.")
     with st.container(horizontal=True):
         if surface != "chat":
-            st.button("Mở chat chính", key="advisor_to_chat", icon=":material/chat:", on_click=route_from_advisor, args=("chat",))
+            if st.button("Mở chat chính", key="advisor_to_chat", icon=":material/chat:"):
+                route_from_advisor("chat")
+                st.rerun()
         if surface != "market":
-            st.button("Mở thị trường", key="advisor_to_market", icon=":material/insights:", on_click=route_from_advisor, args=("market",))
+            if st.button("Mở thị trường", key="advisor_to_market", icon=":material/insights:"):
+                route_from_advisor("market")
+                st.rerun()
         if surface != "strategy":
-            st.button("Mở chiến lược", key="advisor_to_strategy", icon=":material/rocket_launch:", on_click=route_from_advisor, args=("strategy",))
+            if st.button("Mở chiến lược", key="advisor_to_strategy", icon=":material/rocket_launch:"):
+                route_from_advisor("strategy")
+                st.rerun()
     messages: list[dict[str, str]] = st.session_state.seller_market_advisor_messages
     if not messages:
         st.info("Gợi ý: hỏi về cách đặt giá, sản phẩm nên ưu tiên hoặc điểm cần cải thiện của shop.", icon=":material/auto_awesome:")
@@ -891,6 +983,14 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
         ])
         save_active_conversation()
         st.rerun()
+    if messages and active is not None:
+        st.caption("Muốn dùng kết quả này ở AI chính? Gửi ghi chú sẽ giữ cửa sổ này là một lịch sử riêng, đồng thời lưu bản tóm tắt vào đúng chat đang mở.")
+        if st.button("Gửi ghi chú sang chat chính", key="advisor_handoff_to_chat", icon=":material/send:", type="primary"):
+            if handoff_advisor_to_main_chat():
+                st.rerun()
+            st.warning("Hãy gửi ít nhất một câu hỏi để có nội dung cần bàn giao.", icon=":material/info:")
+    elif messages:
+        st.caption("Tạo hoặc mở một cuộc trò chuyện trước khi gửi ghi chú sang AI chính để hệ thống biết phải lưu vào lịch sử nào.")
     if st.button("Đóng trợ lý", key="close_market_advisor", icon=":material/close:"):
         close_market_advisor()
         st.rerun()
@@ -1836,6 +1936,8 @@ def render_assistant() -> None:
     elif mode == "learner" and not is_uploaded():
         st.button("Dùng bộ dữ liệu demo để thử phân tích", key="open_demo_library_from_chat", icon=":material/auto_stories:", on_click=open_data_library)
 
+    render_advisor_handoff()
+
     for message in st.session_state.seller_messages:
         if message["role"] == "user":
             with st.chat_message("user", avatar=":material/person:"):
@@ -1845,7 +1947,7 @@ def render_assistant() -> None:
 
     render_advisor_launcher("chat")
 
-    prompt: str | None = None
+    prompt: str | None = st.session_state.pop("seller_pending_main_prompt", None)
     if not st.session_state.seller_messages:
         choice = st.pills("Câu hỏi gợi ý", list(SUGGESTIONS[mode]), selection_mode="single", label_visibility="collapsed", key="seller_suggestion")
         if choice:

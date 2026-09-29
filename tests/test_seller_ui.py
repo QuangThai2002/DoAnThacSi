@@ -105,6 +105,40 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertEqual(len(conversation["context"]["seller_market_advisor_messages"]), 2)
         self.assertEqual(conversation["context"]["seller_market_scenario_seed"], app.session_state["seller_market_scenario_seed"])
 
+    def test_adviser_can_handoff_a_note_to_the_linked_main_chat(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_owner").click().run()
+        app.button(key="open_market_intelligence").click().run()
+        app.button(key="market_advisor_toggle").click().run()
+        app.chat_input[0].set_value("Tôi nên điều chỉnh giá thế nào?").run()
+        app.button(key="advisor_handoff_to_chat").click().run()
+
+        self.assertEqual(app.session_state["seller_view"], "chat")
+        self.assertFalse(app.session_state["seller_market_advisor_open"])
+        self.assertEqual(len(app.session_state["seller_advisor_handoffs"]), 1)
+        self.assertEqual(
+            len(app.session_state["seller_conversations"][0]["context"]["seller_advisor_handoffs"]),
+            1,
+        )
+        self.assertTrue(any("Ghi chú từ Chiến lược gia AI" in item.value for item in app.markdown))
+
+    def test_adviser_navigation_performs_a_full_view_change(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+        app.button(key="open_market_intelligence").click().run()
+        app.button(key="market_advisor_toggle").click().run()
+        app.button(key="advisor_to_strategy").click().run()
+
+        self.assertEqual(app.session_state["seller_view"], "strategy")
+        self.assertFalse(app.session_state["seller_market_advisor_open"])
+        self.assertEqual(
+            app.session_state["strategy_category_id"],
+            app.session_state["seller_market_category_id"],
+        )
+        self.assertEqual(len(app.error), 0)
+
     def test_market_adviser_answers_follow_up_without_repeating_a_summary(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="open_market_intelligence").click().run()
