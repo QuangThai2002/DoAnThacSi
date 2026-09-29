@@ -247,6 +247,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_advisor_messages", [])
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_strategy_last_simulation", None)
+    st.session_state.setdefault("seller_strategy_scenarios", [])
     st.session_state.setdefault("seller_strategy_experiments", [])
     st.session_state.setdefault("seller_strategy_audit_log", [])
 
@@ -348,6 +349,11 @@ def open_market_advisor() -> None:
 
 def close_market_advisor() -> None:
     st.session_state.seller_market_advisor_open = False
+
+
+def strategy_scenario_label(simulation: dict[str, Any]) -> str:
+    bundle = "có combo" if simulation["use_bundle"] else "không combo"
+    return f"{simulation['category']} · giá {int(simulation['price_change_percent']):+d}% · {bundle} · ads +{int(simulation['ad_budget_change_percent'])}%"
 
 
 def open_chat_view() -> None:
@@ -691,7 +697,7 @@ def render_strategy_workspace() -> None:
         st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90/100 mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
         for source in STRATEGY_EVIDENCE:
             st.markdown(f"- [{source['title']}]({source['url']}) — {source['author']}, {source['year']}. {source['use']}\n  *Ví dụ áp dụng:* {source['adoption']}")
-    radar_tab, simulator_tab, plan_tab, diary_tab = st.tabs(["Radar cơ hội", "Mô phỏng chiến lược", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"])
+    radar_tab, simulator_tab, comparison_tab, plan_tab, diary_tab = st.tabs(["Radar cơ hội", "Mô phỏng chiến lược", "So sánh phương án", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"])
 
     with radar_tab:
         st.subheader("Radar cơ hội mặt hàng")
@@ -715,6 +721,11 @@ def render_strategy_workspace() -> None:
             },
         )
         st.caption("Dùng radar để chọn ngành cần thử trước; không dùng một mình để quyết định nhập hàng lớn.")
+        radar_options = {str(item["category_id"]): f"#{int(item['rank'])} · {item['category']} · {item['recommendation']}" for item in radar[:12]}
+        chosen_radar_category = st.selectbox("Chọn một cơ hội để mô phỏng", options=list(radar_options), format_func=lambda item: radar_options[str(item)], key="strategy_radar_category")
+        if st.button("Dùng ngành này để tạo phương án", key="strategy_use_radar_category", icon=":material/rocket_launch:"):
+            st.session_state.strategy_category_id = chosen_radar_category
+            st.toast("Đã chọn ngành hàng trong tab Mô phỏng chiến lược.", icon=":material/check_circle:")
 
     with simulator_tab:
         st.subheader("Mô phỏng một phương án kinh doanh")
@@ -767,8 +778,48 @@ def render_strategy_workspace() -> None:
                 st.markdown("**Điều kiện dừng:**")
                 for condition in simulation["stop_conditions"]:
                     st.markdown(f"- {condition}")
+                if st.button("Thêm vào bảng so sánh", key="save_strategy_scenario", icon=":material/add_chart:"):
+                    saved_scenarios: list[dict[str, Any]] = st.session_state.seller_strategy_scenarios
+                    signature = strategy_scenario_label(simulation)
+                    if any(strategy_scenario_label(item) == signature for item in saved_scenarios):
+                        st.info("Phương án này đã có trong bảng so sánh.", icon=":material/info:")
+                    else:
+                        saved_scenarios.append(dict(simulation))
+                        st.toast("Đã thêm phương án để so sánh.", icon=":material/check_circle:")
         else:
             st.caption("Chưa có phương án được mô phỏng. Hãy chọn thay đổi và bấm “Phân tích phương án”.")
+
+    with comparison_tab:
+        st.subheader("So sánh các phương án đã lưu")
+        st.caption("So sánh để chọn một thử nghiệm nhỏ. Các số GMV dưới đây là minh họa của mô phỏng, không phải dự báo chắc chắn.")
+        scenarios: list[dict[str, Any]] = st.session_state.seller_strategy_scenarios
+        if not scenarios:
+            st.info("Hãy tạo một phương án, xác nhận an toàn, rồi bấm “Thêm vào bảng so sánh”.", icon=":material/compare_arrows:")
+        else:
+            scenario_table = pd.DataFrame([
+                {
+                    "Phương án": strategy_scenario_label(item),
+                    "Sản phẩm mũi nhọn": item["lead_product"],
+                    "GMV minh họa": item["estimated_gmv_vnd"],
+                    "Thay đổi GMV": item["gmv_change_percent"],
+                    "Mức bằng chứng": f"{item['evidence_score']}/100",
+                    "Rủi ro": item["risk"],
+                }
+                for item in scenarios
+            ])
+            st.dataframe(
+                scenario_table,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "GMV minh họa": st.column_config.NumberColumn(format="%,d đ"),
+                    "Thay đổi GMV": st.column_config.NumberColumn(format="%+.1f%%"),
+                },
+            )
+            scenario_index = st.selectbox("Chọn phương án làm kế hoạch 30 ngày", options=list(range(len(scenarios))), format_func=lambda index: strategy_scenario_label(scenarios[index]), key="strategy_plan_scenario")
+            if st.button("Dùng phương án này cho kế hoạch", key="strategy_select_plan", icon=":material/calendar_month:"):
+                st.session_state.seller_strategy_last_simulation = dict(scenarios[scenario_index])
+                st.toast("Kế hoạch 30 ngày đã dùng phương án đã chọn.", icon=":material/check_circle:")
 
     with plan_tab:
         st.subheader("Kế hoạch hành động 30 ngày")
