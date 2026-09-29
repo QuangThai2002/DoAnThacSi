@@ -4,7 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8501:8501"
+      # Chỉ mở trên máy local khi chưa có đăng nhập và HTTPS.
+      - "127.0.0.1:8501:8501"
     environment:
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434/api/chat}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}

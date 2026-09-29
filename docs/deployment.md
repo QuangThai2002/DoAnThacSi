@@ -14,7 +14,7 @@ docker compose build
 docker compose up -d
 ```
 
-Mở `http://localhost:8501`. Kiểm tra trạng thái container:
+Mở `http://localhost:8501`. Cấu hình mặc định chỉ nhận truy cập từ chính máy này, không mở cho thiết bị khác trong mạng. Kiểm tra trạng thái container:
 
 ```powershell
 docker compose ps
