@@ -1,0 +1,17 @@
+services:
+  shopee-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434/api/chat}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:1.7b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      CHROMA_COLLECTION_NAME: ${CHROMA_COLLECTION_NAME:-shopee_rag_v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data/local_store:/app/data/local_store
+    restart: unless-stopped

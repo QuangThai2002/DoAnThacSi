@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.rar
+*.zip
+data/raw
+data/local_store
+tests
+thesis_review_package_*
+.env
+.env.*
+!.env.example
