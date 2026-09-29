@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
 from agent.agent_runner import AgentRunner
 from agent.calculator_tool import CalculatorTool
 from agent.planner import Planner
+from agent.rag_tool import RAGTool
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 
 
@@ -91,6 +92,12 @@ class ShopDataToolTests(unittest.TestCase):
 
 
 class CalculatorAndRunnerTests(unittest.TestCase):
+    def test_common_policy_question_uses_the_cached_fast_retrieval_path(self) -> None:
+        result = RAGTool().search("Phí cố định của Shopee áp dụng theo nguyên tắc nào?")
+
+        self.assertEqual(result["retrieval_mode"], "bm25_fast_path")
+        self.assertGreaterEqual(len(result["evidence"]), 1)
+
     def test_rank_costs_returns_largest_item(self) -> None:
         ranking = CalculatorTool().rank_costs({"fee": 100, "discount": 150})
         self.assertEqual(ranking["cost_ranking"][0]["name"], "discount")
