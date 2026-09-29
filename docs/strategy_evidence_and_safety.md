@@ -4,7 +4,7 @@
 
 - Số học như tổng doanh thu, chênh lệch giá và tỷ lệ thay đổi chỉ chính xác theo dữ liệu đầu vào và công thức đã công bố.
 - Không gán phần trăm “độ chính xác dự báo” cho kết quả kinh doanh khi chưa có dữ liệu lịch sử, tập kiểm thử độc lập và hiệu chuẩn.
-- Khi mức bằng chứng dưới 90/100, hệ thống không dùng ngôn ngữ chắc chắn như “sẽ thành công”, “bảo đảm tăng doanh thu” hoặc “nên làm ngay”. Hệ thống chỉ tạo giả thuyết thử nghiệm nhỏ, chỉ số cần đo và điều kiện dừng.
+- Khi mức bằng chứng dưới 90%, hệ thống không dùng ngôn ngữ chắc chắn như “sẽ thành công”, “bảo đảm tăng doanh thu” hoặc “nên làm ngay”. Hệ thống chỉ tạo giả thuyết thử nghiệm nhỏ, chỉ số cần đo và điều kiện dừng.
 - AI không tự thay đổi giá, ngân sách quảng cáo, tồn kho hay gửi dữ liệu sang Shopee. Người dùng chịu trách nhiệm phê duyệt và thực hiện.
 
 ## Nguồn được hiển thị trong ứng dụng

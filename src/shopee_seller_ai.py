@@ -594,7 +594,7 @@ def market_advisor_response(
     if any(token in text for token in ("sản phẩm", "mặt hàng", "bán gì", "ưu tiên", "tồn kho")):
         return (
             f"Sản phẩm nên ưu tiên kiểm chứng trước là **{strongest_product['product_name']}**: điểm sản phẩm "
-            f"{float(strongest_product['product_score']):.1f}/100, lượng bán mô phỏng "
+            f"{float(strongest_product['product_score']):.1f}%, lượng bán mô phỏng "
             f"{int(strongest_product['units_sold_12m']):,} trong 12 tháng.\n\n"
             "**Hướng thử trước:** giữ sẵn tồn kho cho sản phẩm này, kiểm tra ảnh/mô tả và thử ghép nó với một sản phẩm bổ trợ. "
             "Đây là gợi ý từ dữ liệu demo, không phải dự báo doanh số thật."
@@ -603,7 +603,7 @@ def market_advisor_response(
         gmv_gap = float(leader["gmv_12m_vnd"]) - float(own_shop["gmv_12m_vnd"])
         return (
             f"Mốc để học hỏi là **{leader['shop_name']}**: GMV cao hơn shop bạn {currency(gmv_gap)}, "
-            f"điểm shop {float(leader['shop_score']):.1f}/100 và {int(leader['review_count']):,} lượt đánh giá.\n\n"
+            f"điểm shop {float(leader['shop_score']):.1f}% và {int(leader['review_count']):,} lượt đánh giá.\n\n"
             "**Hướng đi:** ưu tiên tăng chất lượng trang sản phẩm và trải nghiệm sau mua để có đánh giá tốt, rồi mới mở rộng quảng cáo. "
             "So sánh từng sản phẩm ở tab “Sản phẩm cùng thị trường” để chọn nơi cần cải thiện."
         )
@@ -611,7 +611,7 @@ def market_advisor_response(
         return (
             f"**Bản đồ hành động cho ngành {category}:** shop bạn có {int(own_shop['listing_count'])} sản phẩm, "
             f"giá trung bình {currency(float(own_shop['average_price_vnd']))}, "
-            f"GMV 12 tháng {currency(float(own_shop['gmv_12m_vnd']))} và điểm shop {float(own_shop['shop_score']):.1f}/100.\n\n"
+            f"GMV 12 tháng {currency(float(own_shop['gmv_12m_vnd']))} và điểm shop {float(own_shop['shop_score']):.1f}%.\n\n"
             f"Ưu tiên hiện tại là **{strongest_product['product_name']}**; sau đó cải thiện chất lượng trang sản phẩm và đánh giá trước khi tăng quảng cáo."
         )
     return (
@@ -694,7 +694,7 @@ def render_strategy_workspace() -> None:
 
     st.info("Không gian này dùng dữ liệu mô phỏng minh bạch. Khi có dữ liệu shop thật, cùng khung quyết định này có thể dùng để phân tích kết quả thực tế.", icon=":material/lightbulb:")
     with st.expander("Nguồn phương pháp và nguyên tắc an toàn", icon=":material/menu_book:"):
-        st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90/100 mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
+        st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90% mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
         for source in STRATEGY_EVIDENCE:
             st.markdown(f"- [{source['title']}]({source['url']}) — {source['author']}, {source['year']}. {source['use']}\n  *Ví dụ áp dụng:* {source['adoption']}")
     radar_tab, simulator_tab, comparison_tab, inventory_tab, plan_tab, diary_tab = st.tabs([
@@ -762,7 +762,7 @@ def render_strategy_workspace() -> None:
                     "Có combo": simulation_result["use_bundle"],
                     "Tăng quảng cáo (%)": simulation_result["ad_budget_change_percent"],
                     "Nhập thêm": simulation_result["restock_units"],
-                    "Mức bằng chứng": f"{simulation_result['evidence_score']}/100",
+                    "Mức bằng chứng": f"{simulation_result['evidence_score']}%",
                     "Quy tắc ngôn ngữ": simulation_result["language_policy"],
                 })
         simulation = st.session_state.seller_strategy_last_simulation
@@ -773,7 +773,7 @@ def render_strategy_workspace() -> None:
                     st.metric("GMV hiện tại trong demo", currency(float(simulation["baseline_gmv_vnd"])), border=True)
                     st.metric("GMV minh họa theo phương án", currency(float(simulation["estimated_gmv_vnd"])), f"{float(simulation['gmv_change_percent']):+.1f}%", border=True)
                     st.metric("Lượng bán minh họa", f"{int(simulation['estimated_units']):,}", border=True)
-                    st.metric("Mức bằng chứng", f"{int(simulation['evidence_score'])}/100", border=True)
+                    st.metric("Mức bằng chứng", f"{int(simulation['evidence_score'])}%", border=True)
                 st.warning(f"**{simulation['evidence_label']}** — {simulation['language_policy']}", icon=":material/gpp_maybe:")
                 st.markdown(f"**Mức rủi ro:** {simulation['risk']}")
                 st.markdown(f"**Cách thử an toàn:** {simulation['action']}")
@@ -804,7 +804,7 @@ def render_strategy_workspace() -> None:
                     "Sản phẩm mũi nhọn": item["lead_product"],
                     "GMV minh họa": item["estimated_gmv_vnd"],
                     "Thay đổi GMV": item["gmv_change_percent"],
-                    "Mức bằng chứng": f"{item['evidence_score']}/100",
+                    "Mức bằng chứng": f"{item['evidence_score']}%",
                     "Rủi ro": item["risk"],
                 }
                 for item in scenarios
