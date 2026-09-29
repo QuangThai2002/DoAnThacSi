@@ -6,6 +6,8 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
+from datetime import datetime
+import json
 import random
 from pathlib import Path
 import sys
@@ -246,6 +248,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_strategy_last_simulation", None)
     st.session_state.setdefault("seller_strategy_experiments", [])
+    st.session_state.setdefault("seller_strategy_audit_log", [])
 
 
 def active_runner() -> AgentRunner:
@@ -733,9 +736,22 @@ def render_strategy_workspace() -> None:
             if not acknowledged:
                 st.warning("Bạn cần xác nhận AI chỉ hỗ trợ ra quyết định, không cam kết kết quả kinh doanh.", icon=":material/gpp_maybe:")
             else:
-                st.session_state.seller_strategy_last_simulation = simulate_strategy(
+                simulation_result = simulate_strategy(
                     str(category_id), int(st.session_state.seller_market_scenario_seed), int(price_change), bool(use_bundle), int(ad_change), int(restock)
                 )
+                st.session_state.seller_strategy_last_simulation = simulation_result
+                st.session_state.seller_strategy_audit_log.append({
+                    "Thời điểm": datetime.now().isoformat(timespec="seconds"),
+                    "Sự kiện": "Người dùng xác nhận chạy mô phỏng",
+                    "Ngành hàng": simulation_result["category"],
+                    "Sản phẩm mũi nhọn": simulation_result["lead_product"],
+                    "Thay đổi giá (%)": simulation_result["price_change_percent"],
+                    "Có combo": simulation_result["use_bundle"],
+                    "Tăng quảng cáo (%)": simulation_result["ad_budget_change_percent"],
+                    "Nhập thêm": simulation_result["restock_units"],
+                    "Mức bằng chứng": f"{simulation_result['evidence_score']}/100",
+                    "Quy tắc ngôn ngữ": simulation_result["language_policy"],
+                })
         simulation = st.session_state.seller_strategy_last_simulation
         if simulation:
             with st.container(border=True):
@@ -789,6 +805,18 @@ def render_strategy_workspace() -> None:
             st.dataframe(pd.DataFrame(diary), hide_index=True, width="stretch")
         else:
             st.caption("Nhật ký đang trống. Khi đã chạy một phương án, bạn có thể lưu lại để so sánh các lần thử.")
+        audit_log = st.session_state.seller_strategy_audit_log
+        if audit_log:
+            with st.expander("Nhật ký kiểm soát và xác nhận", icon=":material/fact_check:"):
+                st.caption("Bản ghi chỉ lưu trong phiên hiện tại và không có quyền tự thay đổi hoạt động trên Shopee.")
+                st.dataframe(pd.DataFrame(audit_log), hide_index=True, width="stretch")
+                st.download_button(
+                    "Tải bản ghi kiểm soát",
+                    data=json.dumps(audit_log, ensure_ascii=False, indent=2),
+                    file_name="nhat-ky-kiem-soat-chien-luoc.json",
+                    mime="application/json",
+                    icon=":material/download:",
+                )
 
 
 def render_market_intelligence() -> None:
