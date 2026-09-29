@@ -76,7 +76,10 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="open_strategy_workspace").click().run()
 
         self.assertEqual([title.value for title in app.title], ["Chiến lược kinh doanh"])
-        self.assertEqual([tab.label for tab in app.tabs], ["Radar cơ hội", "Mô phỏng chiến lược", "Vốn & tồn kho", "Kế hoạch 30 ngày"])
+        self.assertEqual(
+            app.segmented_control(key="strategy_section").options,
+            ["Radar cơ hội", "Mô phỏng chiến lược", "Vốn & tồn kho", "Kế hoạch 30 ngày"],
+        )
         self.assertEqual(len(app.error), 0)
 
     def test_market_adviser_opens_a_chat_for_the_current_demo_scene(self) -> None:

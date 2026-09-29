@@ -244,6 +244,7 @@ CONVERSATION_CONTEXT_KEYS = (
     "seller_advisor_handoffs",
     "seller_advisor_surface",
     "seller_strategy_last_simulation",
+    "strategy_section",
     "strategy_category_id",
     "strategy_inventory_category",
     "strategy_target_stock_months",
@@ -254,6 +255,7 @@ CONVERSATION_WIDGET_KEYS = {
     "market_listing_shops",
     "strategy_category_id",
     "strategy_inventory_category",
+    "strategy_section",
 }
 
 
@@ -279,6 +281,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
+    st.session_state.setdefault("strategy_section", "Radar cơ hội")
 
 
 def new_conversation_context(mode: str) -> dict[str, Any]:
@@ -297,6 +300,7 @@ def new_conversation_context(mode: str) -> dict[str, Any]:
         "seller_advisor_handoffs": [],
         "seller_advisor_surface": "market",
         "seller_strategy_last_simulation": None,
+        "strategy_section": "Radar cơ hội",
         "strategy_category_id": "appliance",
         "strategy_inventory_category": "appliance",
         "strategy_target_stock_months": 2.0,
@@ -524,10 +528,36 @@ def handoff_advisor_to_main_chat() -> bool:
     return True
 
 
+@st.cache_data(max_entries=1, show_spinner=False)
+def cached_market_categories() -> list[dict[str, Any]]:
+    """Reuse the static 50-category demo catalogue across page reruns."""
+    return market_categories()
+
+
+@st.cache_data(max_entries=100, show_spinner=False)
+def cached_marketplace(category_id: str, scenario_seed: int) -> dict[str, Any]:
+    """Reuse the deterministic market scene until the seller creates a new one."""
+    return simulated_marketplace(category_id, scenario_seed)
+
+
+@st.cache_data(max_entries=1, show_spinner=False)
+def cached_opportunity_radar() -> list[dict[str, Any]]:
+    """The opportunity ranking is static demo reference data."""
+    return opportunity_radar()
+
+
+@st.cache_data(max_entries=150, show_spinner=False)
+def cached_inventory_risk_analysis(
+    category_id: str, scenario_seed: int, target_stock_months: float
+) -> dict[str, Any]:
+    """Avoid recalculating the same inventory scenario after unrelated UI clicks."""
+    return inventory_risk_analysis(category_id, scenario_seed, target_stock_months)
+
+
 def market_category_name(category_id: str) -> str:
     """Translate a saved category id into the seller-facing category name."""
     return next(
-        (str(item["category"]) for item in market_categories() if str(item["id"]) == category_id),
+        (str(item["category"]) for item in cached_market_categories() if str(item["id"]) == category_id),
         "ngành hàng đang xem",
     )
 
@@ -875,7 +905,7 @@ def market_scene_price_summary(marketplace: dict[str, Any]) -> dict[str, Any]:
 
 def advisor_marketplace(surface: str) -> tuple[str, dict[str, Any]]:
     """Use the selected conversation's reproducible market scene for advice."""
-    catalog = market_categories()
+    catalog = cached_market_categories()
     known_ids = {str(item["id"]) for item in catalog}
     category_id: str | None = None
     simulation = st.session_state.get("seller_strategy_last_simulation")
@@ -886,7 +916,7 @@ def advisor_marketplace(surface: str) -> tuple[str, dict[str, Any]]:
     if category_id not in known_ids:
         category_id = str(catalog[0]["id"])
     category = next(item for item in catalog if str(item["id"]) == category_id)
-    return str(category["category"]), simulated_marketplace(
+    return str(category["category"]), cached_marketplace(
         category_id, int(st.session_state.seller_market_scenario_seed)
     )
 
@@ -1005,14 +1035,20 @@ def render_strategy_workspace() -> None:
         st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90% mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
         for source in STRATEGY_EVIDENCE:
             st.markdown(f"- [{source['title']}]({source['url']}) — {source['author']}, {source['year']}. {source['use']}\n  *Ví dụ áp dụng:* {source['adoption']}")
-    radar_tab, simulator_tab, inventory_tab, plan_tab = st.tabs([
-        "Radar cơ hội", "Mô phỏng chiến lược", "Vốn & tồn kho", "Kế hoạch 30 ngày"
-    ])
+    strategy_sections = ["Radar cơ hội", "Mô phỏng chiến lược", "Vốn & tồn kho", "Kế hoạch 30 ngày"]
+    strategy_section = st.segmented_control(
+        "Nội dung chiến lược",
+        options=strategy_sections,
+        default="Radar cơ hội",
+        key="strategy_section",
+        label_visibility="collapsed",
+        width="stretch",
+    )
 
-    with radar_tab:
+    if strategy_section == "Radar cơ hội":
         st.subheader("Radar cơ hội mặt hàng")
         st.caption("Điểm cơ hội cân bằng lượng bán, doanh thu, mức giá, review tích cực và độ bền xu hướng trong bộ dữ liệu demo.")
-        radar = opportunity_radar()
+        radar = cached_opportunity_radar()
         radar_frame = pd.DataFrame(radar).rename(columns={
             "rank": "Xếp hạng", "category": "Ngành hàng", "lead_product": "Sản phẩm gợi ý",
             "units_sold_estimate": "Lượng bán ước tính", "estimated_revenue_vnd": "Doanh thu ước tính",
@@ -1038,10 +1074,10 @@ def render_strategy_workspace() -> None:
             save_active_conversation()
             st.toast("Đã chọn ngành hàng trong tab Mô phỏng chiến lược.", icon=":material/check_circle:")
 
-    with simulator_tab:
+    if strategy_section == "Mô phỏng chiến lược":
         st.subheader("Mô phỏng một phương án kinh doanh")
         st.caption("Chọn một thay đổi nhỏ. AI ước tính tương quan với kịch bản hiện tại để giúp bạn so sánh phương án, không thay thế số liệu thực tế.")
-        catalog = market_categories()
+        catalog = cached_market_categories()
         labels = {str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm" for item in catalog}
         with st.form("strategy_simulator_form", border=True):
             category_id = st.selectbox("Ngành hàng muốn thử", options=list(labels), format_func=lambda item: labels[str(item)], key="strategy_category_id")
@@ -1081,10 +1117,10 @@ def render_strategy_workspace() -> None:
         else:
             st.caption("Chưa có phương án được mô phỏng. Hãy chọn thay đổi và bấm “Phân tích phương án”.")
 
-    with inventory_tab:
+    if strategy_section == "Vốn & tồn kho":
         st.subheader("Vốn & tồn kho: nên nhập gì, dừng gì?")
         st.caption("Xem từng sản phẩm để tránh giữ vốn ở hàng bán chậm và chỉ nhập nhỏ khi có dấu hiệu sắp hết hàng.")
-        catalog = market_categories()
+        catalog = cached_market_categories()
         labels = {str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm" for item in catalog}
         default_category = str(st.session_state.get("strategy_category_id", next(iter(labels))))
         default_index = list(labels).index(default_category) if default_category in labels else 0
@@ -1104,7 +1140,7 @@ def render_strategy_workspace() -> None:
             help="Ví dụ chọn 2 tháng: AI chỉ đề xuất nhập đủ khoảng hai tháng bán, không đề xuất ôm hàng dài.",
             key="strategy_target_stock_months",
         )
-        inventory_result = inventory_risk_analysis(
+        inventory_result = cached_inventory_risk_analysis(
             str(inventory_category),
             int(st.session_state.seller_market_scenario_seed),
             float(target_stock_months),
@@ -1174,7 +1210,7 @@ def render_strategy_workspace() -> None:
                 "- **Đề xuất nhập:** số lượng nhỏ để duy trì mức tồn kho bạn chọn; đây không phải lệnh mua hàng tự động."
             )
 
-    with plan_tab:
+    if strategy_section == "Kế hoạch 30 ngày":
         st.subheader("Kế hoạch hành động 30 ngày")
         simulation = st.session_state.seller_strategy_last_simulation
         if not simulation:
@@ -1211,7 +1247,7 @@ def render_market_intelligence() -> None:
         "Hệ thống chưa kết nối Shopee, YouTube, Facebook/Instagram hoặc TikTok để lấy dữ liệu trực tiếp.",
         icon=":material/info:",
     )
-    catalog = market_categories()
+    catalog = cached_market_categories()
     labels = {
         str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm demo"
         for item in catalog
@@ -1229,7 +1265,7 @@ def render_market_intelligence() -> None:
         icon=":material/autorenew:",
         on_click=refresh_market_scenario,
     )
-    marketplace = simulated_marketplace(
+    marketplace = cached_marketplace(
         str(category_id), int(st.session_state.seller_market_scenario_seed)
     )
     listings = pd.DataFrame(marketplace["listings"])
