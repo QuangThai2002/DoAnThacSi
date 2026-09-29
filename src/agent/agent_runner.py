@@ -209,9 +209,9 @@ class AgentRunner:
             else:
                 sections.append("Không có cảnh báo tồn kho theo ngưỡng đã cấu hình.")
         if citations:
-            policy_answer = AgentRunner._policy_answer(question)
-            if policy_answer:
-                sections.append(policy_answer)
+            knowledge_answer = AgentRunner._knowledge_answer(question)
+            if knowledge_answer:
+                sections.append(knowledge_answer)
             elif not sections:
                 sections.append(
                     "Tôi đã tìm được tài liệu chính sách liên quan. Xem nguồn bên dưới "
@@ -222,8 +222,8 @@ class AgentRunner:
         return "\n\n".join(sections)
 
     @staticmethod
-    def _policy_answer(question: str) -> str:
-        """Give a short, evidence-grounded answer for common policy questions."""
+    def _knowledge_answer(question: str) -> str:
+        """Give short answers only for source-backed common concepts."""
         normalized_question = normalize(question)
         if "phi co dinh" in normalized_question:
             return (
@@ -245,4 +245,16 @@ class AgentRunner:
                 "bán xác nhận đã nhận hàng hoàn trả hoặc khi người mua chấp nhận đề xuất "
                 "hoàn tiền không cần trả hàng."
             )
+        definitions = {
+            "sku": "SKU là mã riêng cho từng sản phẩm hoặc biến thể; dùng để tránh nhầm hàng khi theo dõi đơn và tồn kho.",
+            "roas": "ROAS = doanh thu được quy gán cho quảng cáo chia cho chi quảng cáo. Chỉ số này không tự chứng minh chiến dịch có lãi vì còn giá vốn và phí.",
+            "gia von": "Giá vốn là chi phí trực tiếp để có sản phẩm sẵn sàng bán. Cần có giá vốn thì mới ước lượng được biên lợi nhuận gộp.",
+            "hoa von": "Điểm hòa vốn là mức bán đủ bù chi phí. Đây là ước tính kế hoạch, không phải cam kết kết quả thực tế.",
+            "ton kho an toan": "Tồn kho an toàn là lượng dự phòng để giảm nguy cơ hết hàng khi nhu cầu hoặc thời gian nhập thay đổi.",
+            "dat hang lai": "Điểm đặt hàng lại có thể ước tính từ tốc độ bán, thời gian chờ nhập và tồn kho an toàn.",
+            "hang cham ban": "Hàng chậm bán cần được kiểm tra về ảnh, mô tả, giá, đánh giá và nhu cầu trước khi giảm giá mạnh.",
+        }
+        for term, answer in definitions.items():
+            if term in normalized_question:
+                return answer
         return ""

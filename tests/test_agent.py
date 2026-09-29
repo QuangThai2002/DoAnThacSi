@@ -107,6 +107,23 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertEqual(result["retrieval_mode"], "bm25_without_vector_db")
         self.assertGreaterEqual(len(result["evidence"]), 1)
 
+    def test_operations_guide_answers_sku_without_claiming_shopee_policy(self) -> None:
+        missing_vector_db = SRC_DIR.parent / "missing-vector-db-for-test"
+        with patch("agent.rag_tool.retrieval.VECTOR_DB_DIR", missing_vector_db):
+            result = RAGTool().search("SKU là gì và dùng để làm gì?")
+
+        self.assertEqual(result["retrieval_mode"], "bm25_without_vector_db")
+        self.assertEqual(result["evidence"][0]["document_id"], "ESLABONG_GUIDE_001")
+
+    def test_sku_definition_is_short_and_cautious(self) -> None:
+        class GuideRAG:
+            def search(self, _question: str) -> dict:
+                return {"evidence": [{"document_id": "ESLABONG_GUIDE_001", "title": "Sổ tay vận hành Eslabong", "page": "", "excerpt": "SKU là mã định danh."}]}
+
+        result = AgentRunner(rag_tool=GuideRAG()).run("SKU là gì?")
+        self.assertIn("SKU là mã riêng", result["answer"])
+        self.assertNotIn("chính sách Shopee", result["answer"])
+
     def test_rank_costs_returns_largest_item(self) -> None:
         ranking = CalculatorTool().rank_costs({"fee": 100, "discount": 150})
         self.assertEqual(ranking["cost_ranking"][0]["name"], "discount")

@@ -459,6 +459,29 @@ def detect_source_groups(
     if any(
         term in normalized
         for term in [
+            "sku",
+            "roas",
+            "gia von",
+            "bien loi nhuan",
+            "loi nhuan gop",
+            "gia san",
+            "hoa von",
+            "ton kho an toan",
+            "dat hang lai",
+            "so ngay du hang",
+            "vong quay ton kho",
+            "ty le ban het",
+            "hang cham ban",
+            "combo",
+            "gia tri don trung binh",
+            "ty le chuyen doi",
+        ]
+    ):
+        return ["seller_operations_guides"]
+
+    if any(
+        term in normalized
+        for term in [
             "gmv",
             "gross orders",
             "sea limited",
