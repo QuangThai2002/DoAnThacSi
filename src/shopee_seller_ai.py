@@ -498,6 +498,13 @@ def render_workspace_context(surface: str) -> None:
     )
 
 
+def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
+    """Put a short, non-technical 'what to do next' guide on each workspace."""
+    with st.container(border=True):
+        st.markdown(f"**:material/help: Cách dùng nhanh** — Dùng phần này khi {when_to_use}")
+        st.caption(" → ".join(f"{index + 1}. {step}" for index, step in enumerate(steps)))
+
+
 def strategy_scenario_label(simulation: dict[str, Any]) -> str:
     bundle = "có combo" if simulation["use_bundle"] else "không combo"
     return f"{simulation['category']} · giá {int(simulation['price_change_percent']):+d}% · {bundle} · ads +{int(simulation['ad_budget_change_percent'])}%"
@@ -900,6 +907,14 @@ def render_strategy_workspace() -> None:
         st.button("Quay lại chat", key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     render_workspace_context("strategy")
+    render_quick_guide(
+        "bạn muốn thử một cách bán hàng mới nhưng chưa muốn quyết định nhập nhiều hàng hoặc tăng chi phí ngay.",
+        [
+            "Mở tab Mô phỏng chiến lược",
+            "Chọn ngành hàng và thay đổi nhỏ muốn thử",
+            "Bấm Phân tích phương án, rồi xem Vốn & tồn kho và Kế hoạch 30 ngày",
+        ],
+    )
     st.info("Không gian này dùng dữ liệu mô phỏng minh bạch. Khi có dữ liệu shop thật, cùng khung quyết định này có thể dùng để phân tích kết quả thực tế.", icon=":material/lightbulb:")
     with st.expander("Nguồn phương pháp và nguyên tắc an toàn", icon=":material/menu_book:"):
         st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90% mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
@@ -1191,6 +1206,14 @@ def render_market_intelligence() -> None:
         st.button("Quay lại chat", key="market_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     render_workspace_context("market")
+    render_quick_guide(
+        "bạn muốn xem giá, doanh thu và sản phẩm của shop mình so với các shop cùng ngành hàng.",
+        [
+            "Chọn ngành hàng",
+            "Chọn đúng sản phẩm cần kiểm tra giá",
+            "Xem bảng/biểu đồ hoặc bấm AI để hỏi hướng cải thiện",
+        ],
+    )
     st.warning(
         "Đây là Market Demo: giá, shop tham chiếu và tín hiệu xu hướng đều là dữ liệu mô phỏng có thể lặp lại khi demo. "
         "Hệ thống chưa kết nối Shopee, YouTube, Facebook/Instagram hoặc TikTok để lấy dữ liệu trực tiếp.",
@@ -1586,6 +1609,14 @@ def render_data_library() -> None:
     with back:
         st.button("Quay lại chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
+    render_quick_guide(
+        "bạn cần tạo, sửa hoặc chọn dữ liệu để AI phân tích cho đúng cuộc trò chuyện đang mở.",
+        [
+            "Chọn Bộ demo nếu muốn tập thử, hoặc Dữ liệu shop nếu là chủ shop",
+            "Tạo/chỉnh sửa các bảng đơn hàng, sản phẩm và tồn kho",
+            "Bấm Dùng dữ liệu shop trong chat để gắn dữ liệu vào chat hiện tại",
+        ],
+    )
     scope = st.segmented_control(
         "Không gian dữ liệu",
         options=["demo", "owner"],
@@ -1765,6 +1796,14 @@ def render_assistant() -> None:
             st.markdown("#### Bạn muốn hỏi với vai trò nào?")
             st.caption("Bạn có thể tạo nhiều cuộc trò chuyện; mỗi cuộc được đánh dấu riêng là Người mới hoặc Chủ shop.")
             st.button("Cuộc trò chuyện mới", key="new_chat_main", type="primary", icon=":material/add_comment:", on_click=show_chat_picker)
+        render_quick_guide(
+            "bạn bắt đầu sử dụng AI hoặc muốn tạo một chủ đề hỏi mới.",
+            [
+                "Bấm Cuộc trò chuyện mới",
+                "Chọn Người mới hoặc Chủ shop",
+                "Gõ câu hỏi hoặc dùng câu hỏi gợi ý",
+            ],
+        )
         return
 
     chat_type = CHAT_TYPES[mode]
@@ -1778,6 +1817,14 @@ def render_assistant() -> None:
             f":material/link: **{conversation_data_label(conversation)}** · "
             "Lịch sử, dữ liệu và Chiến lược gia AI được tách riêng cho cuộc trò chuyện này."
         )
+    render_quick_guide(
+        "bạn muốn hỏi chính sách Shopee, doanh thu, tồn kho hoặc cần AI hướng dẫn bước tiếp theo.",
+        [
+            "Nếu cần số liệu, bấm Thư viện dữ liệu để gắn dữ liệu cho chat này",
+            "Gõ câu hỏi vào ô dưới cùng",
+            "Bấm nút AI tròn để hỏi nhanh và đi thẳng đến Thị trường hoặc Chiến lược",
+        ],
+    )
 
     if mode == "owner" and not is_uploaded():
         with st.container(border=True):
