@@ -245,6 +245,18 @@ class AgentRunner:
                 "bán xác nhận đã nhận hàng hoàn trả hoặc khi người mua chấp nhận đề xuất "
                 "hoàn tiền không cần trả hàng."
             )
+        if "hop dong" in normalized_question:
+            return (
+                "Một hợp đồng mua hàng nên làm rõ chủ thể, hàng hóa, chất lượng, số lượng, "
+                "giá, giao hàng, thanh toán, đổi trả, chứng từ và cách xử lý tranh chấp. "
+                "Đây là hướng dẫn nghiệp vụ; hợp đồng có rủi ro cao cần được chuyên gia pháp lý rà soát."
+            )
+        if "giao dich dien tu" in normalized_question:
+            return (
+                "Lịch sử giao dịch điện tử cần được lưu theo cách có thể kiểm tra. Giá trị pháp lý "
+                "của từng giao dịch phụ thuộc điều kiện luật định và tình huống cụ thể, nên Eslabong "
+                "không tự phán quyết hiệu lực hợp đồng."
+            )
         definitions = {
             "sku": "SKU là mã riêng cho từng sản phẩm hoặc biến thể; dùng để tránh nhầm hàng khi theo dõi đơn và tồn kho.",
             "roas": "ROAS = doanh thu được quy gán cho quảng cáo chia cho chi quảng cáo. Chỉ số này không tự chứng minh chiến dịch có lãi vì còn giá vốn và phí.",
@@ -253,6 +265,14 @@ class AgentRunner:
             "ton kho an toan": "Tồn kho an toàn là lượng dự phòng để giảm nguy cơ hết hàng khi nhu cầu hoặc thời gian nhập thay đổi.",
             "dat hang lai": "Điểm đặt hàng lại có thể ước tính từ tốc độ bán, thời gian chờ nhập và tồn kho an toàn.",
             "hang cham ban": "Hàng chậm bán cần được kiểm tra về ảnh, mô tả, giá, đánh giá và nhu cầu trước khi giảm giá mạnh.",
+            "mo shop": "Khi mới mở shop, nên bắt đầu bằng ngành hàng, nguồn hàng, giá vốn và một số SKU có thể quản lý được. Mục tiêu đầu tiên là tạo dữ liệu thật để học, không phải hứa doanh số.",
+            "dong tien": "Dòng tiền khác doanh thu: cần xem thời điểm nhập hàng, chi quảng cáo, phí, hoàn tiền và thời điểm nhận thanh toán.",
+            "doi soat": "Đối soát là so sánh đơn hoàn tất, hoàn tiền, phí, khuyến mãi, quảng cáo và khoản tiền nhận được trong cùng kỳ. Thiếu báo cáo nào thì chưa thể gọi kết quả là lợi nhuận cuối cùng.",
+            "nha cung cap": "Trước khi đặt số lượng lớn, nên xác nhận mẫu, tiêu chuẩn hàng, giá, thời gian giao, đổi hàng lỗi và chứng từ bằng kênh có thể truy vết.",
+            "hang cam": "Với hàng cấm hoặc hạn chế, cần đối chiếu danh mục Shopee và quy định hiện hành trước khi đăng. Eslabong không tự cấp phép hoặc kết luận một mặt hàng được bán.",
+            "hang han che": "Với hàng cấm hoặc hạn chế, cần đối chiếu danh mục Shopee và quy định hiện hành trước khi đăng. Eslabong không tự cấp phép hoặc kết luận một mặt hàng được bán.",
+            "du lieu khach hang": "Chỉ nên thu thập dữ liệu cần thiết để xử lý đơn và hỗ trợ khách, nêu rõ mục đích sử dụng và hạn chế chia sẻ. Không tải dữ liệu khách hàng lên bản demo công khai.",
+            "bao mat tai khoan": "Không chia sẻ mật khẩu, mã xác thực hoặc khóa API trong chat hay file demo. Kết nối thật cần cơ chế cấp quyền hợp lệ và lưu bí mật an toàn.",
         }
         for term, answer in definitions.items():
             if term in normalized_question:

@@ -475,6 +475,21 @@ def detect_source_groups(
             "combo",
             "gia tri don trung binh",
             "ty le chuyen doi",
+            "mo shop",
+            "shop moi",
+            "nha cung cap",
+            "dong tien",
+            "doi soat",
+            "dong goi",
+            "cham soc khach",
+            "danh gia san pham",
+            "quan ly don",
+            "kiem tra don",
+            "hang cam",
+            "hang han che",
+            "du lieu csv",
+            "bao mat tai khoan",
+            "muc chac chan",
         ]
     ):
         return ["seller_operations_guides"]
@@ -502,12 +517,16 @@ def detect_source_groups(
             "nghi dinh",
             "nguoi tieu dung",
             "du lieu ca nhan",
+            "du lieu khach hang",
             "nhan hang hoa",
+            "hop dong",
+            "giao dich dien tu",
         ]
     ):
         return [
             "legal_ecommerce",
             "shopee_policy",
+            "seller_operations_guides",
         ]
 
     if any(

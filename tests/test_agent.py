@@ -124,6 +124,15 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("SKU là mã riêng", result["answer"])
         self.assertNotIn("chính sách Shopee", result["answer"])
 
+    def test_contract_guidance_does_not_present_itself_as_legal_advice(self) -> None:
+        class LegalRAG:
+            def search(self, _question: str) -> dict:
+                return {"evidence": [{"document_id": "LAW_TRANSACTION_001", "title": "Luật Giao dịch điện tử 2023", "page": "", "excerpt": "Giao dịch điện tử."}]}
+
+        result = AgentRunner(rag_tool=LegalRAG()).run("Hợp đồng với nhà cung cấp cần có gì?")
+        self.assertIn("chuyên gia pháp lý", result["answer"])
+        self.assertNotIn("chắc chắn", result["answer"])
+
     def test_rank_costs_returns_largest_item(self) -> None:
         ranking = CalculatorTool().rank_costs({"fee": 100, "discount": 150})
         self.assertEqual(ranking["cost_ranking"][0]["name"], "discount")
