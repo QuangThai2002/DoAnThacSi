@@ -42,7 +42,7 @@ from agent.shop_data_library import (
 
 
 st.set_page_config(
-    page_title="Lockera | Trợ lý bán hàng",
+    page_title="Eslabong | Trợ lý bán hàng",
     page_icon=":material/storefront:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1828,7 +1828,7 @@ def render_assistant() -> None:
 
     mode = st.session_state.get("seller_chat_mode")
     if mode not in CHAT_TYPES or not st.session_state.get("seller_active_chat_id"):
-        st.markdown('<div class="seller-eyebrow">LOCKERA</div>', unsafe_allow_html=True)
+        st.markdown('<div class="seller-eyebrow">ESLABONG</div>', unsafe_allow_html=True)
         st.title("Bắt đầu cuộc trò chuyện")
         st.markdown('<div class="seller-subtitle">Chọn loại cuộc trò chuyện để AI hỗ trợ đúng nhu cầu của bạn.</div>', unsafe_allow_html=True)
         st.space("small")
@@ -1848,7 +1848,7 @@ def render_assistant() -> None:
 
     chat_type = CHAT_TYPES[mode]
     conversation = active_conversation()
-    st.markdown('<div class="seller-eyebrow">LOCKERA</div>', unsafe_allow_html=True)
+    st.markdown('<div class="seller-eyebrow">ESLABONG</div>', unsafe_allow_html=True)
     st.subheader(f"{chat_type['icon']} {chat_type['name']}")
     st.caption(chat_type["description"])
     if conversation is not None:
@@ -1952,7 +1952,7 @@ with st.sidebar:
             )
     else:
         with st.container(horizontal=True, horizontal_alignment="distribute"):
-            st.markdown("### :material/storefront: Lockera")
+            st.markdown("### :material/storefront: Eslabong")
             if st.button(" ", key="collapse_sidebar", icon=":material/chevron_left:", help="Thu gọn danh sách chat"):
                 toggle_sidebar_compact()
                 st.rerun()

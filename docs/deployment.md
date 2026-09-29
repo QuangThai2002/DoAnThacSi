@@ -14,14 +14,14 @@ docker compose build
 docker compose up -d
 ```
 
-Mở `http://localhost:8501`. Nếu muốn dùng tên miễn phí dễ nhớ là `http://lockera.test:8501`, mở PowerShell **với quyền Quản trị viên** và chạy một lần:
+Mở `http://localhost:8501`. Nếu muốn dùng tên miễn phí dễ nhớ là `http://eslabong.test:8501`, mở PowerShell **với quyền Quản trị viên** và chạy một lần:
 
 ```powershell
-Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 lockera.test"
+Add-Content -Path "$env:SystemRoot\System32\drivers\etc\hosts" -Value "`n127.0.0.1 eslabong.test"
 ipconfig /flushdns
 ```
 
-`lockera.test` chỉ trỏ về chính máy bạn, không cần mua tên miền và không truy cập được từ Internet. Cấu hình mặc định chỉ nhận truy cập từ chính máy này, không mở cho thiết bị khác trong mạng. Kiểm tra trạng thái container:
+`eslabong.test` chỉ trỏ về chính máy bạn, không cần mua tên miền và không truy cập được từ Internet. Cấu hình mặc định chỉ nhận truy cập từ chính máy này, không mở cho thiết bị khác trong mạng. Kiểm tra trạng thái container:
 
 ```powershell
 docker compose ps
