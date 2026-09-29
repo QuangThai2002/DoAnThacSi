@@ -58,7 +58,10 @@ class MarketIntelligenceTests(unittest.TestCase):
         self.assertEqual(len(market["shops"]), SIMILAR_SHOPS_PER_CATEGORY + 1)
         self.assertEqual(market["reference_count"], SIMILAR_SHOPS_PER_CATEGORY)
         self.assertTrue(any(item["shop_type"] == "Shop của bạn" for item in market["shops"]))
-        self.assertGreaterEqual(len(market["listings"]), 50)
+        seller_products = {item["product_name"] for item in market["listings"] if item["shop_type"] == "Shop của bạn"}
+        competitor_products = {item["product_name"] for item in market["listings"] if item["shop_type"] != "Shop của bạn"}
+        self.assertEqual(len(market["listings"]), len(market["shops"]) * len(seller_products))
+        self.assertEqual(seller_products, competitor_products)
         self.assertTrue(all(float(item["product_score"]) > 0 for item in market["listings"]))
 
     def test_all_fifty_categories_have_three_hundred_fifty_comparable_shops(self) -> None:

@@ -257,7 +257,9 @@ def simulated_marketplace(category_id: str, scenario_seed: int = 0) -> dict[str,
     shops: list[dict[str, object]] = []
     for shop_index, (shop_name, shop_type, price_factor) in enumerate(profiles):
         rng = random.Random(f"marketplace:{category_id}:{scenario_seed}:{shop_index}")
-        listing_count = 5 + ((shop_index * 3 + len(category_id)) % 8)
+        # Every comparable shop carries the same category assortment. This makes a
+        # selected product directly comparable across the seller and all 7 peers.
+        listing_count = len(products)
         shop_units = 0
         shop_gmv = 0
         rating = round(min(4.95, 4.12 + shop_index * 0.065 + rng.uniform(-0.09, 0.14)), 2)

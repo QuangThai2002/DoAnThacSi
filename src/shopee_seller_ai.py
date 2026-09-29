@@ -700,84 +700,69 @@ def render_market_intelligence() -> None:
     marketplace = simulated_marketplace(
         str(category_id), int(st.session_state.seller_market_scenario_seed)
     )
-    summary = market_scene_price_summary(marketplace)
+    listings = pd.DataFrame(marketplace["listings"])
+    product_names = sorted(listings["product_name"].unique().tolist())
+    selected_product = st.selectbox(
+        "Chọn sản phẩm để so sánh giá",
+        options=product_names,
+        key="market_price_product",
+        help="Giá và bảng bên dưới chỉ so sánh đúng sản phẩm này giữa các shop.",
+    )
+    product_rows = listings[listings["product_name"] == selected_product].copy()
+    own_product = product_rows[product_rows["shop_type"] == "Shop của bạn"].iloc[0]
+    comparable_prices = product_rows[product_rows["shop_type"] != "Shop của bạn"]["listed_price_vnd"]
+    product_lower_price = float(comparable_prices.min())
+    product_typical_price = float(comparable_prices.median())
+    product_upper_price = float(comparable_prices.max())
+    product_own_price = float(own_product["listed_price_vnd"])
+    if product_own_price < product_lower_price:
+        product_position = "Thấp hơn giá các shop cùng sản phẩm"
+    elif product_own_price > product_upper_price:
+        product_position = "Cao hơn giá các shop cùng sản phẩm"
+    else:
+        product_position = "Nằm trong vùng giá cạnh tranh"
 
     with st.container(horizontal=True):
-        st.metric("Giá thấp tham chiếu", currency(float(summary["lower_price_vnd"])), help="Mốc thấp của dải giá tham chiếu, không phải giá nên bán bắt buộc.", border=True)
-        st.metric("Mặt bằng tham chiếu", currency(float(summary["typical_price_vnd"])), help="Mức giá ở giữa của các shop tham chiếu mô phỏng.", border=True)
-        st.metric("Giá cao tham chiếu", currency(float(summary["upper_price_vnd"])), help="Mốc cao của dải giá tham chiếu; cần có giá trị khác biệt để bán ở vùng này.", border=True)
+        st.metric("Giá thấp cùng sản phẩm", currency(product_lower_price), help="Mức giá thấp nhất của đúng sản phẩm đang chọn tại 7 shop tham chiếu.", border=True)
+        st.metric("Mặt bằng giá", currency(product_typical_price), help="Giá ở giữa của 7 shop cùng bán sản phẩm đang chọn.", border=True)
+        st.metric("Giá cao cùng sản phẩm", currency(product_upper_price), help="Mức giá cao nhất của đúng sản phẩm đang chọn tại 7 shop tham chiếu.", border=True)
     with st.container(horizontal=True):
-        st.metric("Giá shop của bạn", currency(float(summary["own_price_vnd"])), help="Giá trung bình của shop ngẫu nhiên trong kịch bản demo này.", border=True)
-        st.metric("Vị trí giá", str(summary["position"]), help="So sánh trực tiếp với đúng 7 shop cùng ngành trong kịch bản hiện tại.", border=True)
-    st.caption("Shop của bạn và 7 shop tương tự đều được tạo lại cùng lúc khi bấm “Tạo lại shop và thị trường demo”.")
+        st.metric("Giá shop của bạn", currency(product_own_price), help="Giá của đúng sản phẩm đang chọn tại Shop của bạn · Demo.", border=True)
+        st.metric("Vị trí giá", product_position, help="So sánh trực tiếp cùng một sản phẩm, không phải giá trung bình của cả shop.", border=True)
+    st.caption("Đang so sánh từng sản phẩm. Chọn sản phẩm khác để kiểm tra giá khác; bấm “Tạo lại shop và thị trường demo” để tạo bộ shop mới.")
     with st.container(border=True):
-        st.markdown("**Đọc nhanh trong 15 giây**")
-        st.write("1. So sánh giá shop của bạn với 7 shop cùng ngành.  2. Nhìn đánh giá và review để chọn điểm cần cải thiện.  3. Hỏi nút AI để nhận một hướng thử nghiệm cụ thể.")
+        st.markdown("**Cách đọc nhanh**")
+        st.write("1. Chọn đúng sản phẩm muốn kiểm tra.  2. So giá shop của bạn với 7 shop cùng bán sản phẩm đó.  3. Xem bảng chi tiết trước khi quyết định đổi giá.")
 
     price_tab, shop_tab, product_tab = st.tabs(["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"])
-    references = list(summary["references"])
     with price_tab:
-        st.subheader(str(summary["position"]))
-        st.write("Mỗi cột là giá bán trung bình của một shop trong cùng kịch bản. Dùng chênh lệch này để chọn giả thuyết thử giá, không phải để sao chép giá của shop khác.")
-        chart_rows = [
-            {"Nhãn": row["shop_name"], "Giá niêm yết (VND)": row["average_price_vnd"], "Loại": "Shop tham chiếu"}
-            for row in references
-        ]
-        chart_rows.append(
-            {"Nhãn": "Shop của bạn · Demo", "Giá niêm yết (VND)": summary["own_price_vnd"], "Loại": "Shop của bạn"}
-        )
-        chart_data = pd.DataFrame(chart_rows)
+        st.subheader(selected_product)
+        st.write("Mỗi cột là giá của đúng sản phẩm này tại một shop. Cột đỏ là Shop của bạn.")
+        chart_data = product_rows.copy()
         price_chart = (
             alt.Chart(chart_data)
             .mark_bar(cornerRadiusEnd=4)
             .encode(
-                x=alt.X("Giá niêm yết (VND):Q", title="Giá niêm yết (VND)", axis=alt.Axis(format=",d")),
-                y=alt.Y("Nhãn:N", sort="-x", title=None),
-                color=alt.Color(
-                    "Loại:N",
-                    scale=alt.Scale(domain=["Shop tham chiếu", "Shop của bạn"], range=["#f7a28f", "#ee4d2d"]),
-                    legend=alt.Legend(title=None),
-                ),
-                tooltip=["Nhãn:N", alt.Tooltip("Giá niêm yết (VND):Q", format=",d"), "Loại:N"],
+                x=alt.X("listed_price_vnd:Q", title="Giá niêm yết (VND)", axis=alt.Axis(format=",d")),
+                y=alt.Y("shop_name:N", sort="-x", title=None),
+                color=alt.condition(alt.datum.shop_type == "Shop của bạn", alt.value("#ee4d2d"), alt.value("#f7a28f")),
+                tooltip=[alt.Tooltip("shop_name:N", title="Shop"), alt.Tooltip("listed_price_vnd:Q", title="Giá", format=",d"), alt.Tooltip("rating:Q", title="Đánh giá", format=".2f")],
             )
-            .properties(height=310)
+            .properties(height=300)
         )
-        quality_data = pd.DataFrame(references).rename(
-            columns={"shop_name": "Shop", "average_price_vnd": "Giá (VND)", "rating": "Đánh giá", "review_count": "Số review"}
-        )
-        quality_chart = (
-            alt.Chart(quality_data)
-            .mark_circle(opacity=0.82)
-            .encode(
-                x=alt.X("Giá (VND):Q", title="Giá niêm yết", axis=alt.Axis(format=",d")),
-                y=alt.Y("Đánh giá:Q", title="Đánh giá", scale=alt.Scale(domain=[4.2, 5.0])),
-                size=alt.Size("Số review:Q", title="Số review", scale=alt.Scale(range=[90, 900])),
-                color=alt.value("#ee4d2d"),
-                tooltip=["Shop:N", alt.Tooltip("Giá (VND):Q", format=",d"), "Đánh giá:Q", alt.Tooltip("Số review:Q", format=",d")],
-            )
-            .properties(height=310)
-        )
-        left_chart, right_chart = st.columns(2)
-        with left_chart:
-            st.markdown("**Biểu đồ 1 · Giá từng shop**")
-            st.caption("Cột đỏ chỉ xuất hiện khi bảng Chủ shop có sản phẩm cùng ngành.")
-            st.altair_chart(price_chart, width="stretch")
-        with right_chart:
-            st.markdown("**Biểu đồ 2 · Giá, đánh giá và review**")
-            st.caption("Chấm to hơn nghĩa là nhiều review hơn; đây là dữ liệu mô phỏng để học cách đọc biểu đồ.")
-            st.altair_chart(quality_chart, width="stretch")
+        st.altair_chart(price_chart, width="stretch")
+        product_table = product_rows.rename(columns={"shop_name": "Shop", "shop_type": "Loại shop", "listed_price_vnd": "Giá", "rating": "Đánh giá", "review_count": "Số review", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T"})
+        st.dataframe(product_table[["Shop", "Loại shop", "Giá", "Đánh giá", "Số review", "Lượng bán 12T", "GMV 12T"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ")})
         st.caption(
-            f"Dải giá được tính từ đúng 7 shop tham chiếu mô phỏng của kịch bản này; snapshot demo {MARKET_SNAPSHOT_DATE}."
+            f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
         )
 
     with shop_tab:
         shops = pd.DataFrame(marketplace["shops"])
         st.caption(f"So sánh shop của bạn với {marketplace['reference_count']} shop tương tự trong cùng ngành hàng. Mỗi lần tạo lại sẽ có một kịch bản demo mới.")
-        shop_chart = alt.Chart(shops).mark_circle(opacity=0.85).encode(
-            x=alt.X("average_price_vnd:Q", title="Giá bán trung bình", axis=alt.Axis(format=",d")),
-            y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
-            size=alt.Size("units_sold_12m:Q", title="Lượng bán", scale=alt.Scale(range=[130, 1200])),
-            color=alt.Color("shop_type:N", title="Loại shop"),
+        shop_chart = alt.Chart(shops).mark_arc(innerRadius=58, padAngle=0.02).encode(
+            theta=alt.Theta("gmv_12m_vnd:Q", title="GMV 12 tháng"),
+            color=alt.Color("shop_name:N", title="Shop", scale=alt.Scale(scheme="set2")),
             tooltip=[
                 alt.Tooltip("shop_name:N", title="Tên shop"),
                 alt.Tooltip("shop_type:N", title="Quy mô shop"),
@@ -785,29 +770,32 @@ def render_market_intelligence() -> None:
                 alt.Tooltip("gmv_12m_vnd:Q", title="Tổng doanh thu 12 tháng", format=",d"),
                 alt.Tooltip("shop_score:Q", title="Điểm đánh giá shop", format=".1f"),
             ],
-        ).properties(height=360)
+        ).properties(height=340)
+        st.markdown("**Tỷ trọng doanh thu 12 tháng của các shop**")
+        st.caption("Miếng lớn hơn nghĩa là shop đó có GMV cao hơn trong bộ dữ liệu đang xem.")
         st.altair_chart(shop_chart, width="stretch")
         table = shops.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Review", "shop_score": "Điểm shop"})
         st.dataframe(table[["Shop", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Review", "Điểm shop"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm shop": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
 
     with product_tab:
-        listings = pd.DataFrame(marketplace["listings"])
         st.caption(f"Bảng trộn sản phẩm của Shop của bạn · Demo và {marketplace['reference_count']} shop tương tự. Lọc theo shop để xem các mặt hàng cạnh tranh.")
         selected_shops = st.multiselect("Hiển thị shop", listings["shop_name"].unique().tolist(), default=listings["shop_name"].unique().tolist(), key="market_listing_shops")
         shown = listings[listings["shop_name"].isin(selected_shops)].copy()
-        product_chart = alt.Chart(shown).mark_circle(opacity=0.78).encode(
-            x=alt.X("listed_price_vnd:Q", title="Giá niêm yết", axis=alt.Axis(format=",d")),
-            y=alt.Y("gmv_12m_vnd:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
-            size=alt.Size("units_sold_12m:Q", title="Lượng bán", scale=alt.Scale(range=[45, 700])),
-            color=alt.Color("shop_type:N", title="Loại shop"),
+        product_chart_data = shown.groupby("product_name", as_index=False).agg(
+            GMV_12T=("gmv_12m_vnd", "sum"),
+            Luong_ban_12T=("units_sold_12m", "sum"),
+        ).nlargest(12, "GMV_12T")
+        product_chart = alt.Chart(product_chart_data).mark_bar(color="#ee4d2d", cornerRadiusEnd=4).encode(
+            x=alt.X("GMV_12T:Q", title="GMV 12 tháng", axis=alt.Axis(format=".2s")),
+            y=alt.Y("product_name:N", title=None, sort="-x"),
             tooltip=[
-                alt.Tooltip("shop_name:N", title="Tên shop"),
                 alt.Tooltip("product_name:N", title="Tên sản phẩm"),
-                alt.Tooltip("listed_price_vnd:Q", title="Giá niêm yết", format=",d"),
-                alt.Tooltip("gmv_12m_vnd:Q", title="Tổng doanh thu 12 tháng", format=",d"),
-                alt.Tooltip("product_score:Q", title="Điểm đánh giá sản phẩm", format=".1f"),
+                alt.Tooltip("GMV_12T:Q", title="Tổng doanh thu 12 tháng", format=",d"),
+                alt.Tooltip("Luong_ban_12T:Q", title="Lượng bán 12 tháng", format=",d"),
             ],
-        ).properties(height=360)
+        ).properties(height=340)
+        st.markdown("**12 sản phẩm có GMV cao nhất**")
+        st.caption("Dùng biểu đồ cột để nhìn rõ sản phẩm nào tạo doanh thu cao; bảng bên dưới dùng để xem từng shop và từng giá.")
         st.altair_chart(product_chart, width="stretch")
         display = shown.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Review", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
         st.dataframe(display[["Shop", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Review", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})

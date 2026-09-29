@@ -62,6 +62,8 @@ class SellerFacingUiTests(unittest.TestCase):
 
         self.assertEqual([title.value for title in app.title], ["Phân tích thị trường"])
         self.assertEqual(len(app.selectbox(key="seller_market_category_id").options), 50)
+        self.assertGreaterEqual(len(app.selectbox(key="market_price_product").options), 5)
+        self.assertLessEqual(len(app.selectbox(key="market_price_product").options), 12)
         self.assertEqual(app.button(key="market_advisor_toggle").label, "AI")
         self.assertTrue(any("Market Demo" in warning.value for warning in app.warning))
         self.assertEqual(len(app.error), 0)
