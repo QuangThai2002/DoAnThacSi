@@ -238,6 +238,7 @@ CONVERSATION_CONTEXT_KEYS = (
     "seller_demo_selected_ids",
     "seller_market_scenario_seed",
     "seller_market_category_id",
+    "market_section",
     "market_price_product",
     "market_listing_shops",
     "seller_market_advisor_messages",
@@ -251,6 +252,7 @@ CONVERSATION_CONTEXT_KEYS = (
 )
 CONVERSATION_WIDGET_KEYS = {
     "seller_market_category_id",
+    "market_section",
     "market_price_product",
     "market_listing_shops",
     "strategy_category_id",
@@ -275,6 +277,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_library_scope", "owner")
     st.session_state.setdefault("seller_demo_selected_ids", [])
     st.session_state.setdefault("seller_market_scenario_seed", random.SystemRandom().randint(1, 999_999_999))
+    st.session_state.setdefault("market_section", "So sánh giá")
     st.session_state.setdefault("seller_market_advisor_messages", [])
     st.session_state.setdefault("seller_advisor_handoffs", [])
     st.session_state.setdefault("seller_pending_main_prompt", None)
@@ -294,6 +297,7 @@ def new_conversation_context(mode: str) -> dict[str, Any]:
         "seller_demo_selected_ids": [],
         "seller_market_scenario_seed": random.SystemRandom().randint(1, 999_999_999),
         "seller_market_category_id": "appliance",
+        "market_section": "So sánh giá",
         "market_price_product": None,
         "market_listing_shops": None,
         "seller_market_advisor_messages": [],
@@ -1302,8 +1306,16 @@ def render_market_intelligence() -> None:
         st.markdown("**Cách đọc nhanh**")
         st.write("1. Chọn đúng sản phẩm muốn kiểm tra.  2. So giá shop của bạn với 7 shop cùng bán sản phẩm đó.  3. Xem bảng chi tiết trước khi quyết định đổi giá.")
 
-    price_tab, shop_tab, product_tab = st.tabs(["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"])
-    with price_tab:
+    market_sections = ["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"]
+    market_section = st.segmented_control(
+        "Nội dung phân tích thị trường",
+        options=market_sections,
+        default="So sánh giá",
+        key="market_section",
+        label_visibility="collapsed",
+        width="stretch",
+    )
+    if market_section == "So sánh giá":
         st.subheader(selected_product)
         st.write("Mỗi cột là giá của đúng sản phẩm này tại một shop. Cột đỏ là Shop của bạn.")
         chart_data = product_rows.copy()
@@ -1325,7 +1337,7 @@ def render_market_intelligence() -> None:
             f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
         )
 
-    with shop_tab:
+    if market_section == "So sánh shop":
         shops = pd.DataFrame(marketplace["shops"])
         st.caption(f"So sánh shop của bạn với {marketplace['reference_count']} shop tương tự trong cùng ngành hàng. Mỗi lần tạo lại sẽ có một kịch bản demo mới.")
         shop_chart = alt.Chart(shops).mark_arc(innerRadius=58, padAngle=0.02).encode(
@@ -1345,7 +1357,7 @@ def render_market_intelligence() -> None:
         table = shops.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Review", "shop_score": "Điểm shop"})
         st.dataframe(table[["Shop", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Review", "Điểm shop"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm shop": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
 
-    with product_tab:
+    if market_section == "Sản phẩm cùng thị trường":
         st.caption(f"Bảng trộn sản phẩm của Shop của bạn · Demo và {marketplace['reference_count']} shop tương tự. Lọc theo shop để xem các mặt hàng cạnh tranh.")
         selected_shops = st.multiselect("Hiển thị shop", listings["shop_name"].unique().tolist(), default=listings["shop_name"].unique().tolist(), key="market_listing_shops")
         shown = listings[listings["shop_name"].isin(selected_shops)].copy()
