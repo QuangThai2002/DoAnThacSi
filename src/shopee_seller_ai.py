@@ -28,6 +28,7 @@ from agent.market_intelligence import (
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 from agent.strategy_engine import action_plan, opportunity_radar, simulate_strategy
+from agent.strategy_evidence import STRATEGY_EVIDENCE
 from agent.shop_data_library import (
     DEMO_PERIODS,
     REQUIRED_FILES as LIBRARY_REQUIRED_FILES,
@@ -683,6 +684,10 @@ def render_strategy_workspace() -> None:
         st.button("Quay lại chat", key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     st.info("Không gian này dùng dữ liệu mô phỏng minh bạch. Khi có dữ liệu shop thật, cùng khung quyết định này có thể dùng để phân tích kết quả thực tế.", icon=":material/lightbulb:")
+    with st.expander("Nguồn phương pháp và nguyên tắc an toàn", icon=":material/menu_book:"):
+        st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90/100 mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
+        for source in STRATEGY_EVIDENCE:
+            st.markdown(f"- [{source['title']}]({source['url']}) — {source['author']}, {source['year']}. {source['use']}\n  *Ví dụ áp dụng:* {source['adoption']}")
     radar_tab, simulator_tab, plan_tab, diary_tab = st.tabs(["Radar cơ hội", "Mô phỏng chiến lược", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"])
 
     with radar_tab:
@@ -722,21 +727,30 @@ def render_strategy_workspace() -> None:
             with control_right:
                 ad_change = st.slider("Tăng ngân sách quảng cáo (%)", min_value=0, max_value=50, value=0)
                 restock = st.number_input("Số lượng dự kiến nhập thêm", min_value=0, max_value=1000, value=0, step=10)
+            acknowledged = st.checkbox("Tôi hiểu đây là giả thuyết mô phỏng; tôi sẽ tự phê duyệt và kiểm tra kết quả trước khi áp dụng.")
             simulate = st.form_submit_button("Phân tích phương án", type="primary", icon=":material/psychology:", width="stretch")
         if simulate:
-            st.session_state.seller_strategy_last_simulation = simulate_strategy(
-                str(category_id), int(st.session_state.seller_market_scenario_seed), int(price_change), bool(use_bundle), int(ad_change), int(restock)
-            )
+            if not acknowledged:
+                st.warning("Bạn cần xác nhận AI chỉ hỗ trợ ra quyết định, không cam kết kết quả kinh doanh.", icon=":material/gpp_maybe:")
+            else:
+                st.session_state.seller_strategy_last_simulation = simulate_strategy(
+                    str(category_id), int(st.session_state.seller_market_scenario_seed), int(price_change), bool(use_bundle), int(ad_change), int(restock)
+                )
         simulation = st.session_state.seller_strategy_last_simulation
         if simulation:
             with st.container(border=True):
-                st.markdown(f"**Khuyến nghị thử với: {simulation['lead_product']}**")
+                st.markdown(f"**Giả thuyết cần kiểm chứng: {simulation['lead_product']}**")
                 with st.container(horizontal=True):
                     st.metric("GMV hiện tại trong demo", currency(float(simulation["baseline_gmv_vnd"])), border=True)
-                    st.metric("GMV theo phương án", currency(float(simulation["estimated_gmv_vnd"])), f"{float(simulation['gmv_change_percent']):+.1f}%", border=True)
-                    st.metric("Lượng bán ước tính", f"{int(simulation['estimated_units']):,}", border=True)
+                    st.metric("GMV minh họa theo phương án", currency(float(simulation["estimated_gmv_vnd"])), f"{float(simulation['gmv_change_percent']):+.1f}%", border=True)
+                    st.metric("Lượng bán minh họa", f"{int(simulation['estimated_units']):,}", border=True)
+                    st.metric("Mức bằng chứng", f"{int(simulation['evidence_score'])}/100", border=True)
+                st.warning(f"**{simulation['evidence_label']}** — {simulation['language_policy']}", icon=":material/gpp_maybe:")
                 st.markdown(f"**Mức rủi ro:** {simulation['risk']}")
-                st.markdown(f"**Bước tiếp theo:** {simulation['action']}")
+                st.markdown(f"**Cách thử an toàn:** {simulation['action']}")
+                st.markdown("**Điều kiện dừng:**")
+                for condition in simulation["stop_conditions"]:
+                    st.markdown(f"- {condition}")
         else:
             st.caption("Chưa có phương án được mô phỏng. Hãy chọn thay đổi và bấm “Phân tích phương án”.")
 

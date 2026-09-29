@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from .market_intelligence import market_categories, product_opportunities, simulated_marketplace
+from .strategy_evidence import DEMO_EVIDENCE_LABEL, DEMO_EVIDENCE_SCORE, safe_language_policy
 
 
 def opportunity_radar() -> list[dict[str, object]]:
@@ -84,6 +85,15 @@ def simulate_strategy(
         "restock_units": restock_units,
         "risk": risk,
         "action": action,
+        "evidence_score": DEMO_EVIDENCE_SCORE,
+        "evidence_label": DEMO_EVIDENCE_LABEL,
+        "language_policy": safe_language_policy(DEMO_EVIDENCE_SCORE),
+        "requires_human_approval": True,
+        "stop_conditions": [
+            "Dừng nếu lợi nhuận sau phí không đạt ngưỡng người dùng đặt ra.",
+            "Dừng nếu tồn kho xuống dưới mức an toàn hoặc phản hồi tiêu cực tăng.",
+            "Không mở rộng ngân sách hay nhập hàng chỉ từ một kỳ quan sát.",
+        ],
     }
 
 

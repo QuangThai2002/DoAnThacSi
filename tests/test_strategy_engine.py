@@ -27,6 +27,10 @@ class StrategyEngineTests(unittest.TestCase):
         self.assertGreater(int(result["baseline_gmv_vnd"]), 0)
         self.assertGreater(int(result["estimated_gmv_vnd"]), 0)
         self.assertIn("14 ngày", str(result["action"]))
+        self.assertLess(int(result["evidence_score"]), 90)
+        self.assertIn("Không đủ bằng chứng", str(result["language_policy"]))
+        self.assertTrue(result["requires_human_approval"])
+        self.assertEqual(len(result["stop_conditions"]), 3)
         plan = action_plan(result)
         self.assertEqual([item["Tuần"] for item in plan], ["Tuần 1", "Tuần 2", "Tuần 3", "Tuần 4"])
 
