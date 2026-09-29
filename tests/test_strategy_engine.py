@@ -9,7 +9,7 @@ SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from agent.strategy_engine import action_plan, opportunity_radar, simulate_strategy
+from agent.strategy_engine import action_plan, inventory_risk_analysis, opportunity_radar, simulate_strategy
 
 
 class StrategyEngineTests(unittest.TestCase):
@@ -33,6 +33,18 @@ class StrategyEngineTests(unittest.TestCase):
         self.assertEqual(len(result["stop_conditions"]), 3)
         plan = action_plan(result)
         self.assertEqual([item["Tuần"] for item in plan], ["Tuần 1", "Tuần 2", "Tuần 3", "Tuần 4"])
+
+    def test_inventory_risk_analysis_is_deterministic_and_has_reorder_guardrails(self) -> None:
+        result = inventory_risk_analysis("fresh-fruit", scenario_seed=42, target_stock_months=2.0)
+        rows = result["rows"]
+
+        self.assertGreaterEqual(len(rows), 5)
+        self.assertLessEqual(len(rows), 12)
+        self.assertTrue(any("không nhập thêm" in str(row["status"]).lower() for row in rows))
+        self.assertTrue(any(int(row["recommended_order_qty"]) > 0 for row in rows))
+        self.assertTrue(all(int(row["capital_in_stock_demo_vnd"]) > 0 for row in rows))
+        self.assertTrue(all(str(row["repeat_purchase_signal_demo"]) for row in rows))
+        self.assertLess(int(result["evidence_score"]), 90)
 
 
 if __name__ == "__main__":

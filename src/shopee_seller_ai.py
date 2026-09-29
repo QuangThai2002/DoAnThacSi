@@ -29,7 +29,7 @@ from agent.market_intelligence import (
 )
 from agent.planner import Planner
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
-from agent.strategy_engine import action_plan, opportunity_radar, simulate_strategy
+from agent.strategy_engine import action_plan, inventory_risk_analysis, opportunity_radar, simulate_strategy
 from agent.strategy_evidence import STRATEGY_EVIDENCE
 from agent.shop_data_library import (
     DEMO_PERIODS,
@@ -697,7 +697,9 @@ def render_strategy_workspace() -> None:
         st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90/100 mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
         for source in STRATEGY_EVIDENCE:
             st.markdown(f"- [{source['title']}]({source['url']}) — {source['author']}, {source['year']}. {source['use']}\n  *Ví dụ áp dụng:* {source['adoption']}")
-    radar_tab, simulator_tab, comparison_tab, plan_tab, diary_tab = st.tabs(["Radar cơ hội", "Mô phỏng chiến lược", "So sánh phương án", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"])
+    radar_tab, simulator_tab, comparison_tab, inventory_tab, plan_tab, diary_tab = st.tabs([
+        "Radar cơ hội", "Mô phỏng chiến lược", "So sánh phương án", "Vốn & tồn kho", "Kế hoạch 30 ngày", "Nhật ký thử nghiệm"
+    ])
 
     with radar_tab:
         st.subheader("Radar cơ hội mặt hàng")
@@ -820,6 +822,99 @@ def render_strategy_workspace() -> None:
             if st.button("Dùng phương án này cho kế hoạch", key="strategy_select_plan", icon=":material/calendar_month:"):
                 st.session_state.seller_strategy_last_simulation = dict(scenarios[scenario_index])
                 st.toast("Kế hoạch 30 ngày đã dùng phương án đã chọn.", icon=":material/check_circle:")
+
+    with inventory_tab:
+        st.subheader("Vốn & tồn kho: nên nhập gì, dừng gì?")
+        st.caption("Xem từng sản phẩm để tránh giữ vốn ở hàng bán chậm và chỉ nhập nhỏ khi có dấu hiệu sắp hết hàng.")
+        catalog = market_categories()
+        labels = {str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm" for item in catalog}
+        default_category = str(st.session_state.get("strategy_category_id", next(iter(labels))))
+        default_index = list(labels).index(default_category) if default_category in labels else 0
+        inventory_category = st.selectbox(
+            "Ngành hàng cần kiểm tra tồn kho",
+            options=list(labels),
+            index=default_index,
+            format_func=lambda item: labels[str(item)],
+            key="strategy_inventory_category",
+        )
+        target_stock_months = st.slider(
+            "Mức tồn kho an toàn muốn duy trì (tháng)",
+            min_value=1.0,
+            max_value=3.0,
+            value=2.0,
+            step=0.5,
+            help="Ví dụ chọn 2 tháng: AI chỉ đề xuất nhập đủ khoảng hai tháng bán, không đề xuất ôm hàng dài.",
+            key="strategy_target_stock_months",
+        )
+        inventory_result = inventory_risk_analysis(
+            str(inventory_category),
+            int(st.session_state.seller_market_scenario_seed),
+            float(target_stock_months),
+        )
+        inventory_rows: list[dict[str, object]] = list(inventory_result["rows"])
+        do_not_reorder = [row for row in inventory_rows if "không nhập thêm" in str(row["status"]).lower()]
+        restock_rows = [row for row in inventory_rows if int(row["recommended_order_qty"]) > 0]
+        capital_at_risk = sum(
+            int(row["capital_in_stock_demo_vnd"])
+            for row in inventory_rows
+            if "lỗ vốn" in str(row["status"]).lower() or "tồn lâu" in str(row["status"]).lower()
+        )
+        suggested_budget = sum(int(row["recommended_order_budget_demo_vnd"]) for row in restock_rows)
+        with st.container(horizontal=True):
+            st.metric("Mặt hàng chưa nên nhập", f"{len(do_not_reorder)}", border=True)
+            st.metric("Vốn có nguy cơ bị giữ", currency(float(capital_at_risk)), border=True)
+            st.metric("Mặt hàng có thể nhập nhỏ", f"{len(restock_rows)}", border=True)
+            st.metric("Ngân sách nhập nhỏ minh họa", currency(float(suggested_budget)), border=True)
+
+        st.warning(
+            "Giá vốn, ngày không có đơn, mức mua lại và chi phí dự phòng ở đây đều là dữ liệu mô phỏng của kịch bản. "
+            "Khi dùng dữ liệu thật, hãy thay bằng hóa đơn nhập, tồn kho và đơn bán thực tế trước khi quyết định bỏ vốn.",
+            icon=":material/gpp_maybe:",
+        )
+        inventory_frame = pd.DataFrame(inventory_rows).rename(columns={
+            "product_name": "Sản phẩm",
+            "listed_price_vnd": "Giá bán (demo)",
+            "unit_cost_demo_vnd": "Giá vốn minh họa",
+            "operating_reserve_demo_vnd": "Chi phí dự phòng",
+            "break_even_price_demo_vnd": "Giá hòa vốn minh họa",
+            "safety_margin_demo_vnd": "Biên an toàn minh họa",
+            "monthly_purchases_demo": "Lượt mua/tháng mô phỏng",
+            "days_since_last_sale_demo": "Không có đơn (ngày)",
+            "on_hand_units_demo": "Số lượng tồn",
+            "stock_cover_months_demo": "Đủ bán (tháng)",
+            "capital_in_stock_demo_vnd": "Vốn đang nằm trong hàng",
+            "repeat_purchase_signal_demo": "Tín hiệu khách quay lại",
+            "recommended_order_qty": "Đề xuất nhập (cái)",
+            "recommended_order_budget_demo_vnd": "Ngân sách nhập nhỏ",
+            "status": "Tình trạng",
+            "action": "Việc nên làm",
+        })
+        visible_columns = [
+            "Sản phẩm", "Giá bán (demo)", "Giá vốn minh họa", "Giá hòa vốn minh họa",
+            "Biên an toàn minh họa", "Lượt mua/tháng mô phỏng", "Không có đơn (ngày)",
+            "Số lượng tồn", "Vốn đang nằm trong hàng", "Tín hiệu khách quay lại",
+            "Đề xuất nhập (cái)", "Ngân sách nhập nhỏ", "Tình trạng", "Việc nên làm",
+        ]
+        st.dataframe(
+            inventory_frame[visible_columns],
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Giá bán (demo)": st.column_config.NumberColumn(format="%,d đ"),
+                "Giá vốn minh họa": st.column_config.NumberColumn(format="%,d đ"),
+                "Giá hòa vốn minh họa": st.column_config.NumberColumn(format="%,d đ"),
+                "Biên an toàn minh họa": st.column_config.NumberColumn(format="%+,d đ"),
+                "Vốn đang nằm trong hàng": st.column_config.NumberColumn(format="%,d đ"),
+                "Ngân sách nhập nhỏ": st.column_config.NumberColumn(format="%,d đ"),
+            },
+        )
+        with st.expander("Cách đọc bảng", icon=":material/help:"):
+            st.markdown(
+                "- **Nguy cơ lỗ vốn:** giá bán demo không đủ bù giá vốn minh họa và chi phí dự phòng; không nên mua thêm trước khi kiểm tra số thật.\n"
+                "- **Tồn lâu:** lâu không có đơn hoặc đang giữ quá nhiều hàng; ưu tiên xử lý hàng hiện có thay vì nhập tiếp.\n"
+                "- **Tín hiệu khách quay lại:** chỉ là tín hiệu mô phỏng từ kịch bản bán hàng, không phải tỷ lệ khách quay lại thật.\n"
+                "- **Đề xuất nhập:** số lượng nhỏ để duy trì mức tồn kho bạn chọn; đây không phải lệnh mua hàng tự động."
+            )
 
     with plan_tab:
         st.subheader("Kế hoạch hành động 30 ngày")
