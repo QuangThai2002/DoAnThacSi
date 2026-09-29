@@ -1,4 +1,6 @@
-FROM python:3.11-slim
+# NumPy 2.5.x requires Python 3.12+; keep the image aligned with the
+# local development environment used by this project.
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -7,9 +9,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Các thư viện embedding/Chroma cần một số công cụ hệ thống khi cài trên Linux.
+# curl chỉ dùng cho healthcheck; các dependency hiện có wheel Linux nên không
+# cần kéo theo bộ công cụ biên dịch nặng trong image.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential curl \
+    && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt

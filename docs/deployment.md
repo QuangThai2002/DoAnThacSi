@@ -4,6 +4,8 @@ Tài liệu này chỉ hướng dẫn chạy trên máy cá nhân hoặc máy ch
 
 ## Chạy bằng Docker
 
+Image dùng Python 3.14 để tương thích với NumPy 2.5.x đang khóa trong dự án.
+
 Trong thư mục dự án:
 
 ```powershell
