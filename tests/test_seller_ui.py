@@ -19,7 +19,10 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertIn("Bắt đầu với vai trò người mới", [button.label for button in app.button])
         app.button(key="choose_learner").click().run()
         self.assertEqual(len(app.chat_input), 1)
-        self.assertIn("Người mới · Chat người mới", [button.label for button in app.button])
+        self.assertIn("Đang mở · Người mới · Chat người mới", [button.label for button in app.button])
+        self.assertFalse(app.button(key="open_learner_1").disabled)
+        app.button(key="open_learner_1").click().run()
+        self.assertEqual(len(app.chat_input), 1)
         self.assertEqual(len(app.error), 0)
 
     def test_owner_chat_exposes_human_readable_uploads(self) -> None:
@@ -88,6 +91,19 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertEqual(len(app.chat_message), 2)
         self.assertTrue(any("Giá trung bình" in markdown.value for markdown in app.markdown))
         self.assertEqual(len(app.error), 0)
+
+    def test_market_adviser_history_is_saved_in_the_active_conversation_context(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+        app.button(key="open_market_intelligence").click().run()
+        app.button(key="market_advisor_toggle").click().run()
+        app.chat_input[0].set_value("Sản phẩm nào nên ưu tiên?").run()
+
+        conversation = app.session_state["seller_conversations"][0]
+        self.assertEqual(conversation["id"], "learner_1")
+        self.assertEqual(len(conversation["context"]["seller_market_advisor_messages"]), 2)
+        self.assertEqual(conversation["context"]["seller_market_scenario_seed"], app.session_state["seller_market_scenario_seed"])
 
     def test_market_adviser_answers_follow_up_without_repeating_a_summary(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()

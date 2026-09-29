@@ -6,6 +6,7 @@ and its research UI remain unchanged.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime
 import json
 import random
@@ -227,6 +228,37 @@ CHAT_TYPES = {
     },
 }
 
+# These values belong to one conversation, rather than to the whole browser
+# session.  Switching chats snapshots the current workspace and restores the
+# selected chat's own data, market scenario, strategy work, and adviser log.
+CONVERSATION_CONTEXT_KEYS = (
+    "seller_uploaded_rows",
+    "seller_uploaded_names",
+    "seller_data_origin",
+    "seller_library_scope",
+    "seller_demo_selected_ids",
+    "seller_market_scenario_seed",
+    "seller_market_category_id",
+    "market_price_product",
+    "market_listing_shops",
+    "seller_market_advisor_messages",
+    "seller_advisor_surface",
+    "seller_strategy_last_simulation",
+    "seller_strategy_scenarios",
+    "seller_strategy_experiments",
+    "seller_strategy_audit_log",
+    "strategy_category_id",
+    "strategy_inventory_category",
+    "strategy_target_stock_months",
+)
+CONVERSATION_WIDGET_KEYS = {
+    "seller_market_category_id",
+    "market_price_product",
+    "market_listing_shops",
+    "strategy_category_id",
+    "strategy_inventory_category",
+}
+
 
 def initialise_state() -> None:
     st.session_state.setdefault("seller_messages", [])
@@ -246,10 +278,84 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_scenario_seed", random.SystemRandom().randint(1, 999_999_999))
     st.session_state.setdefault("seller_market_advisor_messages", [])
     st.session_state.setdefault("seller_market_advisor_open", False)
+    st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
     st.session_state.setdefault("seller_strategy_scenarios", [])
     st.session_state.setdefault("seller_strategy_experiments", [])
     st.session_state.setdefault("seller_strategy_audit_log", [])
+
+
+def new_conversation_context(mode: str) -> dict[str, Any]:
+    """Return isolated, empty workspace state for a newly-created chat."""
+    return {
+        "seller_uploaded_rows": None,
+        "seller_uploaded_names": (),
+        "seller_data_origin": None,
+        "seller_library_scope": "demo" if mode == "learner" else "owner",
+        "seller_demo_selected_ids": [],
+        "seller_market_scenario_seed": random.SystemRandom().randint(1, 999_999_999),
+        "seller_market_category_id": "appliance",
+        "market_price_product": None,
+        "market_listing_shops": None,
+        "seller_market_advisor_messages": [],
+        "seller_advisor_surface": "market",
+        "seller_strategy_last_simulation": None,
+        "seller_strategy_scenarios": [],
+        "seller_strategy_experiments": [],
+        "seller_strategy_audit_log": [],
+        "strategy_category_id": "appliance",
+        "strategy_inventory_category": "appliance",
+        "strategy_target_stock_months": 2.0,
+    }
+
+
+def snapshot_active_context() -> dict[str, Any]:
+    """Copy the active chat's tools and data without sharing mutable lists."""
+    return {
+        key: deepcopy(st.session_state.get(key))
+        for key in CONVERSATION_CONTEXT_KEYS
+    }
+
+
+def restore_conversation_context(conversation: dict[str, Any]) -> None:
+    """Restore one conversation's data/tool context before its view renders."""
+    context = conversation.get("context")
+    if not isinstance(context, dict):
+        context = new_conversation_context(str(conversation["mode"]))
+    defaults = new_conversation_context(str(conversation["mode"]))
+    for key in CONVERSATION_CONTEXT_KEYS:
+        value = context.get(key, defaults[key])
+        if key in CONVERSATION_WIDGET_KEYS and value is None:
+            st.session_state.pop(key, None)
+        else:
+            st.session_state[key] = deepcopy(value)
+    st.session_state.seller_market_advisor_open = False
+
+
+def active_conversation() -> dict[str, Any] | None:
+    chat_id = st.session_state.get("seller_active_chat_id")
+    return next(
+        (item for item in st.session_state.seller_conversations if item["id"] == chat_id),
+        None,
+    )
+
+
+def conversation_data_label(conversation: dict[str, Any] | None = None) -> str:
+    """Give users a plain-language indicator of which data belongs to a chat."""
+    context: dict[str, Any]
+    if conversation is None:
+        context = snapshot_active_context()
+    else:
+        stored = conversation.get("context")
+        context = stored if isinstance(stored, dict) else {}
+    origin = context.get("seller_data_origin")
+    if origin == "demo_library":
+        return "Đã gắn bộ dữ liệu demo"
+    if origin == "owner_library":
+        return "Đã gắn dữ liệu shop đã lưu"
+    if origin == "uploaded_csv":
+        return "Đã gắn dữ liệu CSV của shop"
+    return "Chưa gắn dữ liệu vận hành"
 
 
 def active_runner() -> AgentRunner:
@@ -270,6 +376,12 @@ def clear_active_conversation() -> None:
 
 def conversation_title(messages: list[dict[str, Any]], mode: str) -> str:
     first_question = next((item["content"] for item in messages if item["role"] == "user"), None)
+    if not first_question:
+        adviser_messages = st.session_state.get("seller_market_advisor_messages", [])
+        first_question = next(
+            (item["content"] for item in adviser_messages if item["role"] == "user"),
+            None,
+        )
     if first_question:
         return human_title(str(first_question))
     return f"Chat {CHAT_TYPES[mode]['name'].lower()}"
@@ -285,33 +397,44 @@ def save_active_conversation() -> None:
         if conversation["id"] == chat_id:
             conversation["messages"] = list(messages)
             conversation["title"] = conversation_title(messages, mode)
+            conversation["context"] = snapshot_active_context()
+            conversation["updated_at"] = datetime.now().isoformat(timespec="seconds")
             return
 
 
 def start_conversation(mode: str) -> None:
+    save_active_conversation()
     chat_id = f"{mode}_{len(st.session_state.seller_conversations) + 1}"
     st.session_state.seller_chat_mode = mode
     st.session_state.seller_active_chat_id = chat_id
     st.session_state.seller_show_chat_picker = False
     st.session_state.seller_view = "chat"
-    active_origin = st.session_state.get("seller_data_origin")
-    if (mode == "owner" and active_origin == "demo_library") or (
-        mode == "learner" and active_origin == "owner_library"
-    ):
-        st.session_state.seller_uploaded_rows = None
-        st.session_state.seller_uploaded_names = ()
-        st.session_state.seller_data_origin = None
+    new_context = new_conversation_context(mode)
+    for key, value in new_context.items():
+        if key in CONVERSATION_WIDGET_KEYS and value is None:
+            st.session_state.pop(key, None)
+        else:
+            st.session_state[key] = deepcopy(value)
     clear_active_conversation()
     st.session_state.seller_conversations.append(
-        {"id": chat_id, "mode": mode, "title": conversation_title([], mode), "messages": []}
+        {
+            "id": chat_id,
+            "mode": mode,
+            "title": conversation_title([], mode),
+            "messages": [],
+            "context": snapshot_active_context(),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }
     )
 
 
 def open_conversation(chat_id: str) -> None:
+    save_active_conversation()
     conversation = next(item for item in st.session_state.seller_conversations if item["id"] == chat_id)
     st.session_state.seller_active_chat_id = conversation["id"]
     st.session_state.seller_chat_mode = conversation["mode"]
     st.session_state.seller_messages = list(conversation["messages"])
+    restore_conversation_context(conversation)
     st.session_state.seller_view = "chat"
     st.session_state.pop("seller_suggestion", None)
 
@@ -341,14 +464,38 @@ def refresh_market_scenario() -> None:
     """Create another reproducible-in-session seller and competitor scenario."""
     st.session_state.seller_market_scenario_seed = random.SystemRandom().randint(1, 999_999_999)
     st.session_state.seller_market_advisor_messages = []
+    save_active_conversation()
 
 
-def open_market_advisor() -> None:
+def open_market_advisor(surface: str = "market") -> None:
     st.session_state.seller_market_advisor_open = True
+    st.session_state.seller_advisor_surface = surface
+    save_active_conversation()
 
 
 def close_market_advisor() -> None:
     st.session_state.seller_market_advisor_open = False
+    save_active_conversation()
+
+
+def route_from_advisor(view: str) -> None:
+    """Let the adviser open a workspace without sending the user to main chat."""
+    st.session_state.seller_market_advisor_open = False
+    st.session_state.seller_view = view
+    save_active_conversation()
+
+
+def render_workspace_context(surface: str) -> None:
+    """Make the active chat/data binding visible when tools are opened."""
+    conversation = active_conversation()
+    if conversation is None:
+        st.caption("Chưa chọn cuộc trò chuyện: kết quả hiện tại chưa được gắn vào lịch sử chat nào.")
+        return
+    workspace = "Phân tích thị trường" if surface == "market" else "Chiến lược kinh doanh"
+    st.caption(
+        f":material/link: {workspace} đang làm việc cho **{CHAT_TYPES[conversation['mode']]['name']} · {conversation['title']}** "
+        f"· **{conversation_data_label(conversation)}**. AI nổi và kết quả ở đây được lưu riêng theo chat này."
+    )
 
 
 def strategy_scenario_label(simulation: dict[str, Any]) -> str:
@@ -527,6 +674,7 @@ def activate_library_data(scope: str) -> None:
         else "Đã dùng dữ liệu cửa hàng đã lưu cho cuộc trò chuyện này."
     )
     st.session_state.seller_view = "chat"
+    save_active_conversation()
 
 
 def editor_dataframe(rows: list[dict[str, str]], columns: list[str]) -> pd.DataFrame:
@@ -647,9 +795,66 @@ def market_scene_price_summary(marketplace: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def advisor_marketplace(surface: str) -> tuple[str, dict[str, Any]]:
+    """Use the selected conversation's reproducible market scene for advice."""
+    catalog = market_categories()
+    known_ids = {str(item["id"]) for item in catalog}
+    category_id: str | None = None
+    simulation = st.session_state.get("seller_strategy_last_simulation")
+    if surface == "strategy" and isinstance(simulation, dict):
+        category_id = str(simulation.get("category_id") or "")
+    if category_id not in known_ids:
+        category_id = str(st.session_state.get("seller_market_category_id") or "")
+    if category_id not in known_ids:
+        category_id = str(catalog[0]["id"])
+    category = next(item for item in catalog if str(item["id"]) == category_id)
+    return str(category["category"]), simulated_marketplace(
+        category_id, int(st.session_state.seller_market_scenario_seed)
+    )
+
+
+def render_advisor_launcher(surface: str) -> None:
+    """Show one consistent floating adviser on chat, market, and strategy views."""
+    active = active_conversation()
+    help_text = (
+        f"Mở Chiến lược gia AI cho: {CHAT_TYPES[active['mode']]['name']} · {active['title']}"
+        if active is not None
+        else "Mở Chiến lược gia AI. Tạo hoặc chọn một cuộc trò chuyện để lưu lịch sử theo chat."
+    )
+    st.button(
+        "AI",
+        key="market_advisor_toggle",
+        help=help_text,
+        on_click=open_market_advisor,
+        args=(surface,),
+    )
+    if st.session_state.seller_market_advisor_open:
+        category, marketplace = advisor_marketplace(surface)
+        render_market_advisor_dialog(category, marketplace)
+
+
 @st.dialog("Chiến lược gia AI", width="large")
 def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> None:
-    st.caption("Hỏi về giá, sản phẩm hoặc hướng phát triển. Chiến lược gia AI sẽ dùng dữ liệu thị trường đang xem để đề xuất bước nên làm tiếp theo.")
+    active = active_conversation()
+    surface = str(st.session_state.get("seller_advisor_surface", "market"))
+    surface_label = {
+        "chat": "Trung chuyển từ chat chính",
+        "market": "Đang xem Phân tích thị trường",
+        "strategy": "Đang xem Chiến lược kinh doanh",
+    }.get(surface, "Đang tư vấn")
+    if active is not None:
+        st.caption(
+            f"**{surface_label}** · Đang liên kết với **{CHAT_TYPES[active['mode']]['name']} · {active['title']}**. "
+            f"Dữ liệu của chat này: **{conversation_data_label(active)}**. Lịch sử trong cửa sổ này chỉ thuộc chat đang chọn."
+        )
+    st.caption("Hỏi về giá, sản phẩm hoặc hướng phát triển. Chiến lược gia AI dùng kịch bản thị trường đang xem để gợi ý bước tiếp theo; không tự thay đổi dữ liệu hay hoạt động của shop.")
+    with st.container(horizontal=True):
+        if surface != "chat":
+            st.button("Mở chat chính", key="advisor_to_chat", icon=":material/chat:", on_click=route_from_advisor, args=("chat",))
+        if surface != "market":
+            st.button("Mở thị trường", key="advisor_to_market", icon=":material/insights:", on_click=route_from_advisor, args=("market",))
+        if surface != "strategy":
+            st.button("Mở chiến lược", key="advisor_to_strategy", icon=":material/rocket_launch:", on_click=route_from_advisor, args=("strategy",))
     messages: list[dict[str, str]] = st.session_state.seller_market_advisor_messages
     if not messages:
         st.info("Gợi ý: hỏi về cách đặt giá, sản phẩm nên ưu tiên hoặc điểm cần cải thiện của shop.", icon=":material/auto_awesome:")
@@ -666,6 +871,7 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
                         {"role": "user", "content": suggestion},
                         {"role": "assistant", "content": market_advisor_response(suggestion, category, marketplace, len(messages) // 2)},
                     ])
+                    save_active_conversation()
                     st.rerun()
     for message in messages:
         with st.chat_message(message["role"]):
@@ -676,6 +882,7 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
             {"role": "user", "content": question},
             {"role": "assistant", "content": market_advisor_response(question, category, marketplace, len(messages) // 2)},
         ])
+        save_active_conversation()
         st.rerun()
     if st.button("Đóng trợ lý", key="close_market_advisor", icon=":material/close:"):
         close_market_advisor()
@@ -692,6 +899,7 @@ def render_strategy_workspace() -> None:
     with back:
         st.button("Quay lại chat", key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
+    render_workspace_context("strategy")
     st.info("Không gian này dùng dữ liệu mô phỏng minh bạch. Khi có dữ liệu shop thật, cùng khung quyết định này có thể dùng để phân tích kết quả thực tế.", icon=":material/lightbulb:")
     with st.expander("Nguồn phương pháp và nguyên tắc an toàn", icon=":material/menu_book:"):
         st.markdown("**AI không cam kết doanh thu hoặc tự thay đổi hoạt động của shop.** Mọi đề xuất dưới 90% mức bằng chứng chỉ được trình bày là giả thuyết thử nghiệm nhỏ.")
@@ -727,6 +935,7 @@ def render_strategy_workspace() -> None:
         chosen_radar_category = st.selectbox("Chọn một cơ hội để mô phỏng", options=list(radar_options), format_func=lambda item: radar_options[str(item)], key="strategy_radar_category")
         if st.button("Dùng ngành này để tạo phương án", key="strategy_use_radar_category", icon=":material/rocket_launch:"):
             st.session_state.strategy_category_id = chosen_radar_category
+            save_active_conversation()
             st.toast("Đã chọn ngành hàng trong tab Mô phỏng chiến lược.", icon=":material/check_circle:")
 
     with simulator_tab:
@@ -765,6 +974,7 @@ def render_strategy_workspace() -> None:
                     "Mức bằng chứng": f"{simulation_result['evidence_score']}%",
                     "Quy tắc ngôn ngữ": simulation_result["language_policy"],
                 })
+                save_active_conversation()
         simulation = st.session_state.seller_strategy_last_simulation
         if simulation:
             with st.container(border=True):
@@ -787,6 +997,7 @@ def render_strategy_workspace() -> None:
                         st.info("Phương án này đã có trong bảng so sánh.", icon=":material/info:")
                     else:
                         saved_scenarios.append(dict(simulation))
+                        save_active_conversation()
                         st.toast("Đã thêm phương án để so sánh.", icon=":material/check_circle:")
         else:
             st.caption("Chưa có phương án được mô phỏng. Hãy chọn thay đổi và bấm “Phân tích phương án”.")
@@ -821,6 +1032,7 @@ def render_strategy_workspace() -> None:
             scenario_index = st.selectbox("Chọn phương án làm kế hoạch 30 ngày", options=list(range(len(scenarios))), format_func=lambda index: strategy_scenario_label(scenarios[index]), key="strategy_plan_scenario")
             if st.button("Dùng phương án này cho kế hoạch", key="strategy_select_plan", icon=":material/calendar_month:"):
                 st.session_state.seller_strategy_last_simulation = dict(scenarios[scenario_index])
+                save_active_conversation()
                 st.toast("Kế hoạch 30 ngày đã dùng phương án đã chọn.", icon=":material/check_circle:")
 
     with inventory_tab:
@@ -943,6 +1155,7 @@ def render_strategy_workspace() -> None:
                     "Phương án": f"Giá {int(simulation['price_change_percent']):+d}%; combo: {'Có' if simulation['use_bundle'] else 'Không'}; quảng cáo: +{int(simulation['ad_budget_change_percent'])}%",
                     "Ghi chú": result_note.strip() or "Chưa nhập kết quả",
                 })
+                save_active_conversation()
                 st.toast("Đã lưu thử nghiệm vào nhật ký của phiên này.", icon=":material/check_circle:")
         else:
             st.info("Chưa có phương án để lưu. Hãy mô phỏng trước rồi quay lại đây.", icon=":material/info:")
@@ -964,6 +1177,8 @@ def render_strategy_workspace() -> None:
                     icon=":material/download:",
                 )
 
+    render_advisor_launcher("strategy")
+
 
 def render_market_intelligence() -> None:
     """Show a useful but explicitly simulated market-analysis workspace."""
@@ -975,6 +1190,7 @@ def render_market_intelligence() -> None:
     with back:
         st.button("Quay lại chat", key="market_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
+    render_workspace_context("market")
     st.warning(
         "Đây là Market Demo: giá, shop tham chiếu và tín hiệu xu hướng đều là dữ liệu mô phỏng có thể lặp lại khi demo. "
         "Hệ thống chưa kết nối Shopee, YouTube, Facebook/Instagram hoặc TikTok để lấy dữ liệu trực tiếp.",
@@ -1102,14 +1318,7 @@ def render_market_intelligence() -> None:
         st.dataframe(display[["Shop", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Review", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
         st.info("Điểm sản phẩm cân bằng lượng bán, GMV và review. Nó không phải dự báo chắc chắn; dùng để chọn mặt hàng cần thử trước.", icon=":material/insights:")
 
-    st.button(
-        "AI",
-        key="market_advisor_toggle",
-        help="Mở Chiến lược gia AI",
-        on_click=open_market_advisor,
-    )
-    if st.session_state.seller_market_advisor_open:
-        render_market_advisor_dialog(str(selected["category"]), marketplace)
+    render_advisor_launcher("market")
 
 def filter_dashboard_rows(
     rows: dict[str, list[dict[str, str]]], scope: str
@@ -1559,9 +1768,16 @@ def render_assistant() -> None:
         return
 
     chat_type = CHAT_TYPES[mode]
+    conversation = active_conversation()
     st.markdown('<div class="seller-eyebrow">TRỢ LÝ BÁN HÀNG AI</div>', unsafe_allow_html=True)
     st.subheader(f"{chat_type['icon']} {chat_type['name']}")
     st.caption(chat_type["description"])
+    if conversation is not None:
+        st.caption(
+            f":material/forum: Đang mở **{conversation['title']}** · "
+            f":material/link: **{conversation_data_label(conversation)}** · "
+            "Lịch sử, dữ liệu và Chiến lược gia AI được tách riêng cho cuộc trò chuyện này."
+        )
 
     if mode == "owner" and not is_uploaded():
         with st.container(border=True):
@@ -1579,6 +1795,8 @@ def render_assistant() -> None:
                 st.write(message["content"])
         else:
             render_answer(message)
+
+    render_advisor_launcher("chat")
 
     prompt: str | None = None
     if not st.session_state.seller_messages:
@@ -1633,15 +1851,13 @@ with st.sidebar:
         st.button(" ", key="compact_strategy_workspace", icon=":material/rocket_launch:", help="Chiến lược kinh doanh", width="stretch", on_click=open_strategy_workspace)
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
-            selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
-            label = f"{chat_type['name']} · {conversation['title']}"
+            label = f"{chat_type['name']} · {conversation['title']} · {conversation_data_label(conversation)}"
             st.button(
                 " ",
                 key=f"compact_open_{conversation['id']}",
                 icon=chat_type["icon"],
                 help=label,
                 width="stretch",
-                disabled=selected,
                 on_click=open_conversation,
                 args=(conversation["id"],),
             )
@@ -1658,14 +1874,14 @@ with st.sidebar:
         st.caption("Cuộc trò chuyện gần đây")
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = CHAT_TYPES[conversation["mode"]]
-            selected = conversation["id"] == st.session_state.get("seller_active_chat_id")
-            label = f"{chat_type['name']} · {conversation['title']}"
+            active_marker = "Đang mở · " if conversation["id"] == st.session_state.get("seller_active_chat_id") else ""
+            label = f"{active_marker}{chat_type['name']} · {conversation['title']}"
             st.button(
                 label,
                 key=f"open_{conversation['id']}",
                 icon=chat_type["icon"],
                 width="stretch",
-                disabled=selected,
+                help=conversation_data_label(conversation),
                 on_click=open_conversation,
                 args=(conversation["id"],),
             )
