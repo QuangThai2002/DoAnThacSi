@@ -43,6 +43,12 @@ class RAGTool:
         if source_groups == ["shopee_policy"]:
             return self._fast_policy_search(question, top_k)
 
+        # Community Cloud receives the tracked text corpus but not the local
+        # Chroma directory. Keep public demos useful by falling back to BM25
+        # instead of returning an internal setup error.
+        if not retrieval.VECTOR_DB_DIR.exists():
+            return self._fallback_bm25_search(question, top_k, tuple(source_groups))
+
         embedding_model, collection, chunks, bm25_index = load_rag_resources()
         _dense, _bm25, hybrid, elapsed = retrieval.hybrid_search(
             query=question,
@@ -71,6 +77,29 @@ class RAGTool:
         ranked = retrieval.fuse_results(question, [], bm25_results)
         return RAGTool._result_from_ranked(
             ranked[:top_k], perf_counter() - started, retrieval_mode="bm25_fast_path"
+        )
+
+    @staticmethod
+    @lru_cache(maxsize=128)
+    def _fallback_bm25_search(
+        question: str,
+        top_k: int,
+        source_groups: tuple[str, ...],
+    ) -> dict[str, Any]:
+        """Search tracked source text when the optional vector index is absent."""
+        started = perf_counter()
+        chunks, bm25_index = load_bm25_resources()
+        bm25_results = retrieval.bm25_search(
+            query=question,
+            chunks=chunks,
+            bm25_index=bm25_index,
+            source_groups=list(source_groups),
+        )
+        ranked = retrieval.fuse_results(question, [], bm25_results)
+        return RAGTool._result_from_ranked(
+            ranked[:top_k],
+            perf_counter() - started,
+            retrieval_mode="bm25_without_vector_db",
         )
 
     @staticmethod

@@ -32,7 +32,7 @@ Nếu `nexa` đã được dùng, hãy chọn một tên phụ như `nexa-demo-v
 
 ## Giới hạn rõ ràng
 
-- Đây là bản trình diễn: dữ liệu shop/thị trường là mô phỏng, không kết nối Shopee.
+- Đây là bản trình diễn: dữ liệu shop/thị trường là mô phỏng, không kết nối Shopee. Khi không có chỉ mục vector cục bộ trên cloud, Nexa tự tìm theo từ khóa trong nguồn đã công bố thay vì báo lỗi kỹ thuật.
 - Lịch sử chat chỉ thuộc phiên trình duyệt, không phải tài khoản người dùng.
 - Không dùng URL này để xử lý dữ liệu kinh doanh thật, API key hoặc thông tin cá nhân.
 - Nếu nền tảng yêu cầu trả phí, thẻ thanh toán hoặc nâng cấp gói, hãy dừng lại.

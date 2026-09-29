@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SRC_DIR = Path(__file__).resolve().parents[1] / "src"
@@ -96,6 +97,14 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         result = RAGTool().search("Phí cố định của Shopee áp dụng theo nguyên tắc nào?")
 
         self.assertEqual(result["retrieval_mode"], "bm25_fast_path")
+        self.assertGreaterEqual(len(result["evidence"]), 1)
+
+    def test_missing_vector_db_falls_back_to_tracked_text_search(self) -> None:
+        missing_vector_db = SRC_DIR.parent / "missing-vector-db-for-test"
+        with patch("agent.rag_tool.retrieval.VECTOR_DB_DIR", missing_vector_db):
+            result = RAGTool().search("Shopee Open Platform cần access token thế nào?")
+
+        self.assertEqual(result["retrieval_mode"], "bm25_without_vector_db")
         self.assertGreaterEqual(len(result["evidence"]), 1)
 
     def test_rank_costs_returns_largest_item(self) -> None:
