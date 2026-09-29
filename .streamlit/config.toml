@@ -6,10 +6,10 @@ secondaryBackgroundColor = "#FFF3EF"
 textColor = "#2B2B2B"
 borderColor = "#F1D8CF"
 linkColor = "#D83F20"
-font = "sans-serif"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
 baseFontSize = 15
-baseRadius = "medium"
-buttonRadius = "medium"
+baseRadius = "12px"
+buttonRadius = "10px"
 showWidgetBorder = true
 showSidebarBorder = true
 
