@@ -245,6 +245,64 @@ def ui_text(vietnamese: str, english: str) -> str:
     return english if st.session_state.get("seller_language", "vi") == "en" else vietnamese
 
 
+def market_shop_type_label(shop_type: str) -> str:
+    """Translate demo-only shop-size labels before putting them on screen."""
+    labels = {
+        "Shop của bạn": ui_text("Shop của bạn (demo)", "Your shop (demo)"),
+        "Shop nhỏ": ui_text("Shop nhỏ", "Small shop"),
+        "Shop vừa": ui_text("Shop vừa", "Medium shop"),
+        "Shop lớn": ui_text("Shop lớn", "Large shop"),
+        "Shop dẫn đầu": ui_text("Shop dẫn đầu (mô phỏng)", "Leading shop (simulated)"),
+    }
+    return labels.get(shop_type, shop_type)
+
+
+def market_shop_name_label(shop_name: str) -> str:
+    """Keep generated reference names understandable in both interface languages."""
+    if st.session_state.get("seller_language", "vi") != "en":
+        return shop_name.replace(" · dẫn đầu", " · dẫn đầu (mô phỏng)")
+    if shop_name == "Shop của bạn · Demo":
+        return "Your shop · Demo"
+    if shop_name.startswith("Shop tương tự "):
+        prefix, _separator, size = shop_name.partition(" · ")
+        number = prefix.rsplit(" ", 1)[-1]
+        return f"Reference shop {number} · {market_shop_type_label(f'Shop {size}')}"
+    return shop_name
+
+
+def dark_mode_chart(chart: alt.Chart) -> alt.Chart:
+    """Give Altair charts an explicit slate canvas; Streamlit theme CSS cannot style SVG output."""
+    if not st.session_state.get("seller_dark_mode"):
+        return chart
+    return (
+        chart.configure(background="#1f2937")
+        .configure_view(fill="#1f2937", stroke="#475569", strokeWidth=1)
+        .configure_axis(
+            domainColor="#64748b",
+            gridColor="#334155",
+            labelColor="#cbd5e1",
+            tickColor="#64748b",
+            titleColor="#e5edf7",
+        )
+        .configure_legend(labelColor="#e5edf7", titleColor="#f8fafc", symbolStrokeColor="#94a3b8")
+        .configure_title(color="#f8fafc")
+    )
+
+
+def market_dataframe(data: pd.DataFrame, **kwargs: Any) -> None:
+    """Render market tables in the same calm palette as dark-mode charts."""
+    display_data: Any = data
+    if st.session_state.get("seller_dark_mode"):
+        display_data = (
+            data.style
+            .set_properties(**{"background-color": "#1f2937", "color": "#e5edf7", "border-color": "#475569"})
+            .set_table_styles([
+                {"selector": "th", "props": [("background-color", "#273449"), ("color", "#f8fafc")]},
+            ])
+        )
+    st.dataframe(display_data, **kwargs)
+
+
 def active_chat_type(mode: str) -> dict[str, str]:
     chat_type = dict(CHAT_TYPES[mode])
     if st.session_state.get("seller_language", "vi") == "en":
@@ -385,6 +443,21 @@ def render_color_mode_css() -> None:
           }
           [data-testid="stAlert"], [data-testid="stExpander"] details,
           [data-testid="stVerticalBlockBorderWrapper"] { background: #1b2638 !important; border-color: #475569 !important; }
+          /* Glide Data Grid is drawn on a canvas, so give it its own dark palette. */
+          [data-testid="stDataFrame"] {
+            --gdg-bg-cell: #1f2937 !important;
+            --gdg-bg-cell-medium: #1f2937 !important;
+            --gdg-bg-header: #273449 !important;
+            --gdg-bg-header-has-focus: #334155 !important;
+            --gdg-bg-bubble: #273449 !important;
+            --gdg-text-dark: #e5edf7 !important;
+            --gdg-text-medium: #cbd5e1 !important;
+            --gdg-text-light: #94a3b8 !important;
+            --gdg-text-header: #f8fafc !important;
+            --gdg-border-color: #475569 !important;
+            --gdg-horizontal-border-color: #334155 !important;
+            --gdg-accent-color: #60a5fa !important;
+          }
           .seller-eyebrow { color: #93c5fd !important; }
           .seller-subtitle { color: #b9c5d4 !important; }
         </style>
@@ -1635,18 +1708,19 @@ def render_market_intelligence() -> None:
         st.subheader(selected_product)
         st.write(ui_text("Mỗi cột là giá của đúng sản phẩm này tại một shop. Cột đỏ là Shop của bạn.", "Each bar is the price of this exact product at one shop. The red bar is Your shop."))
         chart_data = product_rows.copy()
+        chart_data["display_shop_name"] = chart_data["shop_name"].map(market_shop_name_label)
         price_chart = (
             alt.Chart(chart_data)
             .mark_bar(cornerRadiusEnd=4)
             .encode(
                 x=alt.X("listed_price_vnd:Q", title=ui_text("Giá niêm yết (VND)", "Listed price (VND)"), axis=alt.Axis(format=",d")),
-                y=alt.Y("shop_name:N", sort="-x", title=None),
+                y=alt.Y("display_shop_name:N", sort="-x", title=None),
                 color=alt.condition(alt.datum.shop_type == "Shop của bạn", alt.value("#ee4d2d"), alt.value("#f7a28f")),
-                tooltip=[alt.Tooltip("shop_name:N", title=ui_text("Cửa hàng", "Shop")), alt.Tooltip("listed_price_vnd:Q", title=ui_text("Giá", "Price"), format=",d"), alt.Tooltip("rating:Q", title=ui_text("Đánh giá", "Rating"), format=".2f")],
+                tooltip=[alt.Tooltip("display_shop_name:N", title=ui_text("Cửa hàng", "Shop")), alt.Tooltip("listed_price_vnd:Q", title=ui_text("Giá", "Price"), format=",d"), alt.Tooltip("rating:Q", title=ui_text("Đánh giá", "Rating"), format=".2f")],
             )
             .properties(height=300)
         )
-        st.altair_chart(price_chart, width="stretch")
+        st.altair_chart(dark_mode_chart(price_chart), width="stretch")
         column_labels = {
             "shop_name": ui_text("Cửa hàng", "Shop"), "shop_type": ui_text("Loại cửa hàng", "Shop type"),
             "listed_price_vnd": ui_text("Giá", "Price"), "rating": ui_text("Đánh giá", "Rating"),
@@ -1654,31 +1728,39 @@ def render_market_intelligence() -> None:
             "gmv_12m_vnd": ui_text("GMV 12T", "GMV (12 mo.)"),
         }
         product_table = product_rows.rename(columns=column_labels)
+        product_table[column_labels["shop_name"]] = product_table[column_labels["shop_name"]].map(market_shop_name_label)
+        product_table[column_labels["shop_type"]] = product_table[column_labels["shop_type"]].map(market_shop_type_label)
         product_columns = list(column_labels.values())
-        st.dataframe(product_table[product_columns], hide_index=True, width="stretch", column_config={column_labels["listed_price_vnd"]: st.column_config.NumberColumn(format="%,d đ"), column_labels["gmv_12m_vnd"]: st.column_config.NumberColumn(format="%,d đ")})
+        market_dataframe(product_table[product_columns], hide_index=True, width="stretch", column_config={column_labels["listed_price_vnd"]: st.column_config.NumberColumn(format="%,d đ"), column_labels["gmv_12m_vnd"]: st.column_config.NumberColumn(format="%,d đ")})
         st.caption(
             ui_text(f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}.", f"This compares the same product in Your shop and seven simulated reference shops; demo snapshot {MARKET_SNAPSHOT_DATE}.")
         )
 
     if market_section == "So sánh shop":
         shops = pd.DataFrame(marketplace["shops"])
-        st.caption(f"So sánh shop của bạn với {marketplace['reference_count']} shop tương tự trong cùng ngành hàng. Mỗi lần tạo lại sẽ có một kịch bản demo mới.")
+        st.caption(ui_text(f"So sánh shop của bạn với {marketplace['reference_count']} shop tương tự trong cùng ngành hàng. Mỗi lần tạo lại sẽ có một kịch bản demo mới.", f"Compare Your shop with {marketplace['reference_count']} similar shops in the same category. Regenerating creates a new demo scenario."))
+        shops["display_shop_name"] = shops["shop_name"].map(market_shop_name_label)
+        shops["display_shop_type"] = shops["shop_type"].map(market_shop_type_label)
         shop_chart = alt.Chart(shops).mark_arc(innerRadius=58, padAngle=0.02).encode(
-            theta=alt.Theta("gmv_12m_vnd:Q", title="GMV 12 tháng"),
-            color=alt.Color("shop_name:N", title="Shop", scale=alt.Scale(scheme="set2")),
+            theta=alt.Theta("gmv_12m_vnd:Q", title=ui_text("GMV 12 tháng", "GMV (12 mo.)")),
+            color=alt.Color("display_shop_name:N", title=ui_text("Cửa hàng", "Shop"), scale=alt.Scale(scheme="set2")),
             tooltip=[
-                alt.Tooltip("shop_name:N", title="Tên shop"),
-                alt.Tooltip("shop_type:N", title="Quy mô shop"),
-                alt.Tooltip("average_price_vnd:Q", title="Giá bán trung bình", format=",d"),
-                alt.Tooltip("gmv_12m_vnd:Q", title="Tổng doanh thu 12 tháng", format=",d"),
-                alt.Tooltip("shop_score:Q", title="Điểm đánh giá shop", format=".1f"),
+                alt.Tooltip("display_shop_name:N", title=ui_text("Tên shop", "Shop name")),
+                alt.Tooltip("display_shop_type:N", title=ui_text("Quy mô shop", "Shop size")),
+                alt.Tooltip("average_price_vnd:Q", title=ui_text("Giá bán trung bình", "Average selling price"), format=",d"),
+                alt.Tooltip("gmv_12m_vnd:Q", title=ui_text("Tổng doanh thu 12 tháng", "Total revenue (12 mo.)"), format=",d"),
+                alt.Tooltip("shop_score:Q", title=ui_text("Điểm đánh giá shop", "Shop score"), format=".1f"),
             ],
         ).properties(height=340)
-        st.markdown("**Tỷ trọng doanh thu 12 tháng của các shop**")
-        st.caption("Miếng lớn hơn nghĩa là shop đó có GMV cao hơn trong bộ dữ liệu đang xem.")
-        st.altair_chart(shop_chart, width="stretch")
+        st.markdown("**" + ui_text("Tỷ trọng doanh thu 12 tháng của các shop", "12-month revenue share by shop") + "**")
+        st.caption(ui_text("Miếng lớn hơn nghĩa là shop đó có GMV cao hơn trong bộ dữ liệu đang xem.", "A larger slice means that shop has higher GMV in the data currently shown."))
+        st.altair_chart(dark_mode_chart(shop_chart), width="stretch")
         table = shops.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Số đánh giá", "shop_score": "Điểm cửa hàng"})
-        st.dataframe(table[["Cửa hàng", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Số đánh giá", "Điểm cửa hàng"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm cửa hàng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        table["Cửa hàng"] = table["Cửa hàng"].map(market_shop_name_label)
+        table["Quy mô"] = table["Quy mô"].map(market_shop_type_label)
+        market_dataframe(table[["Cửa hàng", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Số đánh giá", "Điểm cửa hàng"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm cửa hàng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        with st.expander(ui_text("“Shop dẫn đầu” nghĩa là gì?", "What does “Leading shop” mean?"), icon=":material/info:"):
+            st.write(ui_text("Đây là một shop tham chiếu mô phỏng có tín hiệu mạnh hơn trong kịch bản đang xem, thường có lượng bán, đánh giá hoặc GMV tương đối cao. Đây không phải shop thật, không phải xếp hạng Shopee và không khẳng định kết quả kinh doanh thực tế.", "This is a simulated reference shop with stronger signals in the current scenario, often relatively higher units sold, ratings, or GMV. It is not a real shop, a Shopee ranking, or a guarantee of business results."))
 
     if market_section == "Sản phẩm cùng thị trường":
         st.caption(f"Bảng trộn sản phẩm của Shop của bạn · Demo và {marketplace['reference_count']} shop tương tự. Lọc theo shop để xem các mặt hàng cạnh tranh.")
@@ -1699,9 +1781,11 @@ def render_market_intelligence() -> None:
         ).properties(height=340)
         st.markdown("**12 sản phẩm có GMV cao nhất**")
         st.caption("Dùng biểu đồ cột để nhìn rõ sản phẩm nào tạo doanh thu cao; bảng bên dưới dùng để xem từng shop và từng giá.")
-        st.altair_chart(product_chart, width="stretch")
+        st.altair_chart(dark_mode_chart(product_chart), width="stretch")
         display = shown.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Số đánh giá", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
-        st.dataframe(display[["Cửa hàng", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Số đánh giá", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        display["Cửa hàng"] = display["Cửa hàng"].map(market_shop_name_label)
+        display["Quy mô"] = display["Quy mô"].map(market_shop_type_label)
+        market_dataframe(display[["Cửa hàng", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Số đánh giá", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
         st.info("Điểm sản phẩm cân bằng lượng bán, GMV và review. Nó không phải dự báo chắc chắn; dùng để chọn mặt hàng cần thử trước.", icon=":material/insights:")
 
     render_advisor_launcher("market")
