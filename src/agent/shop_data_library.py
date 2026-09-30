@@ -220,6 +220,9 @@ def build_demo_rows(
     purchase_orders: list[dict[str, str]] = []
     returns: list[dict[str, str]] = []
     reviews: list[dict[str, str]] = []
+    operating_costs: list[dict[str, str]] = []
+    inventory_movements: list[dict[str, str]] = []
+    quality_checks: list[dict[str, str]] = []
     wanted_ids = set(selected_category_ids) if selected_category_ids is not None else None
     selected_categories = [
         category for category in DEMO_CATEGORY_SEEDS
@@ -269,6 +272,44 @@ def build_demo_rows(
                 "issue_type": issue,
                 "comment": "Sản phẩm phù hợp mô tả." if rating >= 4 else "Cần kiểm tra lại trước khi mở rộng bán.",
             })
+            received_quantity = rng.randint(18, 54)
+            damaged_quantity = 1 if product_index % 5 == 0 else 0
+            inventory_movements.extend((
+                {
+                    "movement_id": f"MOV-IN-{category_index:02d}{product_index:02d}",
+                    "movement_date": "2026-08-25", "sku": sku,
+                    "movement_type": "Nhập kho", "quantity": str(received_quantity),
+                    "reference": f"PO-{category_index:02d}{product_index:02d}",
+                    "note": "Hàng nhận từ nhà cung cấp.",
+                },
+                {
+                    "movement_id": f"MOV-OUT-{category_index:02d}{product_index:02d}",
+                    "movement_date": "2026-08-28", "sku": sku,
+                    "movement_type": "Bán ra", "quantity": str(rng.randint(2, 10)),
+                    "reference": f"DEMO-202608-{category_index:02d}{product_index:02d}",
+                    "note": "Xuất kho theo đơn đã xử lý.",
+                },
+            ))
+            if damaged_quantity:
+                inventory_movements.append({
+                    "movement_id": f"MOV-DMG-{category_index:02d}{product_index:02d}",
+                    "movement_date": "2026-08-29", "sku": sku,
+                    "movement_type": "Hàng lỗi/hủy", "quantity": str(damaged_quantity),
+                    "reference": f"QC-{category_index:02d}{product_index:02d}",
+                    "note": "Tách khỏi hàng có thể bán sau khi kiểm tra chất lượng.",
+                })
+            inspected_quantity = min(received_quantity, rng.randint(12, 30))
+            defective_quantity = min(damaged_quantity, inspected_quantity)
+            quality_checks.append({
+                "check_id": f"QC-{category_index:02d}{product_index:02d}",
+                "check_date": "2026-08-25",
+                "purchase_order_id": f"PO-{category_index:02d}{product_index:02d}",
+                "sku": sku,
+                "inspected_quantity": str(inspected_quantity),
+                "defective_quantity": str(defective_quantity),
+                "defect_type": "Lỗi ngoại quan" if defective_quantity else "Không phát hiện lỗi",
+                "status": "Cần phản hồi nhà cung cấp" if defective_quantity else "Đạt",
+            })
             if product_index % 4 == 0:
                 returns.append({
                     "return_id": f"RET-{category_index:02d}{product_index:02d}",
@@ -306,6 +347,19 @@ def build_demo_rows(
                 "attributed_revenue_vnd": str(int(spend * rng.uniform(2.2, 5.5))),
                 "orders": str(rng.randint(4, 18)),
             })
+        base_cost = 180_000 + 25_000 * len(selected_categories)
+        for cost_index, (category, multiplier, note) in enumerate((
+            ("Đóng gói", 0.45, "Vật tư đóng gói đã dùng trong tháng."),
+            ("Kho bãi", 1.0, "Chi phí lưu kho và vận hành kho."),
+            ("Phần mềm", 0.18, "Công cụ hỗ trợ quản lý bán hàng."),
+        ), start=1):
+            operating_costs.append({
+                "cost_id": f"OPS-{period.replace('-', '')}-{cost_index}",
+                "month": period,
+                "cost_category": category,
+                "amount_vnd": str(int(base_cost * multiplier)),
+                "note": note,
+            })
     return {
         "orders.csv": orders,
         "products.csv": products,
@@ -314,6 +368,9 @@ def build_demo_rows(
         "purchase_orders.csv": purchase_orders,
         "returns.csv": returns,
         "reviews.csv": reviews,
+        "operating_costs.csv": operating_costs,
+        "inventory_movements.csv": inventory_movements,
+        "quality_checks.csv": quality_checks,
     }
 
 

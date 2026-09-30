@@ -768,6 +768,21 @@ TABLE_SPECS = {
         "help": "Theo dõi điểm đánh giá và vấn đề khách nêu để cải thiện sản phẩm.",
         "columns": ["review_id", "review_date", "sku", "rating", "sentiment", "issue_type", "comment"],
     },
+    "operating_costs.csv": {
+        "title": "Chi phí vận hành (tùy chọn)",
+        "help": "Ghi chi phí thật như đóng gói, nhân sự và kho bãi để không nhầm lãi góp với lãi sau vận hành.",
+        "columns": ["cost_id", "month", "cost_category", "amount_vnd", "note"],
+    },
+    "inventory_movements.csv": {
+        "title": "Biến động kho (tùy chọn)",
+        "help": "Ghi hàng nhập, bán ra và hàng lỗi/hủy. Bảng này hỗ trợ rà soát kho, không thay thế kiểm kê thực tế.",
+        "columns": ["movement_id", "movement_date", "sku", "movement_type", "quantity", "reference", "note"],
+    },
+    "quality_checks.csv": {
+        "title": "Kiểm tra chất lượng lô hàng (tùy chọn)",
+        "help": "Theo dõi số hàng đã kiểm, hàng lỗi và tình trạng phản hồi nhà cung cấp.",
+        "columns": ["check_id", "check_date", "purchase_order_id", "sku", "inspected_quantity", "defective_quantity", "defect_type", "status"],
+    },
 }
 COLUMN_LABELS = {
     "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
@@ -784,6 +799,9 @@ COLUMN_LABELS = {
     "expected_arrival_date": "Ngày dự kiến về", "return_id": "Mã hoàn hàng", "request_date": "Ngày yêu cầu hoàn",
     "reason": "Lý do", "refund_amount_vnd": "Tiền hoàn (VND)", "review_id": "Mã đánh giá",
     "review_date": "Ngày đánh giá", "rating": "Số sao", "sentiment": "Cảm xúc", "issue_type": "Vấn đề", "comment": "Nhận xét",
+    "cost_id": "Mã chi phí", "cost_category": "Nhóm chi phí", "amount_vnd": "Số tiền (VND)", "note": "Ghi chú",
+    "movement_id": "Mã biến động", "movement_date": "Ngày biến động", "movement_type": "Loại biến động", "reference": "Mã tham chiếu",
+    "check_id": "Mã kiểm tra", "check_date": "Ngày kiểm tra", "inspected_quantity": "Số lượng đã kiểm", "defective_quantity": "Số lượng lỗi", "defect_type": "Loại lỗi",
 }
 
 
@@ -1449,6 +1467,18 @@ def filter_dashboard_rows(
             row for row in rows.get("reviews.csv", [])
             if row["sku"] in selected_sku_values and row["review_date"][:7] in selected_month_values
         ],
+        "operating_costs.csv": [
+            row for row in rows.get("operating_costs.csv", [])
+            if row["month"] in selected_month_values
+        ],
+        "inventory_movements.csv": [
+            row for row in rows.get("inventory_movements.csv", [])
+            if row["sku"] in selected_sku_values and row["movement_date"][:7] in selected_month_values
+        ],
+        "quality_checks.csv": [
+            row for row in rows.get("quality_checks.csv", [])
+            if row["sku"] in selected_sku_values and row["check_date"][:7] in selected_month_values
+        ],
     }
 
 
@@ -1466,6 +1496,9 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
     returns = tool.returns_summary()
     reviews = tool.review_summary()
     procurement = tool.procurement_summary()
+    operating_costs = tool.operating_cost_summary()
+    movements = tool.inventory_movement_summary()
+    quality = tool.quality_summary()
 
     with st.container(horizontal=True):
         st.metric("Doanh thu sau phí ước tính", currency(number(sales["net_revenue_after_estimated_fees_vnd"])), border=True)
@@ -1473,6 +1506,7 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
         st.metric("Sản phẩm cần nhập thêm", f"{inventory['alert_count']}", border=True)
         st.metric("ROAS quảng cáo", f"{number(ads['roas']):.2f}", border=True)
         st.metric("Lãi góp ước tính", currency(number(profitability["estimated_contribution_vnd"])), border=True)
+        st.metric("Chi phí vận hành đã nhập", currency(number(operating_costs["total_operating_cost_vnd"])), border=True)
 
     orders = pd.DataFrame(rows["orders.csv"])
     completed = orders[orders["status"].str.lower() == "completed"].copy()
@@ -1588,6 +1622,19 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
             st.markdown("**Hàng đang về**")
             st.metric("Đơn nhập còn mở", procurement["open_purchase_order_count"])
             st.caption(f"Số lượng dự kiến về: {procurement['open_unit_count']}")
+
+    movement_col, quality_col = st.columns(2)
+    with movement_col:
+        with st.container(border=True):
+            st.markdown("**Biến động kho đã ghi nhận**")
+            st.metric("Hàng lỗi / hủy", movements["damaged_unit_count"])
+            st.caption(f"Nhập kho: {movements['inbound_unit_count']} · Bán ra: {movements['outbound_unit_count']}")
+    with quality_col:
+        with st.container(border=True):
+            st.markdown("**Chất lượng lô hàng**")
+            rate = "—" if quality["defect_rate_percent"] is None else f"{quality['defect_rate_percent']:.2f}%"
+            st.metric("Tỷ lệ lỗi đã kiểm", rate)
+            st.caption(f"Đã kiểm {quality['inspected_unit_count']} sản phẩm ở {quality['check_count']} lô.")
 
 
 def add_demo_category_to_selection(category_id: str) -> None:
@@ -1812,6 +1859,9 @@ def render_data_upload(*, inline: bool = False) -> None:
             "purchase_orders.csv": "Đơn nhập hàng",
             "returns.csv": "Hoàn hàng",
             "reviews.csv": "Đánh giá khách hàng",
+            "operating_costs.csv": "Chi phí vận hành",
+            "inventory_movements.csv": "Biến động kho",
+            "quality_checks.csv": "Kiểm tra chất lượng",
         }
         for name in st.session_state.seller_uploaded_names:
             st.success(
@@ -1839,6 +1889,9 @@ def render_data_upload(*, inline: bool = False) -> None:
         purchase_orders = st.file_uploader("Đơn nhập hàng (purchase_orders.csv, không bắt buộc)", type=["csv"])
         returns = st.file_uploader("Báo cáo hoàn hàng (returns.csv, không bắt buộc)", type=["csv"])
         reviews = st.file_uploader("Đánh giá khách hàng (reviews.csv, không bắt buộc)", type=["csv"])
+        operating_costs = st.file_uploader("Chi phí vận hành (operating_costs.csv, không bắt buộc)", type=["csv"])
+        inventory_movements = st.file_uploader("Biến động kho (inventory_movements.csv, không bắt buộc)", type=["csv"])
+        quality_checks = st.file_uploader("Kiểm tra chất lượng lô hàng (quality_checks.csv, không bắt buộc)", type=["csv"])
         submitted = st.form_submit_button("Thêm dữ liệu", icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
@@ -1850,6 +1903,9 @@ def render_data_upload(*, inline: bool = False) -> None:
         "purchase_orders.csv": purchase_orders,
         "returns.csv": returns,
         "reviews.csv": reviews,
+        "operating_costs.csv": operating_costs,
+        "inventory_movements.csv": inventory_movements,
+        "quality_checks.csv": quality_checks,
     }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:

@@ -42,15 +42,25 @@ class AgentRunner:
         returns: dict[str, Any] | None = None
         reviews: dict[str, Any] | None = None
         procurement: dict[str, Any] | None = None
+        operating_costs: dict[str, Any] | None = None
+        inventory_movements: dict[str, Any] | None = None
+        quality: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
 
         if "shop_data" in plan.tools:
             try:
+                focused_operational_terms = (
+                    "ton kho", "hang hoan", "hoan hang", "ly do hoan",
+                    "danh gia", "phan hoi", "review", "nhap hang", "nha cung cap", "don nhap",
+                    "chi phi van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh",
+                    "bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy",
+                    "kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang",
+                )
                 if "ton kho" in normalized:
                     inventory = self.shop_data_tool.inventory_alerts()
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory})
-                else:
+                elif not any(term in normalized for term in focused_operational_terms):
                     sales = self.shop_data_tool.sales_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": sales})
 
@@ -69,6 +79,15 @@ class AgentRunner:
                 if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")):
                     procurement = self.shop_data_tool.procurement_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": procurement})
+                if any(term in normalized for term in ("chi phi van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh")):
+                    operating_costs = self.shop_data_tool.operating_cost_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": operating_costs})
+                if any(term in normalized for term in ("bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy")):
+                    inventory_movements = self.shop_data_tool.inventory_movement_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": inventory_movements})
+                if any(term in normalized for term in ("kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang", "hang loi")):
+                    quality = self.shop_data_tool.quality_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": quality})
             except Exception as exc:  # Keep an inspectable failure in the agent trace.
                 trace.append({"tool": "shop_data", "status": "error", "error": str(exc)})
 
@@ -110,6 +129,9 @@ class AgentRunner:
             returns=returns,
             reviews=reviews,
             procurement=procurement,
+            operating_costs=operating_costs,
+            inventory_movements=inventory_movements,
+            quality=quality,
             ranking=ranking,
             citations=citations,
         )
@@ -173,6 +195,9 @@ class AgentRunner:
         returns: dict[str, Any] | None,
         reviews: dict[str, Any] | None,
         procurement: dict[str, Any] | None,
+        operating_costs: dict[str, Any] | None,
+        inventory_movements: dict[str, Any] | None,
+        quality: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
     ) -> str:
@@ -224,6 +249,18 @@ class AgentRunner:
                     limitation=str(profitability["limitation"]),
                 )
             )
+        if operating_costs:
+            total = int(operating_costs["total_operating_cost_vnd"])
+            largest = next(iter(operating_costs["by_category"]), "chưa phân loại")
+            sections.append(
+                "Chi phí vận hành đã ghi nhận là {total:,} VND; khoản lớn nhất là {largest}. {limitation}".format(
+                    total=total, largest=largest, limitation=str(operating_costs["limitation"])
+                )
+            )
+            if profitability:
+                after_overhead = int(profitability["estimated_contribution_vnd"]) - total
+                label = "kết quả sau chi phí vận hành đã nhập" if after_overhead >= 0 else "lỗ ước tính sau chi phí vận hành đã nhập"
+                sections.append(f"{label.capitalize()} là {abs(after_overhead):,} VND; đây chưa phải lợi nhuận ròng đã quyết toán.")
         if returns:
             if returns["return_request_count"]:
                 main_reason = next(iter(returns["reasons"]), "chưa phân loại")
@@ -257,6 +294,28 @@ class AgentRunner:
                     value=int(procurement["open_purchase_value_vnd"]),
                 )
             )
+        if inventory_movements:
+            sections.append(
+                "Biến động kho đã ghi nhận: nhập {inbound} sản phẩm, bán ra {outbound} sản phẩm và tách {damaged} sản phẩm lỗi/hủy. {limitation}".format(
+                    inbound=inventory_movements["inbound_unit_count"],
+                    outbound=inventory_movements["outbound_unit_count"],
+                    damaged=inventory_movements["damaged_unit_count"],
+                    limitation=str(inventory_movements["limitation"]),
+                )
+            )
+        if quality:
+            if quality["check_count"]:
+                defect_rate = quality["defect_rate_percent"]
+                issue = next(iter(quality["defects"]), "chưa phân loại")
+                sections.append(
+                    "Đã kiểm tra {inspected} sản phẩm ở {checks} lô; phát hiện {defective} sản phẩm lỗi ({rate}%). Dạng lỗi cần xem trước: {issue}. {limitation}".format(
+                        inspected=quality["inspected_unit_count"], checks=quality["check_count"],
+                        defective=quality["defective_unit_count"], rate="—" if defect_rate is None else f"{defect_rate:.2f}",
+                        issue=issue, limitation=str(quality["limitation"]),
+                    )
+                )
+            else:
+                sections.append("Chưa có bảng kiểm tra chất lượng trong kỳ được hỏi.")
         if ranking and ranking["cost_ranking"]:
             highest = ranking["cost_ranking"][0]
             sections.append(

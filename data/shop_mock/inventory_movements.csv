@@ -1,0 +1,8 @@
+movement_id,movement_date,sku,movement_type,quantity,reference,note
+MOV-202608-001,2026-08-03,SKU-001,Nhập kho,30,PO-202608-001,Hàng về từ nhà cung cấp
+MOV-202608-002,2026-08-09,SKU-001,Bán ra,7,ORD-202608-001,Xuất theo đơn hoàn tất
+MOV-202608-003,2026-08-04,SKU-003,Nhập kho,24,PO-202608-002,Hàng về từ nhà cung cấp
+MOV-202608-004,2026-08-15,SKU-003,Hàng lỗi/hủy,1,QC-202608-002,Lỗi ngoại quan khi kiểm tra
+MOV-202608-005,2026-08-18,SKU-003,Bán ra,5,ORD-202608-004,Xuất theo đơn hoàn tất
+MOV-202608-006,2026-08-07,SKU-005,Nhập kho,36,PO-202608-003,Hàng về từ nhà cung cấp
+MOV-202608-007,2026-08-22,SKU-005,Bán ra,4,ORD-202608-006,Xuất theo đơn hoàn tất

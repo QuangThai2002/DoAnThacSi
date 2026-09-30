@@ -77,9 +77,38 @@ REQUIRED_UPLOAD_COLUMNS = {
         "issue_type",
         "comment",
     },
+    "operating_costs.csv": {
+        "cost_id",
+        "month",
+        "cost_category",
+        "amount_vnd",
+        "note",
+    },
+    "inventory_movements.csv": {
+        "movement_id",
+        "movement_date",
+        "sku",
+        "movement_type",
+        "quantity",
+        "reference",
+        "note",
+    },
+    "quality_checks.csv": {
+        "check_id",
+        "check_date",
+        "purchase_order_id",
+        "sku",
+        "inspected_quantity",
+        "defective_quantity",
+        "defect_type",
+        "status",
+    },
 }
 REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
-OPTIONAL_UPLOAD_FILES = frozenset({"ads.csv", "purchase_orders.csv", "returns.csv", "reviews.csv"})
+OPTIONAL_UPLOAD_FILES = frozenset({
+    "ads.csv", "purchase_orders.csv", "returns.csv", "reviews.csv",
+    "operating_costs.csv", "inventory_movements.csv", "quality_checks.csv",
+})
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
 
@@ -231,6 +260,8 @@ class ShopDataTool:
             "purchase_orders.csv": "order_date",
             "returns.csv": "request_date",
             "reviews.csv": "review_date",
+            "inventory_movements.csv": "movement_date",
+            "quality_checks.csv": "check_date",
         }.get(name)
         if date_column:
             for row in rows:
@@ -242,6 +273,12 @@ class ShopDataTool:
                     pass
 
         if name == "ads.csv":
+            for row in rows:
+                try:
+                    row["month"] = normalize_month(row["month"])
+                except ValueError:
+                    pass
+        if name == "operating_costs.csv":
             for row in rows:
                 try:
                     row["month"] = normalize_month(row["month"])
@@ -307,6 +344,20 @@ class ShopDataTool:
                     date.fromisoformat(row["review_date"])
                     if not 1 <= int(row["rating"]) <= 5:
                         raise ValueError("rating must be between 1 and 5")
+                elif name == "operating_costs.csv":
+                    date.fromisoformat(f"{row['month']}-01")
+                    if as_decimal(row["amount_vnd"]) < 0:
+                        raise ValueError("amount must not be negative")
+                elif name == "inventory_movements.csv":
+                    date.fromisoformat(row["movement_date"])
+                    if int(row["quantity"]) < 0:
+                        raise ValueError("quantity must not be negative")
+                elif name == "quality_checks.csv":
+                    date.fromisoformat(row["check_date"])
+                    inspected = int(row["inspected_quantity"])
+                    defective = int(row["defective_quantity"])
+                    if inspected < 0 or defective < 0 or defective > inspected:
+                        raise ValueError("invalid inspection quantities")
             except (InvalidOperation, ValueError) as exc:
                 raise ShopDataValidationError(
                     f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
@@ -433,6 +484,76 @@ class ShopDataTool:
             "estimated_contribution_vnd": as_number(contribution),
             "formula": "GMV - seller_discount - recorded_platform_fees - product_cost",
             "limitation": "Chưa gồm đóng gói, nhân sự, kho bãi, thuế, chi phí vận chuyển phát sinh và chi phí quảng cáo nếu không được hỏi riêng.",
+        }
+
+    def operating_cost_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Summarize recorded overhead; it is intentionally separate from GMV."""
+        rows = [
+            row for row in self._read_csv("operating_costs.csv")
+            if period is None or row["month"] == period
+        ]
+        by_category: dict[str, Decimal] = {}
+        for row in rows:
+            category = row["cost_category"].strip() or "Chưa phân loại"
+            by_category[category] = by_category.get(category, Decimal("0")) + as_decimal(row["amount_vnd"])
+        total = sum(by_category.values(), Decimal("0"))
+        return {
+            "tool": "shop_data.operating_cost_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "record_count": len(rows),
+            "total_operating_cost_vnd": as_number(total),
+            "by_category": {
+                category: as_number(amount)
+                for category, amount in sorted(by_category.items(), key=lambda item: (-item[1], item[0]))
+            },
+            "limitation": "Chỉ gồm chi phí vận hành đã nhập; chưa tự suy ra thuế, chi phí chưa ghi nhận hoặc chi phí cá nhân.",
+        }
+
+    def inventory_movement_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Report recorded inbound, outbound and damage movements, not a stock audit."""
+        rows = [
+            row for row in self._read_csv("inventory_movements.csv")
+            if period is None or row["movement_date"].startswith(period)
+        ]
+        totals: dict[str, int] = {}
+        for row in rows:
+            movement_type = row["movement_type"].strip().lower() or "chưa phân loại"
+            totals[movement_type] = totals.get(movement_type, 0) + int(row["quantity"])
+        return {
+            "tool": "shop_data.inventory_movement_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "movement_count": len(rows),
+            "inbound_unit_count": totals.get("nhập kho", 0),
+            "outbound_unit_count": totals.get("bán ra", 0),
+            "damaged_unit_count": totals.get("hàng lỗi/hủy", 0),
+            "by_type": dict(sorted(totals.items(), key=lambda item: (-item[1], item[0]))),
+            "limitation": "Đây là biến động đã ghi nhận, không thay thế kiểm kê thực tế tại kho.",
+        }
+
+    def quality_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Summarize quality checks to flag possible supplier or product issues."""
+        rows = [
+            row for row in self._read_csv("quality_checks.csv")
+            if period is None or row["check_date"].startswith(period)
+        ]
+        inspected = sum(int(row["inspected_quantity"]) for row in rows)
+        defective = sum(int(row["defective_quantity"]) for row in rows)
+        defects: dict[str, int] = {}
+        for row in rows:
+            defect_type = row["defect_type"].strip() or "Không phát hiện lỗi"
+            defects[defect_type] = defects.get(defect_type, 0) + int(row["defective_quantity"])
+        return {
+            "tool": "shop_data.quality_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "check_count": len(rows),
+            "inspected_unit_count": inspected,
+            "defective_unit_count": defective,
+            "defect_rate_percent": round((defective / inspected) * 100, 2) if inspected else None,
+            "defects": dict(sorted(defects.items(), key=lambda item: (-item[1], item[0]))),
+            "limitation": "Tỷ lệ lỗi chỉ phản ánh những lô đã được kiểm tra và nhập vào bảng này.",
         }
 
     def returns_summary(self, period: str | None = None) -> dict[str, Any]:

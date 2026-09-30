@@ -73,6 +73,16 @@ class Planner:
         "nhap hang",
         "nha cung cap",
         "don nhap",
+        "chi phi van hanh",
+        "dong goi",
+        "nhan su",
+        "kho bai",
+        "bien dong kho",
+        "hang loi",
+        "hang hu",
+        "kiem tra chat luong",
+        "chat luong lo hang",
+        "that thoat",
     )
     COST_ANALYSIS_TERMS = (
         "khoan chi phi",

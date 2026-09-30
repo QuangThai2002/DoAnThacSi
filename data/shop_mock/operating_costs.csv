@@ -1,0 +1,9 @@
+cost_id,month,cost_category,amount_vnd,note
+OPS-202607-001,2026-07,Đóng gói,80000,Vật tư đóng gói
+OPS-202607-002,2026-07,Nhân sự,450000,Hỗ trợ xử lý đơn
+OPS-202607-003,2026-07,Kho bãi,180000,Chi phí lưu kho
+OPS-202607-004,2026-07,Phần mềm,50000,Công cụ quản lý
+OPS-202608-001,2026-08,Đóng gói,120000,Vật tư đóng gói
+OPS-202608-002,2026-08,Nhân sự,450000,Hỗ trợ xử lý đơn
+OPS-202608-003,2026-08,Kho bãi,180000,Chi phí lưu kho
+OPS-202608-004,2026-08,Vận chuyển phát sinh,90000,Hỗ trợ giao lại hàng

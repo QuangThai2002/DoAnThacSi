@@ -98,6 +98,17 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertEqual(self.tool.review_summary("2026-08")["average_rating"], 3.6)
         self.assertEqual(self.tool.procurement_summary("2026-08")["open_purchase_order_count"], 2)
 
+    def test_further_operational_tables_support_overhead_stock_and_quality(self) -> None:
+        self.assertEqual(
+            self.tool.operating_cost_summary("2026-08")["total_operating_cost_vnd"], 840_000
+        )
+        movement = self.tool.inventory_movement_summary("2026-08")
+        self.assertEqual(movement["damaged_unit_count"], 1)
+        quality = self.tool.quality_summary("2026-08")
+        self.assertEqual(quality["inspected_unit_count"], 62)
+        self.assertEqual(quality["defective_unit_count"], 1)
+        self.assertEqual(quality["defect_rate_percent"], 1.61)
+
 
 class CalculatorAndRunnerTests(unittest.TestCase):
     def test_common_policy_question_uses_the_cached_fast_retrieval_path(self) -> None:
@@ -176,6 +187,11 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         result = AgentRunner().run("Đánh giá khách hàng của shop tôi tháng 8 năm 2026 thế nào?")
         self.assertIn("đánh giá, điểm trung bình 3.60/5", result["answer"])
         self.assertIn("2 đánh giá từ 3 sao trở xuống", result["answer"])
+
+    def test_runner_explains_recorded_operating_costs_without_claiming_net_profit(self) -> None:
+        result = AgentRunner().run("Chi phí vận hành tháng 8 năm 2026 của shop tôi là bao nhiêu?")
+        self.assertIn("Chi phí vận hành đã ghi nhận là 840,000 VND", result["answer"])
+        self.assertIn("chưa tự suy ra thuế", result["answer"])
 
     def test_policy_answer_is_direct_and_does_not_claim_csv_use(self) -> None:
         class FixedFeeRAG:

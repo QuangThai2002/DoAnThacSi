@@ -1,0 +1,4 @@
+check_id,check_date,purchase_order_id,sku,inspected_quantity,defective_quantity,defect_type,status
+QC-202608-001,2026-08-03,PO-202608-001,SKU-001,20,0,Không phát hiện lỗi,Đạt
+QC-202608-002,2026-08-04,PO-202608-002,SKU-003,18,1,Lỗi ngoại quan,Cần phản hồi nhà cung cấp
+QC-202608-003,2026-08-07,PO-202608-003,SKU-005,24,0,Không phát hiện lỗi,Đạt
