@@ -1522,6 +1522,27 @@ def filter_dashboard_rows(
     }
 
 
+def optional_dashboard_summary(
+    tool: ShopDataTool,
+    method_name: str,
+    empty_summary: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """Return an optional dashboard summary without taking down the whole report.
+
+    Some saved shops were created before the extended operating tables existed.
+    During an incremental cloud deployment the UI can also arrive before the
+    matching data-tool method.  In both cases the honest state is "not ready",
+    never a fabricated zero and never a broken dashboard.
+    """
+    method = getattr(tool, method_name, None)
+    if not callable(method):
+        return dict(empty_summary), False
+    try:
+        return method(), True
+    except (AttributeError, KeyError, ValueError):
+        return dict(empty_summary), False
+
+
 def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: str) -> None:
     """Show directly usable operational views from the same saved tables."""
     rows = filter_dashboard_rows(rows, scope)
@@ -1536,13 +1557,41 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
     returns = tool.returns_summary()
     reviews = tool.review_summary()
     procurement = tool.procurement_summary()
-    operating_costs = tool.operating_cost_summary()
-    movements = tool.inventory_movement_summary()
-    quality = tool.quality_summary()
-    cash_flow = tool.cash_flow_summary()
-    suppliers = tool.supplier_performance_summary()
-    customers = tool.customer_retention_summary()
-    funnel = tool.product_funnel_summary()
+    operating_costs, has_operating_costs = optional_dashboard_summary(
+        tool,
+        "operating_cost_summary",
+        {"total_operating_cost_vnd": 0},
+    )
+    movements, has_movements = optional_dashboard_summary(
+        tool,
+        "inventory_movement_summary",
+        {"damaged_unit_count": 0, "inbound_unit_count": 0, "outbound_unit_count": 0},
+    )
+    quality, has_quality = optional_dashboard_summary(
+        tool,
+        "quality_summary",
+        {"defect_rate_percent": None, "inspected_unit_count": 0, "check_count": 0},
+    )
+    cash_flow, has_cash_flow = optional_dashboard_summary(
+        tool,
+        "cash_flow_summary",
+        {"net_cash_movement_vnd": 0},
+    )
+    suppliers, has_suppliers = optional_dashboard_summary(
+        tool,
+        "supplier_performance_summary",
+        {"best_supplier": None},
+    )
+    customers, has_customers = optional_dashboard_summary(
+        tool,
+        "customer_retention_summary",
+        {"repeat_order_rate_percent": None},
+    )
+    funnel, has_funnel = optional_dashboard_summary(
+        tool,
+        "product_funnel_summary",
+        {"total_add_to_cart_count": 0},
+    )
 
     with st.container(horizontal=True):
         st.metric("Doanh thu sau phí ước tính", currency(number(sales["net_revenue_after_estimated_fees_vnd"])), border=True)
@@ -1550,7 +1599,30 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
         st.metric("Sản phẩm cần nhập thêm", f"{inventory['alert_count']}", border=True)
         st.metric("ROAS quảng cáo", f"{number(ads['roas']):.2f}", border=True)
         st.metric("Lãi góp ước tính", currency(number(profitability["estimated_contribution_vnd"])), border=True)
-        st.metric("Chi phí vận hành đã nhập", currency(number(operating_costs["total_operating_cost_vnd"])), border=True)
+        st.metric(
+            "Chi phí vận hành đã nhập",
+            currency(number(operating_costs["total_operating_cost_vnd"])) if has_operating_costs else "Chưa có dữ liệu",
+            border=True,
+        )
+
+    unavailable_summaries = [
+        label for label, available in [
+            ("chi phí vận hành", has_operating_costs),
+            ("biến động kho", has_movements),
+            ("kiểm tra chất lượng", has_quality),
+            ("dòng tiền", has_cash_flow),
+            ("nhà cung cấp", has_suppliers),
+            ("khách quay lại", has_customers),
+            ("hành trình mua hàng", has_funnel),
+        ] if not available
+    ]
+    if unavailable_summaries:
+        st.info(
+            "Một số chỉ số mở rộng chưa sẵn sàng để hiển thị: "
+            + ", ".join(unavailable_summaries)
+            + ". Chúng không được tính là 0.",
+            icon=":material/info:",
+        )
 
     orders = pd.DataFrame(rows["orders.csv"])
     completed = orders[orders["status"].str.lower() == "completed"].copy()
@@ -1671,26 +1743,33 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
     with movement_col:
         with st.container(border=True):
             st.markdown("**Biến động kho đã ghi nhận**")
-            st.metric("Hàng lỗi / hủy", movements["damaged_unit_count"])
-            st.caption(f"Nhập kho: {movements['inbound_unit_count']} · Bán ra: {movements['outbound_unit_count']}")
+            st.metric("Hàng lỗi / hủy", movements["damaged_unit_count"] if has_movements else "Chưa có dữ liệu")
+            if has_movements:
+                st.caption(f"Nhập kho: {movements['inbound_unit_count']} · Bán ra: {movements['outbound_unit_count']}")
+            else:
+                st.caption("Chưa có bảng biến động kho để đối chiếu.")
     with quality_col:
         with st.container(border=True):
             st.markdown("**Chất lượng lô hàng**")
-            rate = "—" if quality["defect_rate_percent"] is None else f"{quality['defect_rate_percent']:.2f}%"
+            rate = "Chưa có dữ liệu" if not has_quality else ("—" if quality["defect_rate_percent"] is None else f"{quality['defect_rate_percent']:.2f}%")
             st.metric("Tỷ lệ lỗi đã kiểm", rate)
-            st.caption(f"Đã kiểm {quality['inspected_unit_count']} sản phẩm ở {quality['check_count']} lô.")
+            if has_quality:
+                st.caption(f"Đã kiểm {quality['inspected_unit_count']} sản phẩm ở {quality['check_count']} lô.")
+            else:
+                st.caption("Chưa có bảng kiểm tra chất lượng để đối chiếu.")
 
     with st.container(border=True):
         st.markdown("**Dòng tiền và sức khỏe bán hàng**")
         with st.container(horizontal=True):
             cash_net = number(cash_flow["net_cash_movement_vnd"])
-            st.metric("Dòng tiền ròng đã ghi", currency(cash_net), border=True)
-            repeat_rate = "—" if customers["repeat_order_rate_percent"] is None else f"{customers['repeat_order_rate_percent']:.2f}%"
+            st.metric("Dòng tiền ròng đã ghi", currency(cash_net) if has_cash_flow else "Chưa có dữ liệu", border=True)
+            repeat_rate = "Chưa có dữ liệu" if not has_customers else ("—" if customers["repeat_order_rate_percent"] is None else f"{customers['repeat_order_rate_percent']:.2f}%")
             st.metric("Đơn mua lại", repeat_rate, border=True)
             best_supplier = suppliers["best_supplier"]
-            supplier_score = "—" if best_supplier is None else f"{best_supplier['on_time_delivery_rate_percent']:.1f}%"
+            supplier_score = "Chưa có dữ liệu" if not has_suppliers else ("—" if best_supplier is None else f"{best_supplier['on_time_delivery_rate_percent']:.1f}%")
             st.metric("Giao đúng hẹn tốt nhất", supplier_score, border=True)
-            st.metric("Lượt thêm giỏ", f"{funnel['total_add_to_cart_count']:,}", border=True)
+            cart_count = f"{funnel['total_add_to_cart_count']:,}" if has_funnel else "Chưa có dữ liệu"
+            st.metric("Lượt thêm giỏ", cart_count, border=True)
         st.caption("Các chỉ số chỉ tổng hợp dữ liệu đã nhập; hãy mở bảng tương ứng để kiểm tra từng giao dịch hoặc từng sản phẩm.")
 
 
