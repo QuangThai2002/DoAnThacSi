@@ -373,6 +373,33 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("Phí cố định được tính bằng", result["answer"])
         self.assertNotIn("dữ liệu CSV", result["answer"])
 
+    def test_action_questions_share_one_evidence_first_routing_path(self) -> None:
+        price = AgentRunner().run("Tôi có nên giảm giá toàn bộ sản phẩm không?")
+        self.assertIn("Chưa có cơ sở để giảm giá toàn bộ", price["answer"])
+        self.assertIn("1–2 SKU", price["answer"])
+
+        restock = AgentRunner().run("Sản phẩm bán tốt có chắc nên nhập nhiều hơn không?")
+        self.assertIn("Không nên nhập nhiều chỉ vì một sản phẩm bán tốt", restock["answer"])
+        self.assertIn("Đơn nhập hàng", restock["answer"])
+
+        ads = AgentRunner().run("Tôi có nên tăng ngân sách quảng cáo không?")
+        self.assertIn("ROAS hiện ghi nhận", ads["answer"])
+        self.assertIn("chưa đủ để kết luận nên tăng ngân sách", ads["answer"])
+
+    def test_concept_questions_do_not_fall_into_shop_metrics(self) -> None:
+        threshold = AgentRunner().run("Ngưỡng nhập thêm là gì?")
+        self.assertIn("mốc tồn khả dụng", threshold["answer"])
+        self.assertNotIn("cảnh báo tồn kho", threshold["answer"])
+
+        costs = AgentRunner().run("Chi phí quảng cáo có phải toàn bộ chi phí của shop không?")
+        self.assertIn("Không. Chi phí quảng cáo chỉ là một khoản", costs["answer"])
+        self.assertNotIn("GMV", costs["answer"])
+
+    def test_slow_inventory_answer_exposes_age_data_limit_and_next_upload(self) -> None:
+        result = AgentRunner().run("Hàng nào tồn lâu mà ít bán?")
+        self.assertIn("Giá đỡ điện thoại", result["answer"])
+        self.assertIn("Biến động kho", result["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()

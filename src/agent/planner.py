@@ -96,12 +96,22 @@ class Planner:
         "them gio hang",
         "hieu qua san pham",
         "phieu san pham",
+        # Decision questions still require shop evidence even when they do not
+        # contain the words “shop tôi” or “tồn kho”.
+        "giam gia",
+        "nhap bao nhieu",
+        "nhap nhieu hon",
+        "sap het",
+        "ton lau",
+        "it ban",
+        "san pham ban tot",
     )
     # A metric word can be either a request for a definition or a request for
     # the seller's own numbers. Only the latter must have shop data attached.
     BUSINESS_TERM_DEFINITION_TERMS = (
         "gmv", "roas", "sku", "doanh thu", "loi nhuan", "gia von",
         "hoa von", "dong tien", "ton kho", "don bi huy", "don huy", "don da huy",
+        "nguong nhap them", "chi phi quang cao",
     )
     DEFINITION_QUESTION_TERMS = (
         "la gi", "nghia la gi", "co phai", "khac gi", "tinh nhu the nao",
@@ -161,6 +171,10 @@ class Planner:
             and any(term in normalized for term in self.DEFINITION_QUESTION_TERMS)
             and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
         )
+        # Questions that contrast one cost with all shop costs are conceptual,
+        # even when the wording contains “của shop”; they do not need CSV data.
+        if "chi phi quang cao" in normalized and "co phai" in normalized:
+            is_definition_question = True
         is_general_policy_question = (
             any(term in normalized for term in ("hop dong", "giao dich dien tu", "phap luat", "luat"))
             and not any(term in normalized for term in self.PRIVATE_DATA_CUES)

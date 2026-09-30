@@ -889,6 +889,41 @@ class ShopDataTool:
             "rule": "available_units = on_hand - reserved; alert when available_units <= reorder_point",
         }
 
+    def inventory_slow_products(self, period: str | None = None) -> dict[str, Any]:
+        """Find products whose recorded sales are low relative to current stock.
+
+        The mock schema has no stock-age history, so this is deliberately a
+        screening list, not a claim that the goods have been idle for a precise
+        number of days.
+        """
+        products = {row["sku"]: row for row in self._read_csv("products.csv")}
+        sold_by_sku: dict[str, int] = {}
+        for order in self._read_csv("orders.csv"):
+            if order["status"].strip().lower() != COMPLETED_STATUS:
+                continue
+            if period is not None and not order["order_date"].startswith(period):
+                continue
+            sold_by_sku[order["sku"]] = sold_by_sku.get(order["sku"], 0) + int(order["quantity"])
+
+        candidates: list[dict[str, Any]] = []
+        for row in self._read_csv("inventory.csv"):
+            available = int(row["on_hand"]) - int(row["reserved"])
+            candidates.append({
+                "sku": row["sku"],
+                "product_name": products.get(row["sku"], {}).get("product_name", row["sku"]),
+                "sold_units": sold_by_sku.get(row["sku"], 0),
+                "available_units": available,
+                "last_updated": row["last_updated"],
+            })
+        candidates.sort(key=lambda item: (int(item["sold_units"]), -int(item["available_units"]), item["product_name"]))
+        return {
+            "tool": "shop_data.inventory_slow_products",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "candidates": candidates,
+            "limitation": "Đây là sàng lọc theo số đã bán và tồn khả dụng; dữ liệu hiện tại chưa có lịch sử tuổi tồn để kết luận hàng nằm kho bao nhiêu ngày.",
+        }
+
     def advertising_summary(self, period: str | None = None) -> dict[str, Any]:
         rows = [
             row

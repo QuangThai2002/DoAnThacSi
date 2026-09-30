@@ -54,6 +54,35 @@ class AgentRunner:
         sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
+        slow_inventory: dict[str, Any] | None = None
+
+        # Route action questions by their decision need, rather than by one
+        # exact keyword. This keeps new phrasings on the same evidence path.
+        definition_like = any(
+            term in normalized
+            for term in ("la gi", "nghia la gi", "giai thich", "co phai", "tinh nhu the nao")
+        )
+        asks_price_strategy = (
+            any(term in normalized for term in ("giam gia", "dieu chinh gia", "gia ban"))
+            and any(term in normalized for term in ("nen", "co nen", "the nao", "toan bo"))
+        )
+        asks_restock_strategy = any(
+            term in normalized
+            for term in ("nhap bao nhieu", "nhap nhieu hon", "nhap them", "nhap hang")
+        )
+        asks_inventory = not definition_like and any(
+            term in normalized
+            for term in ("ton kho", "sap het", "ton lau", "it ban", "nhap them", "nhap bao nhieu", "nhap nhieu hon")
+        )
+        asks_product_demand = any(
+            term in normalized
+            for term in ("san pham nao ban tot", "san pham ban tot", "nhap nhieu hon")
+        )
+        asks_slow_inventory = not definition_like and any(term in normalized for term in ("ton lau", "it ban", "cham ban"))
+        asks_ad_strategy = (
+            any(term in normalized for term in ("tang ngan sach", "ngan sach quang cao", "chi quang cao"))
+            and any(term in normalized for term in ("nen", "co nen", "hieu qua", "tang"))
+        )
 
         if "shop_data" in plan.tools:
             try:
@@ -89,7 +118,7 @@ class AgentRunner:
                 elif asks_period_comparison:
                     sales_period_comparison = self.shop_data_tool.sales_period_comparison(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": sales_period_comparison})
-                elif "ton kho" in normalized:
+                elif asks_inventory:
                     inventory = self.shop_data_tool.inventory_alerts()
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory})
                 elif not any(term in normalized for term in focused_operational_terms):
@@ -99,6 +128,15 @@ class AgentRunner:
                 if any(term in normalized for term in ("quang cao", "roas", "ads")):
                     advertising = self.shop_data_tool.advertising_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": advertising})
+                if asks_product_demand and product_gmv_ranking is None:
+                    product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
+                if asks_slow_inventory:
+                    slow_inventory = self.shop_data_tool.inventory_slow_products(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": slow_inventory})
+                if (asks_price_strategy or asks_ad_strategy) and profitability is None:
+                    profitability = self.shop_data_tool.profitability_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
                 if (
                     any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai gop"))
                     and not asks_product_contribution
@@ -191,6 +229,10 @@ class AgentRunner:
             sales_period_comparison=sales_period_comparison,
             ranking=ranking,
             citations=citations,
+            asks_price_strategy=asks_price_strategy,
+            asks_restock_strategy=asks_restock_strategy,
+            asks_ad_strategy=asks_ad_strategy,
+            slow_inventory=slow_inventory,
         )
         data_scope = self.shop_data_tool.data_scope
         data_limitation = (
@@ -264,6 +306,10 @@ class AgentRunner:
         sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
+        asks_price_strategy: bool = False,
+        asks_restock_strategy: bool = False,
+        asks_ad_strategy: bool = False,
+        slow_inventory: dict[str, Any] | None = None,
     ) -> str:
         if plan.intent == "out_of_scope":
             return (
@@ -271,6 +317,21 @@ class AgentRunner:
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
         sections: list[str] = []
+        knowledge_answer = AgentRunner._knowledge_answer(question)
+        action_answer = AgentRunner._action_answer(
+            question=question,
+            normalized=normalize(question),
+            inventory=inventory,
+            product_gmv_ranking=product_gmv_ranking,
+            profitability=profitability,
+            advertising=advertising,
+            asks_price_strategy=asks_price_strategy,
+            asks_restock_strategy=asks_restock_strategy,
+            asks_ad_strategy=asks_ad_strategy,
+        )
+        # Put the direct answer or bounded next step first; supporting metrics follow.
+        if action_answer and not knowledge_answer:
+            sections.append(action_answer)
         if product_gmv_ranking:
             top_product = product_gmv_ranking["top_product"]
             if top_product is None:
@@ -496,7 +557,19 @@ class AgentRunner:
                 sections.append(f"Có {inventory['alert_count']} cảnh báo tồn kho: {products}.")
             else:
                 sections.append("Không có cảnh báo tồn kho theo ngưỡng đã cấu hình.")
-        knowledge_answer = AgentRunner._knowledge_answer(question)
+        if slow_inventory:
+            candidates = slow_inventory.get("candidates", [])
+            if candidates:
+                labels = ", ".join(
+                    f"{item['product_name']} (đã bán {item['sold_units']}, còn {item['available_units']})"
+                    for item in candidates[:5]
+                )
+                sections.append(
+                    f"Nhóm cần kiểm tra vì bán chậm so với tồn hiện có: {labels}. "
+                    f"{slow_inventory['limitation']} Hãy tạo hoặc tải thêm bảng **Biến động kho** nếu muốn tính chính xác số ngày tồn."
+                )
+            else:
+                sections.append("Chưa có đủ dữ liệu đơn hoàn tất và tồn kho để nhận diện hàng bán chậm.")
         if knowledge_answer and not sections:
             sections.append(knowledge_answer)
         elif citations and not sections:
@@ -504,9 +577,69 @@ class AgentRunner:
                 "Tôi chưa có đủ nội dung đã kiểm chứng để trả lời trực tiếp. "
                 "Bạn có thể mở phần nguồn nếu cần đối chiếu."
             )
+        elif plan.needs_private_shop_data and not sections:
+            sections.append(AgentRunner._data_request_guidance(normalize(question)))
         elif "rag" in plan.tools and not sections:
             sections.append("Chưa truy hồi được nội dung đủ tin cậy để trả lời trực tiếp.")
         return "\n\n".join(sections)
+
+    @staticmethod
+    def _action_answer(
+        question: str,
+        normalized: str,
+        inventory: dict[str, Any] | None,
+        product_gmv_ranking: dict[str, Any] | None,
+        profitability: dict[str, Any] | None,
+        advertising: dict[str, Any] | None,
+        asks_price_strategy: bool,
+        asks_restock_strategy: bool,
+        asks_ad_strategy: bool,
+    ) -> str:
+        """Give a bounded next step for recommendation questions.
+
+        Metrics remain separate from advice. The advice never promises a result;
+        it names the evidence used and the smallest reversible test.
+        """
+        if asks_price_strategy:
+            if profitability is None:
+                return AgentRunner._data_request_guidance(normalized)
+            return (
+                "Chưa có cơ sở để giảm giá toàn bộ sản phẩm. Hãy chọn 1–2 SKU có lãi góp dương, "
+                "thử ưu đãi nhỏ trong thời gian ngắn, rồi so sánh số đơn, doanh thu sau phí và lãi góp "
+                "với kỳ trước; nếu biên lãi không chịu được thì dừng thử nghiệm."
+            )
+        if asks_restock_strategy:
+            alert_text = ""
+            if inventory and inventory.get("alert_count"):
+                names = ", ".join(item["product_name"] for item in inventory["alerts"][:3])
+                alert_text = f"Hiện có cảnh báo cần xem trước: {names}. "
+            return (
+                f"{alert_text}Không nên nhập nhiều chỉ vì một sản phẩm bán tốt. "
+                "Hãy đối chiếu tốc độ bán, tồn khả dụng, hàng đang về, thời gian nhập và tiền mặt; "
+                "sau đó thử một lô nhỏ. Dữ liệu hiện tại chưa đủ để khẳng định một số lượng nhập an toàn. "
+                "Muốn tính số lượng cụ thể, hãy tạo hoặc tải thêm bảng **Đơn nhập hàng** có ngày dự kiến về và giá nhập."
+            )
+        if asks_ad_strategy:
+            if advertising is None:
+                return AgentRunner._data_request_guidance(normalized)
+            roas = float(advertising.get("roas") or 0)
+            return (
+                f"ROAS hiện ghi nhận là {roas:.2f}, nhưng ROAS cao chưa đủ để kết luận nên tăng ngân sách "
+                "vì còn giá vốn, phí và tồn kho. Nếu vẫn muốn thử, chỉ tăng từng bước nhỏ trong một nhóm quảng cáo, "
+                "đặt giới hạn chi và so sánh lãi góp sau quảng cáo trước khi mở rộng."
+            )
+        return ""
+
+    @staticmethod
+    def _data_request_guidance(normalized: str) -> str:
+        """Turn missing evidence into an explicit upload/create instruction."""
+        if any(term in normalized for term in ("quang cao", "roas", "ngan sach")):
+            return "Để trả lời bằng số liệu, hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
+        if any(term in normalized for term in ("ton kho", "sap het", "ton lau", "nhap hang", "nhap them")):
+            return "Để phân tích, hãy tạo hoặc tải bảng **Tồn kho**, **Sản phẩm** và **Đơn hàng**; nếu hỏi lượng nhập, thêm **Đơn nhập hàng** và thời gian giao dự kiến."
+        if any(term in normalized for term in ("giam gia", "gia ban", "lai", "loi nhuan")):
+            return "Để đánh giá phương án, hãy tạo hoặc tải bảng **Sản phẩm và giá vốn**, **Đơn hàng** và **Tồn kho**."
+        return "Để trả lời câu hỏi này bằng tình hình shop, hãy tạo hoặc tải bộ dữ liệu gồm **Đơn hàng**, **Sản phẩm** và **Tồn kho**."
 
     @staticmethod
     def _knowledge_answer(question: str) -> str:
@@ -526,6 +659,12 @@ class AgentRunner:
                 "Dùng chung một SKU sẽ khiến shop trừ nhầm tồn hoặc không biết biến thể nào đang bán tốt.\n\n"
                 "**Ví dụ:** áo thun đen size M có mã `AO-THUN-DEN-M`; áo thun đen size L có mã `AO-THUN-DEN-L`. "
                 "Khách mua size M thì chỉ tồn kho size M giảm, còn size L không thay đổi."
+            )
+        if "nguong nhap them" in normalized_question:
+            return (
+                "**Ngưỡng nhập thêm** là mốc tồn khả dụng mà shop đặt ra để bắt đầu kiểm tra việc nhập hàng. "
+                "Đây là cảnh báo nội bộ, không phải lệnh bắt buộc phải nhập. Có thể đặt mốc dựa trên tốc độ bán, "
+                "thời gian chờ hàng về và lượng tồn an toàn."
             )
         if any(term in normalized_question for term in ("doanh thu sau phi", "doanh thu thuc nhan", "tien nhan duoc")):
             return (
@@ -572,8 +711,8 @@ class AgentRunner:
             )
         definitions = {
             "gmv": "GMV là tổng giá trị hàng hóa đã bán trong các đơn được tính, trước khi trừ giảm giá của shop, phí sàn, giá vốn và các chi phí khác. Ví dụ bán 2 sản phẩm giá 250.000 đ thì GMV là 500.000 đ. Vì còn các khoản phải trừ, GMV không phải lợi nhuận.",
-            "roas": "ROAS = doanh thu được quy gán cho quảng cáo chia cho chi quảng cáo. Chỉ số này không tự chứng minh chiến dịch có lãi vì còn giá vốn và phí.",
-            "gia von": "Giá vốn là chi phí trực tiếp để có sản phẩm sẵn sàng bán. Cần có giá vốn thì mới ước lượng được biên lợi nhuận gộp.",
+            "roas": "ROAS = doanh thu được quy gán cho quảng cáo chia cho chi quảng cáo. Ví dụ chi 1.000.000 đ và tạo 4.000.000 đ doanh thu quy gán thì ROAS = 4,0. ROAS cao chưa chắc có lãi vì còn giá vốn và phí.",
+            "gia von": "Giá vốn là chi phí trực tiếp để có sản phẩm sẵn sàng bán. Với dữ liệu shop, nhập tại **Thư viện dữ liệu → Sản phẩm và giá vốn**. Cần có giá vốn thì mới ước lượng được biên lợi nhuận gộp.",
             "hoa von": "Điểm hòa vốn là mức bán đủ bù chi phí. Đây là ước tính kế hoạch, không phải cam kết kết quả thực tế.",
             "ton kho an toan": "Tồn kho an toàn là lượng dự phòng để giảm nguy cơ hết hàng khi nhu cầu hoặc thời gian nhập thay đổi.",
             "dat hang lai": "Điểm đặt hàng lại có thể ước tính từ tốc độ bán, thời gian chờ nhập và tồn kho an toàn.",
@@ -586,6 +725,7 @@ class AgentRunner:
             "hang han che": "Với hàng cấm hoặc hạn chế, cần đối chiếu danh mục Shopee và quy định hiện hành trước khi đăng. Eslabong không tự cấp phép hoặc kết luận một mặt hàng được bán.",
             "du lieu khach hang": "Chỉ nên thu thập dữ liệu cần thiết để xử lý đơn và hỗ trợ khách, nêu rõ mục đích sử dụng và hạn chế chia sẻ. Không tải dữ liệu khách hàng lên bản demo công khai.",
             "bao mat tai khoan": "Không chia sẻ mật khẩu, mã xác thực hoặc khóa API trong chat hay file demo. Kết nối thật cần cơ chế cấp quyền hợp lệ và lưu bí mật an toàn.",
+            "chi phi quang cao": "Không. Chi phí quảng cáo chỉ là một khoản. Shop còn có thể có giá vốn, phí sàn, đóng gói, nhân sự, kho bãi, vận chuyển và thuế. Muốn tính kết quả sau chi phí, cần xem từng khoản đã được ghi trong dữ liệu.",
         }
         for term, answer in definitions.items():
             if term in normalized_question:
