@@ -50,6 +50,7 @@ class AgentRunner:
         customer_retention: dict[str, Any] | None = None
         product_funnel: dict[str, Any] | None = None
         product_gmv_ranking: dict[str, Any] | None = None
+        product_contribution_ranking: dict[str, Any] | None = None
         sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
@@ -75,7 +76,14 @@ class AgentRunner:
                     "so sanh" in normalized
                     and any(term in normalized for term in ("doanh thu", "gmv", "thang truoc"))
                 )
-                if asks_product_gmv:
+                asks_product_contribution = (
+                    "lai gop" in normalized
+                    and any(term in normalized for term in ("san pham nao", "mat hang nao", "thap nhat", "thap"))
+                )
+                if asks_product_contribution:
+                    product_contribution_ranking = self.shop_data_tool.product_contribution_ranking(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": product_contribution_ranking})
+                elif asks_product_gmv:
                     product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
                 elif asks_period_comparison:
@@ -91,7 +99,10 @@ class AgentRunner:
                 if any(term in normalized for term in ("quang cao", "roas", "ads")):
                     advertising = self.shop_data_tool.advertising_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": advertising})
-                if any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai gop")):
+                if (
+                    any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai gop"))
+                    and not asks_product_contribution
+                ):
                     profitability = self.shop_data_tool.profitability_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
                 if any(term in normalized for term in ("hang hoan", "hoan hang", "ly do hoan")):
@@ -176,6 +187,7 @@ class AgentRunner:
             customer_retention=customer_retention,
             product_funnel=product_funnel,
             product_gmv_ranking=product_gmv_ranking,
+            product_contribution_ranking=product_contribution_ranking,
             sales_period_comparison=sales_period_comparison,
             ranking=ranking,
             citations=citations,
@@ -248,6 +260,7 @@ class AgentRunner:
         customer_retention: dict[str, Any] | None,
         product_funnel: dict[str, Any] | None,
         product_gmv_ranking: dict[str, Any] | None,
+        product_contribution_ranking: dict[str, Any] | None,
         sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
@@ -271,6 +284,25 @@ class AgentRunner:
                         orders=top_product["completed_order_count"],
                         units=top_product["completed_unit_count"],
                         limitation=str(product_gmv_ranking["limitation"]),
+                    )
+                )
+        if product_contribution_ranking:
+            lowest_product = product_contribution_ranking["lowest_product"]
+            if lowest_product is None:
+                sections.append("Chưa có đơn hoàn tất trong kỳ được hỏi nên chưa thể tính lãi góp theo từng sản phẩm.")
+            else:
+                per_unit = int(lowest_product["estimated_contribution_per_unit_vnd"])
+                total = int(lowest_product["estimated_contribution_vnd"])
+                margin = lowest_product["contribution_margin_percent"]
+                label = "lỗ góp" if total < 0 else "lãi góp"
+                margin_text = "chưa tính được tỷ lệ" if margin is None else f"biên lãi góp {margin:.2f}%"
+                sections.append(
+                    "Sản phẩm có **{label} thấp nhất** là **{name}**: {total:,} VND trong {orders} đơn hoàn tất "
+                    "({units} sản phẩm), tương đương {per_unit:,} VND mỗi sản phẩm; {margin_text}. {limitation}".format(
+                        label=label, name=lowest_product["product_name"], total=abs(total),
+                        orders=lowest_product["completed_order_count"], units=lowest_product["completed_unit_count"],
+                        per_unit=abs(per_unit), margin_text=margin_text,
+                        limitation=str(product_contribution_ranking["limitation"]),
                     )
                 )
         if sales_period_comparison:

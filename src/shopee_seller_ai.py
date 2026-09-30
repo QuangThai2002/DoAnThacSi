@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
+from io import BytesIO
 import random
 from pathlib import Path
 import sys
@@ -850,6 +851,32 @@ COLUMN_LABELS = {
     "segment_name": "Nhóm khách", "customer_count": "Số khách", "repeat_order_count": "Đơn mua lại", "gmv_vnd": "GMV (VND)",
     "views": "Lượt xem", "add_to_cart_count": "Lượt thêm giỏ", "order_count": "Số đơn",
 }
+
+# Các mẫu dùng tiếng Việt không dấu để người dùng có thể tự lập bảng trong
+# Excel mà không phải học tên trường kỹ thuật. Hệ thống vẫn chấp nhận cả cột
+# tiếng Việt có dấu và schema kỹ thuật cũ để không làm hỏng các tệp đã có.
+VIETNAMESE_UPLOAD_TEMPLATES = {
+    "orders.csv": {
+        "title": "Đơn hàng",
+        "columns": ["ma_don_hang", "ngay_dat_hang", "trang_thai", "ma_san_pham", "so_luong", "gia_tri_hang_hoa_vnd", "giam_gia_nguoi_ban_vnd", "tro_gia_san_vnd", "phi_giao_dich_uoc_tinh_vnd", "phi_dich_vu_uoc_tinh_vnd"],
+    },
+    "products.csv": {
+        "title": "Sản phẩm",
+        "columns": ["ma_san_pham", "ten_san_pham", "nganh_hang", "gia_von_don_vi_vnd", "gia_niem_yet_vnd"],
+    },
+    "inventory.csv": {
+        "title": "Tồn kho",
+        "columns": ["ma_san_pham", "ton_thuc_te", "da_giu_cho", "nguong_nhap_them", "ngay_cap_nhat"],
+    },
+}
+
+
+@st.cache_data(show_spinner=False)
+def vietnamese_excel_template(columns: tuple[str, ...]) -> bytes:
+    """Create a blank .xlsx template with Vietnamese, no-accent headers."""
+    output = BytesIO()
+    pd.DataFrame(columns=list(columns)).to_excel(output, index=False, engine="openpyxl")
+    return output.getvalue()
 
 
 def library_repository() -> ShopDataLibrary:
@@ -2098,21 +2125,38 @@ def render_data_upload(*, inline: bool = False) -> None:
         "Chưa có dữ liệu shop. Thêm báo cáo để AI phân tích doanh thu, tồn kho và quảng cáo.",
         icon=":material/info:",
     )
+    st.caption(
+        "Bạn có thể tải CSV UTF-8 hoặc Excel (.xlsx). Tên cột được viết tiếng Việt có dấu hoặc không dấu đều dùng được; "
+        "ví dụ `ma_san_pham` nghĩa là **Mã sản phẩm**."
+    )
+    with st.expander("Mẫu Excel tiếng Việt (không dấu)", icon=":material/download:"):
+        st.write("Tải ba mẫu bắt buộc, điền dữ liệu rồi tải từng tệp lên bên dưới. Tên cột không dấu giúp nhập liệu dễ hơn; ý nghĩa hiển thị trong ứng dụng vẫn có dấu.")
+        template_columns = st.columns(3)
+        for column, (_, spec) in zip(template_columns, VIETNAMESE_UPLOAD_TEMPLATES.items()):
+            with column:
+                st.download_button(
+                    f"Tải mẫu {spec['title']}",
+                    data=vietnamese_excel_template(tuple(spec["columns"])),
+                    file_name=f"mau_{spec['title'].lower().replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    icon=":material/download:",
+                    width="stretch",
+                )
     with st.form("seller_upload_form"):
-        orders = st.file_uploader("Báo cáo đơn hàng (orders.csv)", type=["csv"])
-        products = st.file_uploader("Danh mục sản phẩm (products.csv)", type=["csv"])
-        inventory = st.file_uploader("Báo cáo tồn kho (inventory.csv)", type=["csv"])
-        ads = st.file_uploader("Báo cáo quảng cáo (ads.csv, không bắt buộc)", type=["csv"])
-        purchase_orders = st.file_uploader("Đơn nhập hàng (purchase_orders.csv, không bắt buộc)", type=["csv"])
-        returns = st.file_uploader("Báo cáo hoàn hàng (returns.csv, không bắt buộc)", type=["csv"])
-        reviews = st.file_uploader("Đánh giá khách hàng (reviews.csv, không bắt buộc)", type=["csv"])
-        operating_costs = st.file_uploader("Chi phí vận hành (operating_costs.csv, không bắt buộc)", type=["csv"])
-        inventory_movements = st.file_uploader("Biến động kho (inventory_movements.csv, không bắt buộc)", type=["csv"])
-        quality_checks = st.file_uploader("Kiểm tra chất lượng lô hàng (quality_checks.csv, không bắt buộc)", type=["csv"])
-        cash_flow = st.file_uploader("Dòng tiền (cash_flow.csv, không bắt buộc)", type=["csv"])
-        supplier_performance = st.file_uploader("Hiệu quả nhà cung cấp (supplier_performance.csv, không bắt buộc)", type=["csv"])
-        customer_segments = st.file_uploader("Nhóm khách hàng (customer_segments.csv, không bắt buộc)", type=["csv"])
-        product_funnel = st.file_uploader("Hiệu quả từng sản phẩm (product_funnel.csv, không bắt buộc)", type=["csv"])
+        orders = st.file_uploader("Đơn hàng (bắt buộc)", type=["csv", "xlsx"])
+        products = st.file_uploader("Sản phẩm và giá vốn (bắt buộc)", type=["csv", "xlsx"])
+        inventory = st.file_uploader("Tồn kho (bắt buộc)", type=["csv", "xlsx"])
+        ads = st.file_uploader("Quảng cáo (tùy chọn)", type=["csv", "xlsx"])
+        purchase_orders = st.file_uploader("Đơn nhập hàng (tùy chọn)", type=["csv", "xlsx"])
+        returns = st.file_uploader("Hoàn hàng (tùy chọn)", type=["csv", "xlsx"])
+        reviews = st.file_uploader("Đánh giá khách hàng (tùy chọn)", type=["csv", "xlsx"])
+        operating_costs = st.file_uploader("Chi phí vận hành (tùy chọn)", type=["csv", "xlsx"])
+        inventory_movements = st.file_uploader("Biến động kho (tùy chọn)", type=["csv", "xlsx"])
+        quality_checks = st.file_uploader("Kiểm tra chất lượng lô hàng (tùy chọn)", type=["csv", "xlsx"])
+        cash_flow = st.file_uploader("Dòng tiền (tùy chọn)", type=["csv", "xlsx"])
+        supplier_performance = st.file_uploader("Hiệu quả nhà cung cấp (tùy chọn)", type=["csv", "xlsx"])
+        customer_segments = st.file_uploader("Nhóm khách hàng (tùy chọn)", type=["csv", "xlsx"])
+        product_funnel = st.file_uploader("Hiệu quả từng sản phẩm (tùy chọn)", type=["csv", "xlsx"])
         submitted = st.form_submit_button("Thêm dữ liệu", icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
@@ -2134,13 +2178,14 @@ def render_data_upload(*, inline: bool = False) -> None:
     }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:
-        st.error("Bạn cần thêm đủ báo cáo: " + ", ".join(missing), icon=":material/error:")
+        labels = {"orders.csv": "Đơn hàng", "products.csv": "Sản phẩm và giá vốn", "inventory.csv": "Tồn kho"}
+        st.error("Bạn cần thêm đủ: " + ", ".join(labels[name] for name in missing), icon=":material/error:")
         return
     try:
         content = {name: item.getvalue() for name, item in files.items() if item is not None}
-        tool = ShopDataTool.from_uploaded_csvs(content)
-    except ShopDataValidationError:
-        st.error("File này chưa đúng định dạng mà hệ thống hỗ trợ. Hãy kiểm tra lại dữ liệu CSV.", icon=":material/error:")
+        tool = ShopDataTool.from_uploaded_files(content)
+    except ShopDataValidationError as exc:
+        st.error(str(exc), icon=":material/error:")
         return
     st.session_state.seller_uploaded_rows = tool.uploaded_rows
     st.session_state.seller_uploaded_names = tuple(content)

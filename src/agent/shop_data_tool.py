@@ -3,10 +3,13 @@ from __future__ import annotations
 import csv
 import io
 import re
+import unicodedata
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping
+
+import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -146,6 +149,99 @@ OPTIONAL_UPLOAD_FILES = frozenset({
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
 
+# Người dùng không cần biết tên trường kỹ thuật. Các tiêu đề tiếng Việt dưới
+# đây có thể viết có dấu hoặc không dấu; khi nạp, chúng được đổi về schema nội
+# bộ để toàn bộ phép tính vẫn dùng chung một chuẩn.
+VIETNAMESE_COLUMN_ALIASES: dict[str, dict[str, tuple[str, ...]]] = {
+    "orders.csv": {
+        "order_id": ("ma_don", "ma_don_hang"),
+        "order_date": ("ngay_dat", "ngay_dat_hang", "ngay_tao_don"),
+        "status": ("trang_thai",), "sku": ("ma_sku", "ma_san_pham"),
+        "quantity": ("so_luong",),
+        "gross_merchandise_value_vnd": ("gmv", "gmv_vnd", "gia_tri_hang_hoa", "gia_tri_hang_hoa_vnd"),
+        "seller_discount_vnd": ("giam_gia_nguoi_ban", "giam_gia_nguoi_ban_vnd"),
+        "platform_discount_vnd": ("tro_gia_san", "tro_gia_san_vnd", "giam_gia_san", "giam_gia_san_vnd"),
+        "estimated_transaction_fee_vnd": ("phi_giao_dich_uoc_tinh", "phi_giao_dich_uoc_tinh_vnd"),
+        "estimated_service_fee_vnd": ("phi_dich_vu_uoc_tinh", "phi_dich_vu_uoc_tinh_vnd"),
+    },
+    "products.csv": {
+        "sku": ("ma_sku", "ma_san_pham"), "product_name": ("ten_san_pham",),
+        "category": ("nganh_hang", "danh_muc"),
+        "cost_per_unit_vnd": ("gia_von_don_vi", "gia_von_don_vi_vnd"),
+        "list_price_vnd": ("gia_niem_yet", "gia_niem_yet_vnd", "gia_ban"),
+    },
+    "inventory.csv": {
+        "sku": ("ma_sku", "ma_san_pham"), "on_hand": ("ton_thuc_te", "ton_kho"),
+        "reserved": ("da_giu_cho", "hang_da_giu"), "reorder_point": ("nguong_nhap_them", "muc_nhap_lai"),
+        "last_updated": ("ngay_cap_nhat",),
+    },
+    "ads.csv": {
+        "campaign_id": ("ma_chien_dich",), "month": ("thang",), "campaign_name": ("ten_chien_dich",),
+        "spend_vnd": ("chi_quang_cao", "chi_quang_cao_vnd"),
+        "attributed_revenue_vnd": ("doanh_thu_quy_gan", "doanh_thu_quy_gan_vnd"),
+        "orders": ("so_don_tu_quang_cao", "so_don"),
+    },
+    "purchase_orders.csv": {
+        "purchase_order_id": ("ma_don_nhap",), "order_date": ("ngay_dat_hang", "ngay_nhap"),
+        "supplier_name": ("nha_cung_cap",), "sku": ("ma_sku", "ma_san_pham"), "quantity": ("so_luong",),
+        "unit_cost_vnd": ("gia_nhap_don_vi", "gia_nhap_don_vi_vnd"),
+        "expected_arrival_date": ("ngay_du_kien_ve",), "status": ("trang_thai",),
+    },
+    "returns.csv": {
+        "return_id": ("ma_hoan_hang",), "order_id": ("ma_don", "ma_don_hang"),
+        "request_date": ("ngay_yeu_cau_hoan",), "sku": ("ma_sku", "ma_san_pham"),
+        "quantity": ("so_luong",), "reason": ("ly_do",), "status": ("trang_thai",),
+        "refund_amount_vnd": ("tien_hoan", "tien_hoan_vnd"),
+    },
+    "reviews.csv": {
+        "review_id": ("ma_danh_gia",), "review_date": ("ngay_danh_gia",),
+        "sku": ("ma_sku", "ma_san_pham"), "rating": ("so_sao", "diem_danh_gia"),
+        "sentiment": ("cam_xuc",), "issue_type": ("van_de",), "comment": ("nhan_xet", "binh_luan"),
+    },
+    "operating_costs.csv": {
+        "cost_id": ("ma_chi_phi",), "month": ("thang",), "cost_category": ("nhom_chi_phi",),
+        "amount_vnd": ("so_tien", "so_tien_vnd"), "note": ("ghi_chu",),
+    },
+    "inventory_movements.csv": {
+        "movement_id": ("ma_bien_dong",), "movement_date": ("ngay_bien_dong",),
+        "sku": ("ma_sku", "ma_san_pham"), "movement_type": ("loai_bien_dong",),
+        "quantity": ("so_luong",), "reference": ("ma_tham_chieu",), "note": ("ghi_chu",),
+    },
+    "quality_checks.csv": {
+        "check_id": ("ma_kiem_tra",), "check_date": ("ngay_kiem_tra",), "purchase_order_id": ("ma_don_nhap",),
+        "sku": ("ma_sku", "ma_san_pham"), "inspected_quantity": ("so_luong_da_kiem",),
+        "defective_quantity": ("so_luong_loi",), "defect_type": ("loai_loi",), "status": ("trang_thai",),
+    },
+    "cash_flow.csv": {
+        "cash_flow_id": ("ma_dong_tien",), "date": ("ngay_ghi_nhan", "ngay"),
+        "direction": ("thu_chi", "huong_thu_chi"), "category": ("nhom", "danh_muc"),
+        "amount_vnd": ("so_tien", "so_tien_vnd"), "reference": ("ma_tham_chieu",), "note": ("ghi_chu",),
+    },
+    "supplier_performance.csv": {
+        "supplier_id": ("ma_nha_cung_cap",), "supplier_name": ("ten_nha_cung_cap", "nha_cung_cap"), "month": ("thang",),
+        "on_time_delivery_rate_percent": ("giao_dung_hen_phan_tram", "giao_dung_hen"),
+        "defect_rate_percent": ("ty_le_loi_phan_tram", "ty_le_loi"),
+        "average_lead_time_days": ("so_ngay_giao_trung_binh",), "order_count": ("so_don",),
+    },
+    "customer_segments.csv": {
+        "month": ("thang",), "segment_name": ("nhom_khach",), "customer_count": ("so_khach",),
+        "order_count": ("so_don",), "repeat_order_count": ("don_mua_lai",), "gmv_vnd": ("gmv", "gmv_vnd"),
+    },
+    "product_funnel.csv": {
+        "month": ("thang",), "sku": ("ma_sku", "ma_san_pham"), "views": ("luot_xem",),
+        "add_to_cart_count": ("luot_them_gio",), "order_count": ("so_don",),
+    },
+}
+
+
+def normalize_header(value: object) -> str:
+    """Make Vietnamese spreadsheet headers comparable without requiring accents."""
+    text = unicodedata.normalize("NFD", str(value or ""))
+    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    text = text.replace("đ", "d").replace("Đ", "D").lower().strip()
+    return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+
+
 class ShopDataValidationError(ValueError):
     """Raised when an uploaded operational CSV cannot be used safely."""
 
@@ -229,7 +325,12 @@ class ShopDataTool:
 
     @classmethod
     def from_uploaded_csvs(cls, files: Mapping[str, bytes]) -> "ShopDataTool":
-        """Build a per-session tool after validating the required CSV schema."""
+        """Backward-compatible name for structured CSV or Excel uploads."""
+        return cls.from_uploaded_files(files)
+
+    @classmethod
+    def from_uploaded_files(cls, files: Mapping[str, bytes]) -> "ShopDataTool":
+        """Build a per-session tool from CSV/XLSX files using Vietnamese-friendly headers."""
         normalized_files = {str(name): value for name, value in files.items()}
         missing_files = sorted(REQUIRED_UPLOAD_FILES - set(normalized_files))
         if missing_files:
@@ -245,11 +346,11 @@ class ShopDataTool:
 
         rows_by_name: dict[str, list[dict[str, str]]] = {}
         for name, raw_content in normalized_files.items():
-            rows_by_name[name] = cls._parse_uploaded_csv(name, raw_content)
+            rows_by_name[name] = cls._parse_uploaded_file(name, raw_content)
         return cls(uploaded_rows=rows_by_name)
 
     @classmethod
-    def _parse_uploaded_csv(
+    def _parse_uploaded_file(
         cls,
         name: str,
         raw_content: bytes,
@@ -261,30 +362,26 @@ class ShopDataTool:
                 f"{name} vượt quá giới hạn {MAX_UPLOADED_CSV_BYTES // (1024 * 1024)} MB."
             )
 
-        try:
-            text = raw_content.decode("utf-8-sig")
-        except UnicodeDecodeError as exc:
-            raise ShopDataValidationError(
-                f"{name} phải được lưu theo mã hóa UTF-8."
-            ) from exc
+        if raw_content.startswith(b"PK\x03\x04"):
+            rows, headers = cls._read_excel_rows(name, raw_content)
+        else:
+            rows, headers = cls._read_csv_rows(name, raw_content)
 
-        reader = csv.DictReader(io.StringIO(text))
-        headers = [str(header).strip() for header in (reader.fieldnames or []) if header]
-        missing_columns = sorted(REQUIRED_UPLOAD_COLUMNS[name] - set(headers))
+        header_mapping = cls._header_mapping(name, headers)
+        missing_columns = sorted(REQUIRED_UPLOAD_COLUMNS[name] - set(header_mapping.values()))
         if missing_columns:
             raise ShopDataValidationError(
-                f"{name} thiếu cột: " + ", ".join(missing_columns)
+                f"{name} thiếu cột bắt buộc: " + ", ".join(missing_columns)
             )
-        reader.fieldnames = headers
-
         rows = [
             {
-                str(key).strip(): str(value or "").strip()
+                header_mapping.get(str(key).strip(), str(key).strip()): value
                 for key, value in row.items()
                 if key is not None
             }
-            for row in reader
+            for row in rows
         ]
+        rows = [cls._normalize_uploaded_values(name, row) for row in rows]
         if not rows:
             raise ShopDataValidationError(f"{name} chưa có dòng dữ liệu.")
 
@@ -316,6 +413,101 @@ class ShopDataTool:
 
         cls._validate_uploaded_rows(name, rows)
         return rows
+
+    @staticmethod
+    def _normalize_uploaded_values(name: str, row: dict[str, str]) -> dict[str, str]:
+        """Accept common Vietnamese values while keeping analytics deterministic."""
+        normalized_row = dict(row)
+        if "status" in normalized_row:
+            status = normalize_header(normalized_row["status"])
+            status_aliases = {
+                "hoan_tat": "completed", "hoan_thanh": "completed", "da_hoan_thanh": "completed",
+                "completed": "completed", "huy": "cancelled", "da_huy": "cancelled",
+                "cancelled": "cancelled", "canceled": "cancelled", "da_nhan": "received",
+                "received": "received", "da_xac_nhan": "confirmed", "confirmed": "confirmed",
+            }
+            normalized_row["status"] = status_aliases.get(status, str(normalized_row["status"]).strip())
+        if name == "cash_flow.csv" and "direction" in normalized_row:
+            direction = normalize_header(normalized_row["direction"])
+            normalized_row["direction"] = {"tien_thu": "thu", "thu": "thu", "tien_chi": "chi", "chi": "chi"}.get(
+                direction, str(normalized_row["direction"]).strip()
+            )
+        if name == "inventory_movements.csv" and "movement_type" in normalized_row:
+            movement = normalize_header(normalized_row["movement_type"])
+            normalized_row["movement_type"] = {
+                "nhap_kho": "Nhập kho", "ban_ra": "Bán ra", "hang_loi_huy": "Hàng lỗi/hủy",
+            }.get(movement, str(normalized_row["movement_type"]).strip())
+        return normalized_row
+
+    @staticmethod
+    def _read_csv_rows(name: str, raw_content: bytes) -> tuple[list[dict[str, str]], list[str]]:
+        try:
+            text = raw_content.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ShopDataValidationError(
+                f"{name} cần là CSV mã hóa UTF-8 hoặc tệp Excel .xlsx."
+            ) from exc
+        reader = csv.DictReader(io.StringIO(text))
+        headers = [str(header).strip() for header in (reader.fieldnames or []) if header]
+        reader.fieldnames = headers
+        rows = [
+            {
+                str(key).strip(): str(value or "").strip()
+                for key, value in row.items()
+                if key is not None
+            }
+            for row in reader
+        ]
+        return rows, headers
+
+    @staticmethod
+    def _spreadsheet_value(value: object) -> str:
+        if value is None or pd.isna(value):
+            return ""
+        if isinstance(value, (datetime, date, pd.Timestamp)):
+            return value.date().isoformat() if isinstance(value, pd.Timestamp) else value.isoformat()
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        return str(value).strip()
+
+    @classmethod
+    def _read_excel_rows(cls, name: str, raw_content: bytes) -> tuple[list[dict[str, str]], list[str]]:
+        try:
+            frame = pd.read_excel(io.BytesIO(raw_content), dtype=object)
+        except Exception as exc:
+            raise ShopDataValidationError(
+                f"{name} không đọc được tệp Excel. Hãy lưu lại dưới dạng .xlsx rồi thử lại."
+            ) from exc
+        headers = [str(column).strip() for column in frame.columns if str(column).strip()]
+        if len(headers) != len(frame.columns):
+            raise ShopDataValidationError(f"{name} có tên cột trống.")
+        rows = [
+            {
+                str(column).strip(): cls._spreadsheet_value(value)
+                for column, value in record.items()
+            }
+            for record in frame.to_dict("records")
+        ]
+        return rows, headers
+
+    @staticmethod
+    def _header_mapping(name: str, headers: list[str]) -> dict[str, str]:
+        aliases = {
+            normalize_header(alias): canonical
+            for canonical, choices in VIETNAMESE_COLUMN_ALIASES.get(name, {}).items()
+            for alias in (canonical, *choices)
+        }
+        mapping = {
+            header: aliases.get(normalize_header(header), str(header).strip())
+            for header in headers
+        }
+        canonical_headers = list(mapping.values())
+        duplicates = sorted({header for header in canonical_headers if canonical_headers.count(header) > 1})
+        if duplicates:
+            raise ShopDataValidationError(
+                f"{name} có cột bị trùng nghĩa: " + ", ".join(duplicates)
+            )
+        return mapping
 
     @staticmethod
     def _validate_uploaded_rows(name: str, rows: list[dict[str, str]]) -> None:
@@ -493,6 +685,62 @@ class ShopDataTool:
             "ranked_products": ranked,
             "top_product": ranked[0] if ranked else None,
             "limitation": "Xếp hạng chỉ dựa trên đơn hoàn tất trong dữ liệu đang gắn; GMV không phải lợi nhuận.",
+        }
+
+    def product_contribution_ranking(self, period: str | None = None) -> dict[str, Any]:
+        """Rank products by recorded contribution, from lowest to highest.
+
+        This distinguishes a product that earns little per unit from the shop's
+        total contribution. It deliberately excludes costs that are not tied to
+        a single order (for example staffing or warehouse rent).
+        """
+        products = {row["sku"]: row for row in self._read_csv("products.csv")}
+        totals: dict[str, dict[str, Decimal | int]] = {}
+        for order in self._read_csv("orders.csv"):
+            if order["status"].strip().lower() != COMPLETED_STATUS:
+                continue
+            if period is not None and not order["order_date"].startswith(period):
+                continue
+            row = totals.setdefault(
+                order["sku"],
+                {"gmv": Decimal("0"), "seller_discount": Decimal("0"), "transaction_fee": Decimal("0"), "service_fee": Decimal("0"), "quantity": 0, "order_count": 0},
+            )
+            row["gmv"] = Decimal(str(row["gmv"])) + as_decimal(order["gross_merchandise_value_vnd"])
+            row["seller_discount"] = Decimal(str(row["seller_discount"])) + as_decimal(order["seller_discount_vnd"])
+            row["transaction_fee"] = Decimal(str(row["transaction_fee"])) + as_decimal(order["estimated_transaction_fee_vnd"])
+            row["service_fee"] = Decimal(str(row["service_fee"])) + as_decimal(order["estimated_service_fee_vnd"])
+            row["quantity"] = int(row["quantity"]) + int(order["quantity"])
+            row["order_count"] = int(row["order_count"]) + 1
+
+        ranked: list[dict[str, Any]] = []
+        for sku, values in totals.items():
+            product = products.get(sku, {})
+            gmv = Decimal(str(values["gmv"]))
+            units = int(values["quantity"])
+            product_cost = as_decimal(product.get("cost_per_unit_vnd", "0")) * units
+            contribution = (
+                gmv - Decimal(str(values["seller_discount"]))
+                - Decimal(str(values["transaction_fee"])) - Decimal(str(values["service_fee"]))
+                - product_cost
+            )
+            ranked.append({
+                "sku": sku,
+                "product_name": product.get("product_name", sku),
+                "completed_order_count": int(values["order_count"]),
+                "completed_unit_count": units,
+                "gmv_vnd": as_number(gmv),
+                "estimated_contribution_vnd": as_number(contribution),
+                "estimated_contribution_per_unit_vnd": as_number(contribution / units) if units else 0,
+                "contribution_margin_percent": round(float(contribution / gmv * 100), 2) if gmv else None,
+            })
+        ranked.sort(key=lambda item: (float(item["estimated_contribution_vnd"]), item["product_name"]))
+        return {
+            "tool": "shop_data.product_contribution_ranking",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "ranked_products": ranked,
+            "lowest_product": ranked[0] if ranked else None,
+            "limitation": "Lãi góp ước tính đã trừ giá vốn, giảm giá người bán và phí sàn đã ghi nhận; chưa trừ quảng cáo, đóng gói, nhân sự, kho bãi, thuế và chi phí chung.",
         }
 
     def sales_period_comparison(self, period: str | None = None) -> dict[str, Any]:

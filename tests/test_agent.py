@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -86,6 +87,37 @@ class ShopDataToolTests(unittest.TestCase):
                     "inventory.csv": b"sku,on_hand,reserved,reorder_point,last_updated\nSKU-1,1,0,1,2026-08-01\n",
                 }
             )
+
+    def test_excel_with_vietnamese_no_accent_headers_is_accepted(self) -> None:
+        import pandas as pd
+
+        header_maps = {
+            "orders.csv": {
+                "order_id": "ma_don_hang", "order_date": "ngay_dat_hang", "status": "trang_thai",
+                "sku": "ma_san_pham", "quantity": "so_luong", "gross_merchandise_value_vnd": "gia_tri_hang_hoa_vnd",
+                "seller_discount_vnd": "giam_gia_nguoi_ban_vnd", "platform_discount_vnd": "tro_gia_san_vnd",
+                "estimated_transaction_fee_vnd": "phi_giao_dich_uoc_tinh_vnd", "estimated_service_fee_vnd": "phi_dich_vu_uoc_tinh_vnd",
+            },
+            "products.csv": {
+                "sku": "ma_san_pham", "product_name": "ten_san_pham", "category": "nganh_hang",
+                "cost_per_unit_vnd": "gia_von_don_vi_vnd", "list_price_vnd": "gia_niem_yet_vnd",
+            },
+            "inventory.csv": {
+                "sku": "ma_san_pham", "on_hand": "ton_thuc_te", "reserved": "da_giu_cho",
+                "reorder_point": "nguong_nhap_them", "last_updated": "ngay_cap_nhat",
+            },
+        }
+        files: dict[str, bytes] = {}
+        for name, rename_map in header_maps.items():
+            frame = pd.read_csv(SRC_DIR.parent / "data" / "shop_mock" / name).rename(columns=rename_map)
+            output = BytesIO()
+            frame.to_excel(output, index=False, engine="openpyxl")
+            files[name] = output.getvalue()
+
+        tool = ShopDataTool.from_uploaded_files(files)
+
+        self.assertEqual(tool.data_scope, "uploaded_csv")
+        self.assertEqual(tool.sales_summary("2026-08")["completed_order_count"], 6)
 
     def test_uploaded_ads_accept_month_year_export_format(self) -> None:
         upload_files = {
@@ -266,6 +298,13 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("1,760,000 VND", result["answer"])
         self.assertNotIn("Trong kỳ toàn bộ kỳ có trong dữ liệu", result["answer"])
         self.assertNotIn("Ví dụ bán 2 sản phẩm", result["answer"])
+
+    def test_runner_answers_lowest_product_contribution_with_product_level_numbers(self) -> None:
+        result = AgentRunner().run("Sản phẩm nào có lãi góp thấp?")
+
+        self.assertIn("lãi góp thấp nhất", result["answer"])
+        self.assertIn("mỗi sản phẩm", result["answer"])
+        self.assertNotIn("Sau giá vốn và các phí sàn đã ghi nhận", result["answer"])
 
     def test_runner_explains_cancelled_orders_without_a_sales_summary(self) -> None:
         result = AgentRunner().run("Nếu đơn bị hủy thì có được tính doanh thu không?")

@@ -30,15 +30,17 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_owner").click().run()
 
+        upload_labels = [uploader.label for uploader in app.file_uploader]
         self.assertEqual(
-            [uploader.label for uploader in app.file_uploader],
+            upload_labels[:4],
             [
-                "Báo cáo đơn hàng (orders.csv)",
-                "Danh mục sản phẩm (products.csv)",
-                "Báo cáo tồn kho (inventory.csv)",
-                "Báo cáo quảng cáo (ads.csv, không bắt buộc)",
+                "Đơn hàng (bắt buộc)",
+                "Sản phẩm và giá vốn (bắt buộc)",
+                "Tồn kho (bắt buộc)",
+                "Quảng cáo (tùy chọn)",
             ],
         )
+        self.assertEqual(len(upload_labels), 14)
         self.assertEqual(len(app.error), 0)
 
     def test_sidebar_compacts_to_icon_controls(self) -> None:

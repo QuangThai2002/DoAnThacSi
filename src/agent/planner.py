@@ -63,6 +63,7 @@ class Planner:
         "roas",
         "chi phi cua shop",
         "loi nhuan",
+        "lai gop",
         "lo von",
         "gia von",
         "hang hoan",
