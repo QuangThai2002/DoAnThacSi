@@ -32,16 +32,15 @@ class SellerFacingUiTests(unittest.TestCase):
 
         upload_labels = [uploader.label for uploader in app.file_uploader]
         self.assertEqual(
-            upload_labels[:5],
+            upload_labels,
             [
-                "Chọn bộ dữ liệu Eslabong (.xlsx)",
+                "Chọn file Excel (.xlsx)",
                 "Đơn hàng (bắt buộc)",
                 "Sản phẩm và giá vốn (bắt buộc)",
                 "Tồn kho (bắt buộc)",
-                "Quảng cáo (tùy chọn)",
             ],
         )
-        self.assertEqual(len(upload_labels), 15)
+        self.assertIn("Tải dữ liệu thử (.xlsx)", [item.label for item in app.download_button])
         self.assertEqual(len(app.error), 0)
 
     def test_settings_switch_interface_language_and_dark_mode_without_losing_state(self) -> None:

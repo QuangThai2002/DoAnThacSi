@@ -493,6 +493,7 @@ class ShopDataTool:
                 "completed": "completed", "huy": "cancelled", "da_huy": "cancelled",
                 "cancelled": "cancelled", "canceled": "cancelled", "da_nhan": "received",
                 "received": "received", "da_xac_nhan": "confirmed", "confirmed": "confirmed",
+                "dang_xem_xet": "under_review", "under_review": "under_review",
             }
             normalized_row["status"] = status_aliases.get(status, str(normalized_row["status"]).strip())
         if name == "cash_flow.csv" and "direction" in normalized_row:

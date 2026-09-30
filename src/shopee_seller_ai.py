@@ -40,6 +40,7 @@ from agent.shop_data_library import (
     DEMO_PERIODS,
     REQUIRED_FILES as LIBRARY_REQUIRED_FILES,
     ShopDataLibrary,
+    build_demo_rows,
     clean_and_validate_rows,
     demo_catalog,
     empty_rows,
@@ -966,6 +967,10 @@ def vietnamese_excel_template(columns: tuple[str, ...]) -> bytes:
 @st.cache_data(show_spinner=False)
 def vietnamese_excel_export(rows_by_name: dict[str, list[dict[str, str]]]) -> bytes:
     """Export the currently attached data as a user-editable Vietnamese Excel workbook."""
+    status_labels = {
+        "completed": "Hoàn thành", "cancelled": "Đã hủy", "received": "Đã nhận",
+        "confirmed": "Đã xác nhận", "under_review": "Đang xem xét",
+    }
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         for name, rows in rows_by_name.items():
@@ -974,12 +979,27 @@ def vietnamese_excel_export(rows_by_name: dict[str, list[dict[str, str]]]) -> by
                 field: choices[0] if choices else field
                 for field, choices in aliases.items()
             }
-            frame = pd.DataFrame(rows).rename(columns=rename_map)
+            exported_rows = [
+                {
+                    field: status_labels.get(str(value), value) if field == "status" else value
+                    for field, value in row.items()
+                }
+                for row in rows
+            ]
+            frame = pd.DataFrame(exported_rows).rename(columns=rename_map)
             preferred_columns = [rename_map.get(field, field) for field in aliases]
             other_columns = [column for column in frame.columns if column not in preferred_columns]
             frame = frame.reindex(columns=[*preferred_columns, *other_columns])
             frame.to_excel(writer, sheet_name=EXCEL_SHEET_NAMES.get(name, name[:31]), index=False)
     return output.getvalue()
+
+
+@st.cache_data(show_spinner=False)
+def vietnamese_sample_workbook() -> bytes:
+    """Provide a complete, Vietnamese, editable practice workbook for first use."""
+    return vietnamese_excel_export(
+        build_demo_rows(["phone-accessories", "appliance"], seed=20260930)
+    )
 
 
 def library_repository() -> ShopDataLibrary:
@@ -2243,35 +2263,32 @@ def render_data_upload(*, inline: bool = False) -> None:
     st.caption(
         ui_text("Bạn có thể tải CSV UTF-8 hoặc Excel (.xlsx). Tên cột được viết tiếng Việt có dấu hoặc không dấu đều dùng được; ví dụ `ma_san_pham` nghĩa là **Mã sản phẩm**.", "You can upload UTF-8 CSV or Excel (.xlsx). Vietnamese headers with or without accents are accepted; for example, `ma_san_pham` means **Product code**.")
     )
-    with st.expander(ui_text("Mẫu Excel tiếng Việt (không dấu)", "Vietnamese Excel templates"), icon=":material/download:"):
-        st.write(ui_text("Tải ba mẫu bắt buộc, điền dữ liệu rồi tải từng tệp lên bên dưới. Tên cột không dấu giúp nhập liệu dễ hơn; ý nghĩa hiển thị trong ứng dụng vẫn có dấu.", "Download the three required templates, fill them in, then upload each file below. The headers use Vietnamese without accents for reliable data entry."))
-        template_columns = st.columns(3)
-        for column, (_, spec) in zip(template_columns, VIETNAMESE_UPLOAD_TEMPLATES.items()):
-            with column:
-                st.download_button(
-                    ui_text(f"Tải mẫu {spec['title']}", f"Download {spec['title']} template"),
-                    data=vietnamese_excel_template(tuple(spec["columns"])),
-                    file_name=f"mau_{spec['title'].lower().replace(' ', '_')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    icon=":material/download:",
-                    width="stretch",
-                )
+    with st.container(border=True):
+        st.markdown("#### " + ui_text("Dữ liệu thử tiếng Việt", "Vietnamese sample data"))
+        st.caption(ui_text(
+            "Bộ thử gồm 14 sản phẩm thuộc hai ngành, đơn hàng trong 12 tháng và các bảng vận hành liên quan. Tất cả tiêu đề và trạng thái đều là tiếng Việt.",
+            "The sample has 14 products across two categories, 12 months of orders, and related operational tables. All headers and statuses are in Vietnamese.",
+        ))
+        st.download_button(
+            ui_text("Tải dữ liệu thử (.xlsx)", "Download sample data (.xlsx)"),
+            data=vietnamese_sample_workbook(),
+            file_name="du_lieu_thu_eslabong_tieng_viet.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            icon=":material/download:",
+        )
 
-    st.markdown("#### " + ui_text("Nạp lại bộ dữ liệu Excel", "Re-import an Excel workbook"))
+    st.markdown("#### " + ui_text("Nạp một file Excel", "Upload one Excel workbook"))
     st.caption(ui_text(
-        "Nếu bạn đã tải bộ dữ liệu từ Eslabong, chỉ cần chọn lại đúng một file `.xlsx` đó. Mỗi trang trong file sẽ được đọc thành bảng tương ứng; không cần tách file.",
-        "If you downloaded a data workbook from Eslabong, select that single `.xlsx` file again. Each sheet is read as its matching table; no file splitting is needed.",
+        "Chọn file Eslabong vừa tải hoặc file đã xuất từ chat. Hệ thống tự đọc các trang Đơn hàng, Sản phẩm và Tồn kho.",
+        "Choose an Eslabong sample or a workbook exported from chat. The app reads the Orders, Products, and Inventory sheets automatically.",
     ))
     exported_workbook = st.file_uploader(
-        ui_text("Chọn bộ dữ liệu Eslabong (.xlsx)", "Choose an Eslabong data workbook (.xlsx)"),
-        type=["xlsx"],
-        key="seller_workbook_upload",
+        ui_text("Chọn file Excel (.xlsx)", "Choose an Excel file (.xlsx)"),
+        type=["xlsx"], key="seller_workbook_upload",
     )
     if st.button(
-        ui_text("Dùng bộ dữ liệu Excel này", "Use this Excel workbook"),
-        key="seller_use_workbook",
-        icon=":material/upload_file:",
-        disabled=exported_workbook is None,
+        ui_text("Dùng file này", "Use this file"), key="seller_use_workbook",
+        icon=":material/upload_file:", disabled=exported_workbook is None,
     ):
         try:
             tool = ShopDataTool.from_uploaded_workbook(exported_workbook.getvalue())
@@ -2285,30 +2302,32 @@ def render_data_upload(*, inline: bool = False) -> None:
             start_conversation("owner")
         clear_active_conversation()
         save_active_conversation()
-        st.session_state.seller_upload_message = ui_text(
-            "Đã nạp bộ dữ liệu Excel thành công.",
-            "Excel data workbook loaded successfully.",
-        )
+        st.session_state.seller_upload_message = ui_text("Đã nạp dữ liệu Excel thành công.", "Excel data loaded successfully.")
         st.rerun()
 
-    st.divider()
-    st.markdown("#### " + ui_text("Hoặc tải từng bảng riêng", "Or upload separate tables"))
-    with st.form("seller_upload_form"):
-        orders = st.file_uploader(ui_text("Đơn hàng (bắt buộc)", "Orders (required)"), type=["csv", "xlsx"])
-        products = st.file_uploader(ui_text("Sản phẩm và giá vốn (bắt buộc)", "Products and costs (required)"), type=["csv", "xlsx"])
-        inventory = st.file_uploader(ui_text("Tồn kho (bắt buộc)", "Inventory (required)"), type=["csv", "xlsx"])
-        ads = st.file_uploader(ui_text("Quảng cáo (tùy chọn)", "Advertising (optional)"), type=["csv", "xlsx"])
-        purchase_orders = st.file_uploader(ui_text("Đơn nhập hàng (tùy chọn)", "Purchase orders (optional)"), type=["csv", "xlsx"])
-        returns = st.file_uploader(ui_text("Hoàn hàng (tùy chọn)", "Returns (optional)"), type=["csv", "xlsx"])
-        reviews = st.file_uploader(ui_text("Đánh giá khách hàng (tùy chọn)", "Customer reviews (optional)"), type=["csv", "xlsx"])
-        operating_costs = st.file_uploader(ui_text("Chi phí vận hành (tùy chọn)", "Operating costs (optional)"), type=["csv", "xlsx"])
-        inventory_movements = st.file_uploader(ui_text("Biến động kho (tùy chọn)", "Inventory movements (optional)"), type=["csv", "xlsx"])
-        quality_checks = st.file_uploader(ui_text("Kiểm tra chất lượng lô hàng (tùy chọn)", "Quality checks (optional)"), type=["csv", "xlsx"])
-        cash_flow = st.file_uploader(ui_text("Dòng tiền (tùy chọn)", "Cash flow (optional)"), type=["csv", "xlsx"])
-        supplier_performance = st.file_uploader(ui_text("Hiệu quả nhà cung cấp (tùy chọn)", "Supplier performance (optional)"), type=["csv", "xlsx"])
-        customer_segments = st.file_uploader(ui_text("Nhóm khách hàng (tùy chọn)", "Customer segments (optional)"), type=["csv", "xlsx"])
-        product_funnel = st.file_uploader(ui_text("Hiệu quả từng sản phẩm (tùy chọn)", "Product funnel (optional)"), type=["csv", "xlsx"])
-        submitted = st.form_submit_button(ui_text("Thêm dữ liệu", "Add data"), icon=":material/upload_file:", width="stretch")
+    with st.expander(ui_text("Nhập từng bảng riêng (nâng cao)", "Upload separate tables (advanced)"), icon=":material/tune:"):
+        st.caption(ui_text("Chỉ cần ba bảng bắt buộc. Mở phần mở rộng khi bạn có thêm báo cáo quảng cáo, hoàn hàng hoặc chi phí.", "Only three tables are required. Open the extra fields when you also have advertising, returns, or cost reports."))
+        show_optional = st.toggle(ui_text("Thêm bảng mở rộng", "Add optional tables"), key="seller_show_optional_uploads")
+        ads = purchase_orders = returns = reviews = operating_costs = None
+        inventory_movements = quality_checks = cash_flow = supplier_performance = None
+        customer_segments = product_funnel = None
+        with st.form("seller_upload_form", border=False):
+            orders = st.file_uploader(ui_text("Đơn hàng (bắt buộc)", "Orders (required)"), type=["csv", "xlsx"])
+            products = st.file_uploader(ui_text("Sản phẩm và giá vốn (bắt buộc)", "Products and costs (required)"), type=["csv", "xlsx"])
+            inventory = st.file_uploader(ui_text("Tồn kho (bắt buộc)", "Inventory (required)"), type=["csv", "xlsx"])
+            if show_optional:
+                ads = st.file_uploader(ui_text("Quảng cáo", "Advertising"), type=["csv", "xlsx"])
+                purchase_orders = st.file_uploader(ui_text("Đơn nhập hàng", "Purchase orders"), type=["csv", "xlsx"])
+                returns = st.file_uploader(ui_text("Hoàn hàng", "Returns"), type=["csv", "xlsx"])
+                reviews = st.file_uploader(ui_text("Đánh giá khách hàng", "Customer reviews"), type=["csv", "xlsx"])
+                operating_costs = st.file_uploader(ui_text("Chi phí vận hành", "Operating costs"), type=["csv", "xlsx"])
+                inventory_movements = st.file_uploader(ui_text("Biến động kho", "Inventory movements"), type=["csv", "xlsx"])
+                quality_checks = st.file_uploader(ui_text("Kiểm tra chất lượng lô hàng", "Quality checks"), type=["csv", "xlsx"])
+                cash_flow = st.file_uploader(ui_text("Dòng tiền", "Cash flow"), type=["csv", "xlsx"])
+                supplier_performance = st.file_uploader(ui_text("Hiệu quả nhà cung cấp", "Supplier performance"), type=["csv", "xlsx"])
+                customer_segments = st.file_uploader(ui_text("Nhóm khách hàng", "Customer segments"), type=["csv", "xlsx"])
+                product_funnel = st.file_uploader(ui_text("Hiệu quả từng sản phẩm", "Product funnel"), type=["csv", "xlsx"])
+            submitted = st.form_submit_button(ui_text("Thêm dữ liệu", "Add data"), icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
     files = {
