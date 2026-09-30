@@ -32,15 +32,42 @@ class SellerFacingUiTests(unittest.TestCase):
 
         upload_labels = [uploader.label for uploader in app.file_uploader]
         self.assertEqual(
-            upload_labels[:4],
+            upload_labels[:5],
             [
+                "Chọn bộ dữ liệu Eslabong (.xlsx)",
                 "Đơn hàng (bắt buộc)",
                 "Sản phẩm và giá vốn (bắt buộc)",
                 "Tồn kho (bắt buộc)",
                 "Quảng cáo (tùy chọn)",
             ],
         )
-        self.assertEqual(len(upload_labels), 14)
+        self.assertEqual(len(upload_labels), 15)
+        self.assertEqual(len(app.error), 0)
+
+    def test_settings_switch_interface_language_and_dark_mode_without_losing_state(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+
+        app.selectbox(key="seller_language").select("en").run()
+        self.assertEqual(app.session_state["seller_language"], "en")
+        self.assertIn("New chat", [button.label for button in app.button])
+
+        app.toggle(key="seller_dark_mode").set_value(True).run()
+        self.assertTrue(app.session_state["seller_dark_mode"])
+        self.assertEqual(len(app.error), 0)
+
+    def test_attached_data_can_be_downloaded_as_an_editable_excel_workbook(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_owner").click().run()
+        app.session_state["seller_uploaded_rows"] = {
+            "orders.csv": [{"order_id": "DH-01", "order_date": "2026-09-01", "status": "completed", "sku": "SP-01", "quantity": "1", "gross_merchandise_value_vnd": "100000", "seller_discount_vnd": "0", "platform_discount_vnd": "0", "estimated_transaction_fee_vnd": "5000", "estimated_service_fee_vnd": "2500"}],
+            "products.csv": [{"sku": "SP-01", "product_name": "Sản phẩm thử", "category": "Thử nghiệm", "cost_per_unit_vnd": "50000", "list_price_vnd": "100000"}],
+            "inventory.csv": [{"sku": "SP-01", "on_hand": "5", "reserved": "0", "reorder_point": "2", "last_updated": "2026-09-01"}],
+        }
+        app.session_state["seller_uploaded_names"] = ("orders.csv", "products.csv", "inventory.csv")
+        app.run()
+
+        self.assertIn("Tải bộ dữ liệu đang dùng (.xlsx)", [item.label for item in app.download_button])
         self.assertEqual(len(app.error), 0)
 
     def test_sidebar_compacts_to_icon_controls(self) -> None:
@@ -74,7 +101,7 @@ class SellerFacingUiTests(unittest.TestCase):
             ["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"],
         )
         self.assertEqual(app.button(key="market_advisor_toggle").label, "AI")
-        self.assertTrue(any("Market Demo" in warning.value for warning in app.warning))
+        self.assertTrue(any("dữ liệu thị trường mô phỏng" in warning.value for warning in app.warning))
         self.assertEqual(len(app.error), 0)
 
     def test_strategy_workspace_exposes_decision_tools(self) -> None:

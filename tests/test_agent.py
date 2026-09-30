@@ -119,6 +119,26 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertEqual(tool.data_scope, "uploaded_csv")
         self.assertEqual(tool.sales_summary("2026-08")["completed_order_count"], 6)
 
+    def test_exported_multisheet_workbook_can_be_loaded_again(self) -> None:
+        import pandas as pd
+
+        output = BytesIO()
+        sheet_names = {
+            "orders.csv": "Don hang",
+            "products.csv": "San pham",
+            "inventory.csv": "Ton kho",
+        }
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            for file_name, sheet_name in sheet_names.items():
+                pd.read_csv(SRC_DIR.parent / "data" / "shop_mock" / file_name).to_excel(
+                    writer, sheet_name=sheet_name, index=False
+                )
+
+        tool = ShopDataTool.from_uploaded_workbook(output.getvalue())
+
+        self.assertEqual(tool.data_scope, "uploaded_csv")
+        self.assertEqual(tool.sales_summary("2026-08")["completed_order_count"], 6)
+
     def test_uploaded_ads_accept_month_year_export_format(self) -> None:
         upload_files = {
             name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()

@@ -148,6 +148,28 @@ OPTIONAL_UPLOAD_FILES = frozenset({
 })
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
+# Tên trang của workbook do Eslabong xuất. Chúng cũng được chuẩn hóa giống
+# tiêu đề cột, nên "Đơn hàng", "Don hang" và "don_hang" đều được nhận diện.
+WORKBOOK_SHEET_FILE_NAMES = {
+    "don_hang": "orders.csv",
+    "san_pham": "products.csv",
+    "ton_kho": "inventory.csv",
+    "quang_cao": "ads.csv",
+    "don_nhap_hang": "purchase_orders.csv",
+    "hoan_hang": "returns.csv",
+    "danh_gia_khach_hang": "reviews.csv",
+    "danh_gia": "reviews.csv",
+    "chi_phi_van_hanh": "operating_costs.csv",
+    "bien_dong_kho": "inventory_movements.csv",
+    "kiem_tra_chat_luong": "quality_checks.csv",
+    "dong_tien": "cash_flow.csv",
+    "hieu_qua_nha_cung_cap": "supplier_performance.csv",
+    "nha_cung_cap": "supplier_performance.csv",
+    "nhom_khach_hang": "customer_segments.csv",
+    "hieu_qua_tung_san_pham": "product_funnel.csv",
+    "hieu_qua_san_pham": "product_funnel.csv",
+}
+
 
 # Người dùng không cần biết tên trường kỹ thuật. Các tiêu đề tiếng Việt dưới
 # đây có thể viết có dấu hoặc không dấu; khi nạp, chúng được đổi về schema nội
@@ -348,6 +370,52 @@ class ShopDataTool:
         for name, raw_content in normalized_files.items():
             rows_by_name[name] = cls._parse_uploaded_file(name, raw_content)
         return cls(uploaded_rows=rows_by_name)
+
+    @classmethod
+    def from_uploaded_workbook(cls, raw_content: bytes) -> "ShopDataTool":
+        """Read a multi-sheet Eslabong workbook exported for local editing.
+
+        A workbook is converted to the same CSV-shaped parsing path as separate
+        uploads, so Vietnamese aliases, value normalization and validation stay
+        identical for both upload methods.
+        """
+        if not raw_content:
+            raise ShopDataValidationError("Tệp Excel đang trống.")
+        if len(raw_content) > MAX_UPLOADED_CSV_BYTES:
+            raise ShopDataValidationError(
+                f"Tệp Excel vượt quá giới hạn {MAX_UPLOADED_CSV_BYTES // (1024 * 1024)} MB."
+            )
+        try:
+            workbook = pd.ExcelFile(io.BytesIO(raw_content))
+        except Exception as exc:
+            raise ShopDataValidationError(
+                "Không đọc được tệp Excel. Hãy chọn workbook .xlsx đã lưu rồi thử lại."
+            ) from exc
+
+        files: dict[str, bytes] = {}
+        unknown_sheets: list[str] = []
+        for sheet_name in workbook.sheet_names:
+            file_name = WORKBOOK_SHEET_FILE_NAMES.get(normalize_header(sheet_name))
+            if file_name is None:
+                unknown_sheets.append(str(sheet_name))
+                continue
+            if file_name in files:
+                raise ShopDataValidationError(
+                    f"Workbook có hai trang cùng nghĩa là {file_name}. Hãy chỉ giữ một trang."
+                )
+            try:
+                frame = pd.read_excel(workbook, sheet_name=sheet_name, dtype=object)
+            except Exception as exc:
+                raise ShopDataValidationError(
+                    f"Không đọc được trang Excel: {sheet_name}."
+                ) from exc
+            files[file_name] = frame.to_csv(index=False).encode("utf-8")
+
+        if unknown_sheets:
+            raise ShopDataValidationError(
+                "Workbook có trang chưa được hỗ trợ: " + ", ".join(unknown_sheets)
+            )
+        return cls.from_uploaded_files(files)
 
     @classmethod
     def _parse_uploaded_file(

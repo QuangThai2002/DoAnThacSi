@@ -29,7 +29,11 @@ from agent.market_intelligence import (
     simulated_marketplace,
 )
 from agent.planner import Planner, normalize
-from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
+from agent.shop_data_tool import (
+    VIETNAMESE_COLUMN_ALIASES,
+    ShopDataTool,
+    ShopDataValidationError,
+)
 from agent.strategy_engine import action_plan, inventory_risk_analysis, opportunity_radar, simulate_strategy
 from agent.strategy_evidence import STRATEGY_EVIDENCE
 from agent.shop_data_library import (
@@ -43,7 +47,7 @@ from agent.shop_data_library import (
 
 
 st.set_page_config(
-    page_title="Eslabong | Trợ lý bán hàng",
+    page_title="Eslabong",
     page_icon=":material/storefront:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -216,17 +220,37 @@ REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
 CHAT_TYPES = {
     "learner": {
         "name": "Người mới",
+        "name_en": "New seller",
         "icon": ":material/school:",
         "description": "Tìm hiểu để mở và vận hành shop trên Shopee.",
+        "description_en": "Learn how to open and run a shop on Shopee.",
         "placeholder": "Hỏi về cách bắt đầu bán hoặc chính sách Shopee...",
+        "placeholder_en": "Ask how to start selling or about Shopee policies...",
     },
     "owner": {
         "name": "Chủ shop",
+        "name_en": "Shop owner",
         "icon": ":material/storefront:",
         "description": "Hỏi về doanh thu, chính sách và hoạt động của shop.",
+        "description_en": "Ask about revenue, policies, and shop operations.",
         "placeholder": "Hỏi về doanh thu, tồn kho, quảng cáo hoặc phí của shop...",
+        "placeholder_en": "Ask about revenue, inventory, ads, or shop fees...",
     },
 }
+
+
+def ui_text(vietnamese: str, english: str) -> str:
+    """Keep every setting-controlled UI label in one Vietnamese/English pair."""
+    return english if st.session_state.get("seller_language", "vi") == "en" else vietnamese
+
+
+def active_chat_type(mode: str) -> dict[str, str]:
+    chat_type = dict(CHAT_TYPES[mode])
+    if st.session_state.get("seller_language", "vi") == "en":
+        chat_type["name"] = chat_type["name_en"]
+        chat_type["description"] = chat_type["description_en"]
+        chat_type["placeholder"] = chat_type["placeholder_en"]
+    return chat_type
 
 # These values belong to one conversation, rather than to the whole browser
 # session.  Switching chats snapshots the current workspace and restores the
@@ -286,6 +310,57 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
     st.session_state.setdefault("strategy_section", "Radar cơ hội")
+    st.session_state.setdefault("seller_language", "vi")
+    st.session_state.setdefault("seller_dark_mode", False)
+
+
+def render_color_mode_css() -> None:
+    """Use a deliberately neutral black-and-white dark mode with high contrast."""
+    if not st.session_state.get("seller_dark_mode"):
+        return
+    st.markdown(
+        """
+        <style>
+          :root { color-scheme: dark !important; }
+          html, body, .stApp, [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"],
+          [data-testid="stBottom"], [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"], .stBottom {
+            background: #000000 !important; color: #ffffff !important;
+          }
+          [data-testid="stHeader"], [data-testid="stSidebar"] { background: #000000 !important; border-color: #555555 !important; }
+          [data-testid="stSidebar"] *, [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
+          [data-testid="stAppViewContainer"] span, [data-testid="stAppViewContainer"] h1,
+          [data-testid="stAppViewContainer"] h2, [data-testid="stAppViewContainer"] h3 { color: #ffffff !important; }
+          [data-testid="stMain"] .stButton > button, [data-testid="stSidebar"] .stButton > button,
+          [data-testid="stChatInput"], [data-testid="stChatInput"] > div, [data-testid="stChatInput"] form,
+          [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea,
+          [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+          [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+          [data-testid="stFileUploader"], [data-testid="stFileUploader"] section,
+          [data-testid="stFileUploaderDropzone"], [data-testid="stChatMessage"] {
+            background: #111111 !important; border-color: #777777 !important; color: #ffffff !important;
+          }
+          [data-testid="stMain"] .stButton > button, [data-testid="stSidebar"] .stButton > button,
+          [data-testid="stChatInput"] textarea, [data-testid="stChatInput"] textarea::placeholder,
+          [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea { color: #ffffff !important; }
+          .stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button,
+          [data-testid="stChatInput"] button, [class*="st-key-market_advisor_toggle"] button {
+            background: #ffffff !important; border-color: #ffffff !important; color: #000000 !important;
+            box-shadow: none !important;
+          }
+          [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
+          [data-testid="stSidebar"] .stButton > button:hover, [data-testid="stMain"] .stButton > button:hover,
+          [data-testid="stPills"] button:hover, [data-testid="stPills"] button[aria-pressed="true"] {
+            background: #262626 !important; border-color: #ffffff !important; color: #ffffff !important;
+          }
+          [data-testid="stPills"] button, [data-testid="stTabs"] button[aria-selected="true"],
+          [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+            background: #111111 !important; border-color: #ffffff !important; color: #ffffff !important;
+          }
+          .seller-eyebrow, .seller-subtitle { color: #ffffff !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def new_conversation_context(mode: str) -> dict[str, Any]:
@@ -387,7 +462,7 @@ def conversation_title(messages: list[dict[str, Any]], mode: str) -> str:
         )
     if first_question:
         return human_title(str(first_question))
-    return f"Chat {CHAT_TYPES[mode]['name'].lower()}"
+    return f"Chat {active_chat_type(mode)['name'].lower()}"
 
 
 def save_active_conversation() -> None:
@@ -870,12 +945,40 @@ VIETNAMESE_UPLOAD_TEMPLATES = {
     },
 }
 
+EXCEL_SHEET_NAMES = {
+    "orders.csv": "Don hang", "products.csv": "San pham", "inventory.csv": "Ton kho",
+    "ads.csv": "Quang cao", "purchase_orders.csv": "Don nhap hang", "returns.csv": "Hoan hang",
+    "reviews.csv": "Danh gia", "operating_costs.csv": "Chi phi van hanh",
+    "inventory_movements.csv": "Bien dong kho", "quality_checks.csv": "Kiem tra chat luong",
+    "cash_flow.csv": "Dong tien", "supplier_performance.csv": "Nha cung cap",
+    "customer_segments.csv": "Nhom khach hang", "product_funnel.csv": "Hieu qua san pham",
+}
+
 
 @st.cache_data(show_spinner=False)
 def vietnamese_excel_template(columns: tuple[str, ...]) -> bytes:
     """Create a blank .xlsx template with Vietnamese, no-accent headers."""
     output = BytesIO()
     pd.DataFrame(columns=list(columns)).to_excel(output, index=False, engine="openpyxl")
+    return output.getvalue()
+
+
+@st.cache_data(show_spinner=False)
+def vietnamese_excel_export(rows_by_name: dict[str, list[dict[str, str]]]) -> bytes:
+    """Export the currently attached data as a user-editable Vietnamese Excel workbook."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        for name, rows in rows_by_name.items():
+            aliases = VIETNAMESE_COLUMN_ALIASES.get(name, {})
+            rename_map = {
+                field: choices[0] if choices else field
+                for field, choices in aliases.items()
+            }
+            frame = pd.DataFrame(rows).rename(columns=rename_map)
+            preferred_columns = [rename_map.get(field, field) for field in aliases]
+            other_columns = [column for column in frame.columns if column not in preferred_columns]
+            frame = frame.reindex(columns=[*preferred_columns, *other_columns])
+            frame.to_excel(writer, sheet_name=EXCEL_SHEET_NAMES.get(name, name[:31]), index=False)
     return output.getvalue()
 
 
@@ -1173,10 +1276,10 @@ def render_strategy_workspace() -> None:
     st.markdown('<div class="seller-eyebrow">CHIẾN LƯỢC KINH DOANH · DEMO</div>', unsafe_allow_html=True)
     header, back = st.columns([8, 2], vertical_alignment="center")
     with header:
-        st.title("Chiến lược kinh doanh")
-        st.caption("Tìm cơ hội, mô phỏng phương án và tạo kế hoạch hành động. Kết quả là ước tính để chọn thử nghiệm nhỏ, không phải cam kết doanh thu.")
+        st.title(ui_text("Chiến lược kinh doanh", "Business strategy"))
+        st.caption(ui_text("Tìm cơ hội, mô phỏng phương án và tạo kế hoạch hành động. Kết quả là ước tính để chọn thử nghiệm nhỏ, không phải cam kết doanh thu.", "Find opportunities, simulate options, and create an action plan. Results are estimates for small tests, not revenue promises."))
     with back:
-        st.button("Quay lại chat", key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
+        st.button(ui_text("Quay lại chat", "Back to chat"), key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     render_workspace_context("strategy")
     render_quick_guide(
@@ -1209,17 +1312,17 @@ def render_strategy_workspace() -> None:
         radar_frame = pd.DataFrame(radar).rename(columns={
             "rank": "Xếp hạng", "category": "Ngành hàng", "lead_product": "Sản phẩm gợi ý",
             "units_sold_estimate": "Lượng bán ước tính", "estimated_revenue_vnd": "Doanh thu ước tính",
-            "positive_review_score": "Review tích cực", "longevity_score": "Độ bền xu hướng",
+            "positive_review_score": "Đánh giá tích cực", "longevity_score": "Độ bền xu hướng",
             "opportunity_score": "Điểm cơ hội", "recommendation": "Khuyến nghị",
         })
         st.dataframe(
-            radar_frame[["Xếp hạng", "Ngành hàng", "Sản phẩm gợi ý", "Lượng bán ước tính", "Doanh thu ước tính", "Review tích cực", "Độ bền xu hướng", "Điểm cơ hội", "Khuyến nghị"]].head(12),
+            radar_frame[["Xếp hạng", "Ngành hàng", "Sản phẩm gợi ý", "Lượng bán ước tính", "Doanh thu ước tính", "Đánh giá tích cực", "Độ bền xu hướng", "Điểm cơ hội", "Khuyến nghị"]].head(12),
             hide_index=True,
             width="stretch",
             column_config={
                 "Doanh thu ước tính": st.column_config.NumberColumn(format="%,d đ"),
                 "Điểm cơ hội": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
-                "Review tích cực": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
+                "Đánh giá tích cực": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
                 "Độ bền xu hướng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f"),
             },
         )
@@ -1382,13 +1485,13 @@ def render_strategy_workspace() -> None:
 
 def render_market_intelligence() -> None:
     """Show a useful but explicitly simulated market-analysis workspace."""
-    st.markdown('<div class="seller-eyebrow">MARKET INTELLIGENCE · DEMO</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="seller-eyebrow">{ui_text("PHÂN TÍCH THỊ TRƯỜNG · BẢN MÔ PHỎNG", "MARKET ANALYSIS · DEMO")}</div>', unsafe_allow_html=True)
     header, back = st.columns([8, 2], vertical_alignment="center")
     with header:
-        st.title("Phân tích thị trường")
-        st.caption("So sánh giá, shop tham chiếu và hướng thử nghiệm cho một ngành hàng.")
+        st.title(ui_text("Phân tích thị trường", "Market analysis"))
+        st.caption(ui_text("So sánh giá, shop tham chiếu và hướng thử nghiệm cho một ngành hàng.", "Compare prices, reference shops, and test directions for a product category."))
     with back:
-        st.button("Quay lại chat", key="market_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
+        st.button(ui_text("Quay lại chat", "Back to chat"), key="market_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     render_workspace_context("market")
     render_quick_guide(
@@ -1400,8 +1503,10 @@ def render_market_intelligence() -> None:
         ],
     )
     st.warning(
-        "Đây là Market Demo: giá, shop tham chiếu và tín hiệu xu hướng đều là dữ liệu mô phỏng có thể lặp lại khi demo. "
-        "Hệ thống chưa kết nối Shopee, YouTube, Facebook/Instagram hoặc TikTok để lấy dữ liệu trực tiếp.",
+        ui_text(
+            "Đây là dữ liệu thị trường mô phỏng: giá, cửa hàng tham chiếu và tín hiệu xu hướng đều có thể lặp lại khi trình bày. Hệ thống chưa kết nối Shopee, YouTube, Facebook/Instagram hoặc TikTok để lấy dữ liệu trực tiếp.",
+            "This is simulated market data: prices, reference shops, and trend signals are repeatable for demonstrations. The system is not connected to Shopee, YouTube, Facebook/Instagram, or TikTok for live data.",
+        ),
         icon=":material/info:",
     )
     catalog = cached_market_categories()
@@ -1484,8 +1589,8 @@ def render_market_intelligence() -> None:
             .properties(height=300)
         )
         st.altair_chart(price_chart, width="stretch")
-        product_table = product_rows.rename(columns={"shop_name": "Shop", "shop_type": "Loại shop", "listed_price_vnd": "Giá", "rating": "Đánh giá", "review_count": "Số review", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T"})
-        st.dataframe(product_table[["Shop", "Loại shop", "Giá", "Đánh giá", "Số review", "Lượng bán 12T", "GMV 12T"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ")})
+        product_table = product_rows.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Loại cửa hàng", "listed_price_vnd": "Giá", "rating": "Đánh giá", "review_count": "Số đánh giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T"})
+        st.dataframe(product_table[["Cửa hàng", "Loại cửa hàng", "Giá", "Đánh giá", "Số đánh giá", "Lượng bán 12T", "GMV 12T"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ")})
         st.caption(
             f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
         )
@@ -1507,8 +1612,8 @@ def render_market_intelligence() -> None:
         st.markdown("**Tỷ trọng doanh thu 12 tháng của các shop**")
         st.caption("Miếng lớn hơn nghĩa là shop đó có GMV cao hơn trong bộ dữ liệu đang xem.")
         st.altair_chart(shop_chart, width="stretch")
-        table = shops.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Review", "shop_score": "Điểm shop"})
-        st.dataframe(table[["Shop", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Review", "Điểm shop"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm shop": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        table = shops.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Số đánh giá", "shop_score": "Điểm cửa hàng"})
+        st.dataframe(table[["Cửa hàng", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Số đánh giá", "Điểm cửa hàng"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm cửa hàng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
 
     if market_section == "Sản phẩm cùng thị trường":
         st.caption(f"Bảng trộn sản phẩm của Shop của bạn · Demo và {marketplace['reference_count']} shop tương tự. Lọc theo shop để xem các mặt hàng cạnh tranh.")
@@ -1530,8 +1635,8 @@ def render_market_intelligence() -> None:
         st.markdown("**12 sản phẩm có GMV cao nhất**")
         st.caption("Dùng biểu đồ cột để nhìn rõ sản phẩm nào tạo doanh thu cao; bảng bên dưới dùng để xem từng shop và từng giá.")
         st.altair_chart(product_chart, width="stretch")
-        display = shown.rename(columns={"shop_name": "Shop", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Review", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
-        st.dataframe(display[["Shop", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Review", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        display = shown.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Số đánh giá", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
+        st.dataframe(display[["Cửa hàng", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Số đánh giá", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
         st.info("Điểm sản phẩm cân bằng lượng bán, GMV và review. Nó không phải dự báo chắc chắn; dùng để chọn mặt hàng cần thử trước.", icon=":material/insights:")
 
     render_advisor_launcher("market")
@@ -1976,10 +2081,10 @@ def render_data_library() -> None:
     st.markdown('<div class="seller-eyebrow">THƯ VIỆN DỮ LIỆU</div>', unsafe_allow_html=True)
     header, back = st.columns([8, 2], vertical_alignment="center")
     with header:
-        st.title("Dữ liệu và báo cáo quản lý")
-        st.caption("Tạo bảng trực tiếp, lưu trên máy này và dùng lại cho các cuộc trò chuyện.")
+        st.title(ui_text("Dữ liệu và báo cáo quản lý", "Data and management reports"))
+        st.caption(ui_text("Tạo bảng trực tiếp, lưu trên máy này và dùng lại cho các cuộc trò chuyện.", "Create tables directly, save them on this device, and reuse them in conversations."))
     with back:
-        st.button("Quay lại chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
+        st.button(ui_text("Quay lại chat", "Back to chat"), icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     render_quick_guide(
         "bạn cần tạo, sửa hoặc chọn dữ liệu để AI phân tích cho đúng cuộc trò chuyện đang mở.",
@@ -2086,8 +2191,8 @@ def render_data_library() -> None:
 
 def render_data_upload(*, inline: bool = False) -> None:
     if not inline:
-        st.subheader("Dữ liệu bán hàng")
-        st.caption("Dữ liệu này giúp AI phân tích hoạt động kinh doanh của shop.")
+        st.subheader(ui_text("Dữ liệu bán hàng", "Sales data"))
+        st.caption(ui_text("Dữ liệu này giúp AI phân tích hoạt động kinh doanh của shop.", "This data helps the AI analyze shop operations."))
 
     if is_uploaded():
         rows = st.session_state.seller_uploaded_rows
@@ -2112,7 +2217,17 @@ def render_data_upload(*, inline: bool = False) -> None:
                 f"{labels.get(name, name)} — {len(rows.get(name, []))} bản ghi — Sẵn sàng",
                 icon=":material/check_circle:",
             )
-        if st.button("Thay dữ liệu shop", icon=":material/upload_file:"):
+        st.download_button(
+            ui_text("Tải bộ dữ liệu đang dùng (.xlsx)", "Download current data (.xlsx)"),
+            data=vietnamese_excel_export(rows),
+            file_name="du_lieu_eslabong_co_the_chinh_sua.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            icon=":material/download:",
+            width="stretch",
+            help=ui_text("Tải toàn bộ bảng đang gắn với chat này về máy. Bạn có thể sửa rồi tải lại; tên cột trong tệp là tiếng Việt không dấu.", "Download every table attached to this chat. Edit it, then upload it again; headers are Vietnamese without accents."),
+        )
+        st.caption(ui_text("Tệp xuất gồm các trang Đơn hàng, Sản phẩm, Tồn kho và các bảng tùy chọn bạn đã thêm. Sau khi sửa, bấm Thay dữ liệu shop rồi chọn lại chính workbook này để AI dùng dữ liệu mới.", "The workbook contains Orders, Products, Inventory, and optional tables you added. After editing, choose Replace shop data and select this workbook again so the AI uses the updated data."))
+        if st.button(ui_text("Thay dữ liệu shop", "Replace shop data"), icon=":material/upload_file:"):
             st.session_state.seller_uploaded_rows = None
             st.session_state.seller_uploaded_names = ()
             st.session_state.seller_data_origin = None
@@ -2122,42 +2237,78 @@ def render_data_upload(*, inline: bool = False) -> None:
         return
 
     st.info(
-        "Chưa có dữ liệu shop. Thêm báo cáo để AI phân tích doanh thu, tồn kho và quảng cáo.",
+        ui_text("Chưa có dữ liệu shop. Thêm báo cáo để AI phân tích doanh thu, tồn kho và quảng cáo.", "No shop data yet. Add reports so the AI can analyze revenue, inventory, and advertising."),
         icon=":material/info:",
     )
     st.caption(
-        "Bạn có thể tải CSV UTF-8 hoặc Excel (.xlsx). Tên cột được viết tiếng Việt có dấu hoặc không dấu đều dùng được; "
-        "ví dụ `ma_san_pham` nghĩa là **Mã sản phẩm**."
+        ui_text("Bạn có thể tải CSV UTF-8 hoặc Excel (.xlsx). Tên cột được viết tiếng Việt có dấu hoặc không dấu đều dùng được; ví dụ `ma_san_pham` nghĩa là **Mã sản phẩm**.", "You can upload UTF-8 CSV or Excel (.xlsx). Vietnamese headers with or without accents are accepted; for example, `ma_san_pham` means **Product code**.")
     )
-    with st.expander("Mẫu Excel tiếng Việt (không dấu)", icon=":material/download:"):
-        st.write("Tải ba mẫu bắt buộc, điền dữ liệu rồi tải từng tệp lên bên dưới. Tên cột không dấu giúp nhập liệu dễ hơn; ý nghĩa hiển thị trong ứng dụng vẫn có dấu.")
+    with st.expander(ui_text("Mẫu Excel tiếng Việt (không dấu)", "Vietnamese Excel templates"), icon=":material/download:"):
+        st.write(ui_text("Tải ba mẫu bắt buộc, điền dữ liệu rồi tải từng tệp lên bên dưới. Tên cột không dấu giúp nhập liệu dễ hơn; ý nghĩa hiển thị trong ứng dụng vẫn có dấu.", "Download the three required templates, fill them in, then upload each file below. The headers use Vietnamese without accents for reliable data entry."))
         template_columns = st.columns(3)
         for column, (_, spec) in zip(template_columns, VIETNAMESE_UPLOAD_TEMPLATES.items()):
             with column:
                 st.download_button(
-                    f"Tải mẫu {spec['title']}",
+                    ui_text(f"Tải mẫu {spec['title']}", f"Download {spec['title']} template"),
                     data=vietnamese_excel_template(tuple(spec["columns"])),
                     file_name=f"mau_{spec['title'].lower().replace(' ', '_')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     icon=":material/download:",
                     width="stretch",
                 )
+
+    st.markdown("#### " + ui_text("Nạp lại bộ dữ liệu Excel", "Re-import an Excel workbook"))
+    st.caption(ui_text(
+        "Nếu bạn đã tải bộ dữ liệu từ Eslabong, chỉ cần chọn lại đúng một file `.xlsx` đó. Mỗi trang trong file sẽ được đọc thành bảng tương ứng; không cần tách file.",
+        "If you downloaded a data workbook from Eslabong, select that single `.xlsx` file again. Each sheet is read as its matching table; no file splitting is needed.",
+    ))
+    exported_workbook = st.file_uploader(
+        ui_text("Chọn bộ dữ liệu Eslabong (.xlsx)", "Choose an Eslabong data workbook (.xlsx)"),
+        type=["xlsx"],
+        key="seller_workbook_upload",
+    )
+    if st.button(
+        ui_text("Dùng bộ dữ liệu Excel này", "Use this Excel workbook"),
+        key="seller_use_workbook",
+        icon=":material/upload_file:",
+        disabled=exported_workbook is None,
+    ):
+        try:
+            tool = ShopDataTool.from_uploaded_workbook(exported_workbook.getvalue())
+        except ShopDataValidationError as exc:
+            st.error(str(exc), icon=":material/error:")
+            return
+        st.session_state.seller_uploaded_rows = tool.uploaded_rows
+        st.session_state.seller_uploaded_names = tuple(tool.uploaded_rows or {})
+        st.session_state.seller_data_origin = "uploaded_csv"
+        if st.session_state.get("seller_chat_mode") is None:
+            start_conversation("owner")
+        clear_active_conversation()
+        save_active_conversation()
+        st.session_state.seller_upload_message = ui_text(
+            "Đã nạp bộ dữ liệu Excel thành công.",
+            "Excel data workbook loaded successfully.",
+        )
+        st.rerun()
+
+    st.divider()
+    st.markdown("#### " + ui_text("Hoặc tải từng bảng riêng", "Or upload separate tables"))
     with st.form("seller_upload_form"):
-        orders = st.file_uploader("Đơn hàng (bắt buộc)", type=["csv", "xlsx"])
-        products = st.file_uploader("Sản phẩm và giá vốn (bắt buộc)", type=["csv", "xlsx"])
-        inventory = st.file_uploader("Tồn kho (bắt buộc)", type=["csv", "xlsx"])
-        ads = st.file_uploader("Quảng cáo (tùy chọn)", type=["csv", "xlsx"])
-        purchase_orders = st.file_uploader("Đơn nhập hàng (tùy chọn)", type=["csv", "xlsx"])
-        returns = st.file_uploader("Hoàn hàng (tùy chọn)", type=["csv", "xlsx"])
-        reviews = st.file_uploader("Đánh giá khách hàng (tùy chọn)", type=["csv", "xlsx"])
-        operating_costs = st.file_uploader("Chi phí vận hành (tùy chọn)", type=["csv", "xlsx"])
-        inventory_movements = st.file_uploader("Biến động kho (tùy chọn)", type=["csv", "xlsx"])
-        quality_checks = st.file_uploader("Kiểm tra chất lượng lô hàng (tùy chọn)", type=["csv", "xlsx"])
-        cash_flow = st.file_uploader("Dòng tiền (tùy chọn)", type=["csv", "xlsx"])
-        supplier_performance = st.file_uploader("Hiệu quả nhà cung cấp (tùy chọn)", type=["csv", "xlsx"])
-        customer_segments = st.file_uploader("Nhóm khách hàng (tùy chọn)", type=["csv", "xlsx"])
-        product_funnel = st.file_uploader("Hiệu quả từng sản phẩm (tùy chọn)", type=["csv", "xlsx"])
-        submitted = st.form_submit_button("Thêm dữ liệu", icon=":material/upload_file:", width="stretch")
+        orders = st.file_uploader(ui_text("Đơn hàng (bắt buộc)", "Orders (required)"), type=["csv", "xlsx"])
+        products = st.file_uploader(ui_text("Sản phẩm và giá vốn (bắt buộc)", "Products and costs (required)"), type=["csv", "xlsx"])
+        inventory = st.file_uploader(ui_text("Tồn kho (bắt buộc)", "Inventory (required)"), type=["csv", "xlsx"])
+        ads = st.file_uploader(ui_text("Quảng cáo (tùy chọn)", "Advertising (optional)"), type=["csv", "xlsx"])
+        purchase_orders = st.file_uploader(ui_text("Đơn nhập hàng (tùy chọn)", "Purchase orders (optional)"), type=["csv", "xlsx"])
+        returns = st.file_uploader(ui_text("Hoàn hàng (tùy chọn)", "Returns (optional)"), type=["csv", "xlsx"])
+        reviews = st.file_uploader(ui_text("Đánh giá khách hàng (tùy chọn)", "Customer reviews (optional)"), type=["csv", "xlsx"])
+        operating_costs = st.file_uploader(ui_text("Chi phí vận hành (tùy chọn)", "Operating costs (optional)"), type=["csv", "xlsx"])
+        inventory_movements = st.file_uploader(ui_text("Biến động kho (tùy chọn)", "Inventory movements (optional)"), type=["csv", "xlsx"])
+        quality_checks = st.file_uploader(ui_text("Kiểm tra chất lượng lô hàng (tùy chọn)", "Quality checks (optional)"), type=["csv", "xlsx"])
+        cash_flow = st.file_uploader(ui_text("Dòng tiền (tùy chọn)", "Cash flow (optional)"), type=["csv", "xlsx"])
+        supplier_performance = st.file_uploader(ui_text("Hiệu quả nhà cung cấp (tùy chọn)", "Supplier performance (optional)"), type=["csv", "xlsx"])
+        customer_segments = st.file_uploader(ui_text("Nhóm khách hàng (tùy chọn)", "Customer segments (optional)"), type=["csv", "xlsx"])
+        product_funnel = st.file_uploader(ui_text("Hiệu quả từng sản phẩm (tùy chọn)", "Product funnel (optional)"), type=["csv", "xlsx"])
+        submitted = st.form_submit_button(ui_text("Thêm dữ liệu", "Add data"), icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
     files = {
@@ -2198,22 +2349,22 @@ def render_data_upload(*, inline: bool = False) -> None:
     st.rerun()
 
 
-@st.dialog("Chọn loại cuộc trò chuyện")
+@st.dialog(ui_text("Chọn loại cuộc trò chuyện", "Choose conversation type"))
 def choose_chat_type() -> None:
-    st.write("Chọn đúng vai trò để AI gợi ý câu hỏi phù hợp.")
+    st.write(ui_text("Chọn đúng vai trò để AI gợi ý câu hỏi phù hợp.", "Choose a role so the AI can suggest relevant questions."))
     learner_column, owner_column = st.columns(2, gap="medium")
     with learner_column:
         with st.container(border=True):
-            st.markdown("#### :material/school: Người mới tìm hiểu")
-            st.caption("Dành cho người chuẩn bị tạo shop hoặc mới bắt đầu bán trên Shopee.")
-            if st.button("Bắt đầu với vai trò người mới", key="choose_learner", type="primary", width="stretch"):
+            st.markdown("#### :material/school: " + ui_text("Người mới tìm hiểu", "New seller"))
+            st.caption(ui_text("Dành cho người chuẩn bị tạo shop hoặc mới bắt đầu bán trên Shopee.", "For people preparing to open a shop or starting to sell on Shopee."))
+            if st.button(ui_text("Bắt đầu với vai trò người mới", "Start as a new seller"), key="choose_learner", type="primary", width="stretch"):
                 start_conversation("learner")
                 st.rerun()
     with owner_column:
         with st.container(border=True):
-            st.markdown("#### :material/storefront: Chủ shop")
-            st.caption("Dành cho chủ shop cần hỏi doanh thu, chính sách và vận hành bán hàng.")
-            if st.button("Bắt đầu với vai trò chủ shop", key="choose_owner", width="stretch"):
+            st.markdown("#### :material/storefront: " + ui_text("Chủ shop", "Shop owner"))
+            st.caption(ui_text("Dành cho chủ shop cần hỏi doanh thu, chính sách và vận hành bán hàng.", "For shop owners asking about revenue, policies, and operations."))
+            if st.button(ui_text("Bắt đầu với vai trò chủ shop", "Start as a shop owner"), key="choose_owner", width="stretch"):
                 start_conversation("owner")
                 st.rerun()
 
@@ -2226,13 +2377,13 @@ def render_assistant() -> None:
     mode = st.session_state.get("seller_chat_mode")
     if mode not in CHAT_TYPES or not st.session_state.get("seller_active_chat_id"):
         st.markdown('<div class="seller-eyebrow">ESLABONG</div>', unsafe_allow_html=True)
-        st.title("Bắt đầu cuộc trò chuyện")
-        st.markdown('<div class="seller-subtitle">Chọn loại cuộc trò chuyện để AI hỗ trợ đúng nhu cầu của bạn.</div>', unsafe_allow_html=True)
+        st.title(ui_text("Bắt đầu cuộc trò chuyện", "Start a conversation"))
+        st.markdown(f'<div class="seller-subtitle">{ui_text("Chọn loại cuộc trò chuyện để AI hỗ trợ đúng nhu cầu của bạn.", "Choose a conversation type so the AI can support the right need.")}</div>', unsafe_allow_html=True)
         st.space("small")
         with st.container(border=True):
-            st.markdown("#### Bạn muốn hỏi với vai trò nào?")
-            st.caption("Bạn có thể tạo nhiều cuộc trò chuyện; mỗi cuộc được đánh dấu riêng là Người mới hoặc Chủ shop.")
-            st.button("Cuộc trò chuyện mới", key="new_chat_main", type="primary", icon=":material/add_comment:", on_click=show_chat_picker)
+            st.markdown("#### " + ui_text("Bạn muốn hỏi với vai trò nào?", "Which role are you asking as?"))
+            st.caption(ui_text("Bạn có thể tạo nhiều cuộc trò chuyện; mỗi cuộc được đánh dấu riêng là Người mới hoặc Chủ shop.", "You can create multiple chats; each is marked as a New seller or Shop owner chat."))
+            st.button(ui_text("Cuộc trò chuyện mới", "New chat"), key="new_chat_main", type="primary", icon=":material/add_comment:", on_click=show_chat_picker)
         render_quick_guide(
             "bạn bắt đầu sử dụng AI hoặc muốn tạo một chủ đề hỏi mới.",
             [
@@ -2243,7 +2394,7 @@ def render_assistant() -> None:
         )
         return
 
-    chat_type = CHAT_TYPES[mode]
+    chat_type = active_chat_type(mode)
     conversation = active_conversation()
     st.markdown('<div class="seller-eyebrow">ESLABONG</div>', unsafe_allow_html=True)
     st.subheader(f"{chat_type['icon']} {chat_type['name']}")
@@ -2269,6 +2420,9 @@ def render_assistant() -> None:
             st.caption("Tạo bảng trực tiếp trong Thư viện dữ liệu để quản lý và phân tích; tải CSV chỉ là lựa chọn phụ.")
             st.button("Mở thư viện dữ liệu", key="open_library_from_chat", icon=":material/auto_stories:", on_click=open_data_library)
         with st.expander("Nhập từ CSV (tùy chọn)", icon=":material/upload_file:"):
+            render_data_upload(inline=True)
+    elif mode == "owner":
+        with st.expander(ui_text("Dữ liệu đang gắn với chat", "Data attached to this chat"), icon=":material/table_chart:"):
             render_data_upload(inline=True)
     elif mode == "learner" and not is_uploaded():
         st.button("Dùng bộ dữ liệu demo để thử phân tích", key="open_demo_library_from_chat", icon=":material/auto_stories:", on_click=open_data_library)
@@ -2324,19 +2478,20 @@ def render_assistant() -> None:
 
 
 initialise_state()
+render_color_mode_css()
 render_sidebar_layout_css()
 with st.sidebar:
     compact = st.session_state.seller_sidebar_compact
     if compact:
-        if st.button(" ", key="expand_sidebar", icon=":material/chevron_right:", help="Mở rộng danh sách chat", width="stretch"):
+        if st.button(" ", key="expand_sidebar", icon=":material/chevron_right:", help=ui_text("Mở rộng danh sách chat", "Expand chat list"), width="stretch"):
             toggle_sidebar_compact()
             st.rerun()
-        st.button(" ", key="compact_new_chat", icon=":material/add_comment:", help="Cuộc trò chuyện mới", width="stretch", on_click=show_chat_picker)
-        st.button(" ", key="compact_data_library", icon=":material/auto_stories:", help="Thư viện dữ liệu", width="stretch", on_click=open_data_library)
-        st.button(" ", key="compact_market_intelligence", icon=":material/insights:", help="Phân tích thị trường", width="stretch", on_click=open_market_intelligence)
-        st.button(" ", key="compact_strategy_workspace", icon=":material/rocket_launch:", help="Chiến lược kinh doanh", width="stretch", on_click=open_strategy_workspace)
+        st.button(" ", key="compact_new_chat", icon=":material/add_comment:", help=ui_text("Cuộc trò chuyện mới", "New chat"), width="stretch", on_click=show_chat_picker)
+        st.button(" ", key="compact_data_library", icon=":material/auto_stories:", help=ui_text("Thư viện dữ liệu", "Data library"), width="stretch", on_click=open_data_library)
+        st.button(" ", key="compact_market_intelligence", icon=":material/insights:", help=ui_text("Phân tích thị trường", "Market analysis"), width="stretch", on_click=open_market_intelligence)
+        st.button(" ", key="compact_strategy_workspace", icon=":material/rocket_launch:", help=ui_text("Chiến lược kinh doanh", "Business strategy"), width="stretch", on_click=open_strategy_workspace)
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
-            chat_type = CHAT_TYPES[conversation["mode"]]
+            chat_type = active_chat_type(conversation["mode"])
             label = f"{chat_type['name']} · {conversation['title']} · {conversation_data_label(conversation)}"
             st.button(
                 " ",
@@ -2350,17 +2505,17 @@ with st.sidebar:
     else:
         with st.container(horizontal=True, horizontal_alignment="distribute"):
             st.markdown("### :material/storefront: Eslabong")
-            if st.button(" ", key="collapse_sidebar", icon=":material/chevron_left:", help="Thu gọn danh sách chat"):
+            if st.button(" ", key="collapse_sidebar", icon=":material/chevron_left:", help=ui_text("Thu gọn danh sách chat", "Collapse chat list")):
                 toggle_sidebar_compact()
                 st.rerun()
-        st.button("Cuộc trò chuyện mới", icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
-        st.button("Thư viện dữ liệu", key="open_data_library", icon=":material/auto_stories:", width="stretch", on_click=open_data_library)
-        st.button("Phân tích thị trường", key="open_market_intelligence", icon=":material/insights:", width="stretch", on_click=open_market_intelligence)
-        st.button("Chiến lược kinh doanh", key="open_strategy_workspace", icon=":material/rocket_launch:", width="stretch", on_click=open_strategy_workspace)
-        st.caption("Cuộc trò chuyện gần đây")
+        st.button(ui_text("Cuộc trò chuyện mới", "New chat"), icon=":material/add_comment:", width="stretch", on_click=show_chat_picker)
+        st.button(ui_text("Thư viện dữ liệu", "Data library"), key="open_data_library", icon=":material/auto_stories:", width="stretch", on_click=open_data_library)
+        st.button(ui_text("Phân tích thị trường", "Market analysis"), key="open_market_intelligence", icon=":material/insights:", width="stretch", on_click=open_market_intelligence)
+        st.button(ui_text("Chiến lược kinh doanh", "Business strategy"), key="open_strategy_workspace", icon=":material/rocket_launch:", width="stretch", on_click=open_strategy_workspace)
+        st.caption(ui_text("Cuộc trò chuyện gần đây", "Recent chats"))
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
-            chat_type = CHAT_TYPES[conversation["mode"]]
-            active_marker = "Đang mở · " if conversation["id"] == st.session_state.get("seller_active_chat_id") else ""
+            chat_type = active_chat_type(conversation["mode"])
+            active_marker = ui_text("Đang mở · ", "Open · ") if conversation["id"] == st.session_state.get("seller_active_chat_id") else ""
             label = f"{active_marker}{chat_type['name']} · {conversation['title']}"
             st.button(
                 label,
@@ -2371,6 +2526,18 @@ with st.sidebar:
                 on_click=open_conversation,
                 args=(conversation["id"],),
             )
+    with st.expander(ui_text("Cài đặt", "Settings"), icon=":material/settings:"):
+        st.selectbox(
+            ui_text("Ngôn ngữ giao diện", "Interface language"),
+            options=("vi", "en"),
+            format_func=lambda value: "Tiếng Việt" if value == "vi" else "English",
+            key="seller_language",
+        )
+        st.toggle(
+            ui_text("Chế độ đêm đen trắng", "Black-and-white dark mode"),
+            key="seller_dark_mode",
+        )
+        st.caption(ui_text("Cài đặt chỉ áp dụng cho tab đang mở.", "Settings apply only to this browser tab."))
 
 if st.session_state.seller_show_chat_picker:
     choose_chat_type()
