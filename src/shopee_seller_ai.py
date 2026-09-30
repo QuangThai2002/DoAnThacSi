@@ -438,6 +438,22 @@ def render_color_mode_css() -> None:
           [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
             background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
           }
+          /* Current Streamlit uses an unlabelled radiogroup for segmented_control. */
+          [role="radiogroup"] > button[data-variant="segmented_control"] {
+            background: #1f2937 !important;
+            border: 1px solid #475569 !important;
+            color: #e5edf7 !important;
+            box-shadow: none !important;
+            transition: none !important;
+          }
+          [role="radiogroup"] > button[data-variant="segmented_control"][aria-checked="true"] {
+            background: #1d4ed8 !important;
+            border-color: #60a5fa !important;
+            color: #ffffff !important;
+          }
+          [role="radiogroup"] > button[data-variant="segmented_control"] [data-testid="stMarkdownContainer"] p {
+            color: inherit !important;
+          }
           [data-testid="stSelectbox"] [data-baseweb="select"],
           [data-testid="stSelectbox"] [data-baseweb="select"] > div,
           [data-testid="stMultiSelect"] [data-baseweb="select"],
@@ -445,6 +461,33 @@ def render_color_mode_css() -> None:
           [data-baseweb="popover"], [data-baseweb="popover"] [role="listbox"],
           [role="listbox"] {
             background: #1f2937 !important; border-color: #475569 !important; color: #f3f4f6 !important;
+          }
+          /* Streamlit 1.5x uses React Aria groups for selectboxes. Keep the
+             wrapper dark too, otherwise the native white input leaks through. */
+          [data-testid="stSelectbox"] [role="group"],
+          [data-testid="stMultiSelect"] [role="group"] {
+            background: #1f2937 !important;
+            border: 1px solid #475569 !important;
+            color: #f3f4f6 !important;
+            box-shadow: none !important;
+          }
+          [data-testid="stSelectbox"] [role="group"] input[role="combobox"],
+          [data-testid="stMultiSelect"] [role="group"] input[role="combobox"] {
+            background: transparent !important;
+            color: #f3f4f6 !important;
+            -webkit-text-fill-color: #f3f4f6 !important;
+          }
+          [data-testid="stSelectbox"] [role="group"] > button,
+          [data-testid="stMultiSelect"] [role="group"] > button {
+            background: transparent !important;
+            border: 0 !important;
+            color: #cbd5e1 !important;
+            box-shadow: none !important;
+          }
+          [data-testid="stSelectbox"] [role="group"]:focus-within,
+          [data-testid="stMultiSelect"] [role="group"]:focus-within {
+            border-color: #60a5fa !important;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, .20) !important;
           }
           [role="option"] { background: #1f2937 !important; color: #e5edf7 !important; }
           [role="option"][aria-selected="true"], [role="option"]:hover { background: #273449 !important; color: #ffffff !important; }
@@ -477,6 +520,17 @@ def render_color_mode_css() -> None:
           }
           [data-testid="stAlert"], [data-testid="stExpander"] details,
           [data-testid="stVerticalBlockBorderWrapper"] { background: #1b2638 !important; border-color: #475569 !important; }
+          /* The settings panel is a native details/summary block in the
+             sidebar, not an stExpander. Prevent its light summary strip. */
+          [data-testid="stSidebar"] details,
+          [data-testid="stSidebar"] details > summary {
+            background: #1b2638 !important;
+            border-color: #475569 !important;
+            color: #f3f4f6 !important;
+          }
+          [data-testid="stSidebar"] details > summary:hover {
+            background: #273449 !important;
+          }
           /* Glide Data Grid is drawn on a canvas, so give it its own dark palette. */
           [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
             --gdg-bg-cell: #1f2937 !important;

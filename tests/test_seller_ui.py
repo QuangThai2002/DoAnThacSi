@@ -60,6 +60,8 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertIn("stSegmentedControl", rendered_styles)
         self.assertIn("label:has(input:checked)", rendered_styles)
         self.assertIn("stSelectbox", rendered_styles)
+        self.assertIn('button[data-variant="segmented_control"]', rendered_styles)
+        self.assertIn('[data-testid="stSelectbox"] [role="group"]', rendered_styles)
         self.assertIn("stDownloadButton", rendered_styles)
         self.assertIn("--gdg-bg-cell: #1f2937", rendered_styles)
         self.assertNotIn("background: #000000", rendered_styles)
