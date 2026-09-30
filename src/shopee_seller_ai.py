@@ -422,13 +422,39 @@ def render_color_mode_css() -> None:
           [data-testid="stPills"] button[aria-pressed="true"], [data-testid="stTabs"] button[aria-selected="true"] {
             background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
           }
+          /* Streamlit renders segmented controls as labels in some releases and
+             as buttons in others, so both structures need the same palette. */
+          [data-testid="stSegmentedControl"],
+          [data-testid="stSegmentedControl"] [role="radiogroup"] {
+            background: #1b2638 !important; border-color: #475569 !important;
+          }
+          [data-testid="stSegmentedControl"] label,
           [data-testid="stSegmentedControl"] button {
             background: #1f2937 !important; border-color: #475569 !important; color: #e5edf7 !important;
             box-shadow: none !important;
           }
+          [data-testid="stSegmentedControl"] label:has(input:checked),
           [data-testid="stSegmentedControl"] button[aria-checked="true"],
           [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
             background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
+          }
+          [data-testid="stSelectbox"] [data-baseweb="select"],
+          [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+          [data-testid="stMultiSelect"] [data-baseweb="select"],
+          [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
+          [data-baseweb="popover"], [data-baseweb="popover"] [role="listbox"],
+          [role="listbox"] {
+            background: #1f2937 !important; border-color: #475569 !important; color: #f3f4f6 !important;
+          }
+          [role="option"] { background: #1f2937 !important; color: #e5edf7 !important; }
+          [role="option"][aria-selected="true"], [role="option"]:hover { background: #273449 !important; color: #ffffff !important; }
+          [data-testid="stDownloadButton"] > button,
+          [data-testid="stFileUploader"] button {
+            background: #1f2937 !important; border-color: #475569 !important; color: #e5edf7 !important;
+          }
+          [data-testid="stDownloadButton"] > button:hover,
+          [data-testid="stFileUploader"] button:hover {
+            background: #273449 !important; border-color: #60a5fa !important; color: #ffffff !important;
           }
           /* These controls had light-mode key-specific rules with higher priority. */
           [class*="st-key-seller_suggestion"] button,
