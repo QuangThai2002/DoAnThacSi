@@ -1,0 +1,8 @@
+cash_flow_id,date,direction,category,amount_vnd,reference,note
+CF-202607-001,2026-07-28,Thu,Tiền bán hàng đã nhận,1420000,Đối soát 2026-07,Dòng tiền thu mô phỏng sau đối soát
+CF-202607-002,2026-07-15,Chi,Nhập hàng,620000,PO-202607,Hàng nhập trong tháng
+CF-202607-003,2026-07-20,Chi,Quảng cáo,180000,ADS-202607,Ngân sách quảng cáo
+CF-202608-001,2026-08-28,Thu,Tiền bán hàng đã nhận,3180000,Đối soát 2026-08,Dòng tiền thu mô phỏng sau đối soát
+CF-202608-002,2026-08-12,Chi,Nhập hàng,1560000,PO-202608,Hàng nhập trong tháng
+CF-202608-003,2026-08-18,Chi,Quảng cáo,360000,ADS-202608,Ngân sách quảng cáo
+CF-202608-004,2026-08-25,Chi,Vận hành,840000,OPS-202608,Chi phí vận hành đã ghi

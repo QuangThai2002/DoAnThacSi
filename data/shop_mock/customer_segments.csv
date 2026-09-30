@@ -1,0 +1,7 @@
+month,segment_name,customer_count,order_count,repeat_order_count,gmv_vnd
+2026-07,Khách mới,5,5,0,1040000
+2026-07,Khách quay lại,2,3,2,540000
+2026-07,Khách có nguy cơ không quay lại,1,1,0,180000
+2026-08,Khách mới,6,6,0,2480000
+2026-08,Khách quay lại,3,5,3,1120000
+2026-08,Khách có nguy cơ không quay lại,1,1,0,380000

@@ -103,11 +103,45 @@ REQUIRED_UPLOAD_COLUMNS = {
         "defect_type",
         "status",
     },
+    "cash_flow.csv": {
+        "cash_flow_id",
+        "date",
+        "direction",
+        "category",
+        "amount_vnd",
+        "reference",
+        "note",
+    },
+    "supplier_performance.csv": {
+        "supplier_id",
+        "supplier_name",
+        "month",
+        "on_time_delivery_rate_percent",
+        "defect_rate_percent",
+        "average_lead_time_days",
+        "order_count",
+    },
+    "customer_segments.csv": {
+        "month",
+        "segment_name",
+        "customer_count",
+        "order_count",
+        "repeat_order_count",
+        "gmv_vnd",
+    },
+    "product_funnel.csv": {
+        "month",
+        "sku",
+        "views",
+        "add_to_cart_count",
+        "order_count",
+    },
 }
 REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
 OPTIONAL_UPLOAD_FILES = frozenset({
     "ads.csv", "purchase_orders.csv", "returns.csv", "reviews.csv",
     "operating_costs.csv", "inventory_movements.csv", "quality_checks.csv",
+    "cash_flow.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv",
 })
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
@@ -262,6 +296,7 @@ class ShopDataTool:
             "reviews.csv": "review_date",
             "inventory_movements.csv": "movement_date",
             "quality_checks.csv": "check_date",
+            "cash_flow.csv": "date",
         }.get(name)
         if date_column:
             for row in rows:
@@ -272,13 +307,7 @@ class ShopDataTool:
                     # report a consistent Vietnamese error with its row number.
                     pass
 
-        if name == "ads.csv":
-            for row in rows:
-                try:
-                    row["month"] = normalize_month(row["month"])
-                except ValueError:
-                    pass
-        if name == "operating_costs.csv":
+        if name in {"ads.csv", "operating_costs.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv"}:
             for row in rows:
                 try:
                     row["month"] = normalize_month(row["month"])
@@ -358,6 +387,32 @@ class ShopDataTool:
                     defective = int(row["defective_quantity"])
                     if inspected < 0 or defective < 0 or defective > inspected:
                         raise ValueError("invalid inspection quantities")
+                elif name == "cash_flow.csv":
+                    date.fromisoformat(row["date"])
+                    if row["direction"].strip().lower() not in {"thu", "chi"}:
+                        raise ValueError("direction must be thu or chi")
+                    if as_decimal(row["amount_vnd"]) < 0:
+                        raise ValueError("amount must not be negative")
+                elif name == "supplier_performance.csv":
+                    date.fromisoformat(f"{row['month']}-01")
+                    if not 0 <= float(row["on_time_delivery_rate_percent"]) <= 100:
+                        raise ValueError("on-time rate must be in range")
+                    if not 0 <= float(row["defect_rate_percent"]) <= 100:
+                        raise ValueError("defect rate must be in range")
+                    if float(row["average_lead_time_days"]) < 0 or int(row["order_count"]) < 0:
+                        raise ValueError("supplier values must not be negative")
+                elif name == "customer_segments.csv":
+                    date.fromisoformat(f"{row['month']}-01")
+                    if any(int(row[column]) < 0 for column in ("customer_count", "order_count", "repeat_order_count")):
+                        raise ValueError("customer values must not be negative")
+                    as_decimal(row["gmv_vnd"])
+                elif name == "product_funnel.csv":
+                    date.fromisoformat(f"{row['month']}-01")
+                    views = int(row["views"])
+                    carts = int(row["add_to_cart_count"])
+                    orders = int(row["order_count"])
+                    if views < 0 or carts < 0 or orders < 0 or carts > views or orders > carts:
+                        raise ValueError("invalid funnel values")
             except (InvalidOperation, ValueError) as exc:
                 raise ShopDataValidationError(
                     f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
@@ -554,6 +609,118 @@ class ShopDataTool:
             "defect_rate_percent": round((defective / inspected) * 100, 2) if inspected else None,
             "defects": dict(sorted(defects.items(), key=lambda item: (-item[1], item[0]))),
             "limitation": "Tỷ lệ lỗi chỉ phản ánh những lô đã được kiểm tra và nhập vào bảng này.",
+        }
+
+    def cash_flow_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Summarize recorded money movements, without equating it to accounting profit."""
+        rows = [
+            row for row in self._read_csv("cash_flow.csv")
+            if period is None or row["date"].startswith(period)
+        ]
+        inflow = sum((as_decimal(row["amount_vnd"]) for row in rows if row["direction"].lower() == "thu"), Decimal("0"))
+        outflow = sum((as_decimal(row["amount_vnd"]) for row in rows if row["direction"].lower() == "chi"), Decimal("0"))
+        categories: dict[str, Decimal] = {}
+        for row in rows:
+            if row["direction"].lower() != "chi":
+                continue
+            category = row["category"].strip() or "Chưa phân loại"
+            categories[category] = categories.get(category, Decimal("0")) + as_decimal(row["amount_vnd"])
+        return {
+            "tool": "shop_data.cash_flow_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "inflow_vnd": as_number(inflow),
+            "outflow_vnd": as_number(outflow),
+            "net_cash_movement_vnd": as_number(inflow - outflow),
+            "outflow_by_category": {
+                category: as_number(amount)
+                for category, amount in sorted(categories.items(), key=lambda item: (-item[1], item[0]))
+            },
+            "limitation": "Đây là dòng tiền đã ghi nhận, không thay thế sổ sách kế toán hoặc số dư tài khoản ngân hàng.",
+        }
+
+    def supplier_performance_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [
+            row for row in self._read_csv("supplier_performance.csv")
+            if period is None or row["month"] == period
+        ]
+        suppliers = [
+            {
+                "supplier_name": row["supplier_name"],
+                "on_time_delivery_rate_percent": float(row["on_time_delivery_rate_percent"]),
+                "defect_rate_percent": float(row["defect_rate_percent"]),
+                "average_lead_time_days": float(row["average_lead_time_days"]),
+                "order_count": int(row["order_count"]),
+            }
+            for row in rows
+        ]
+        suppliers.sort(key=lambda item: (-item["on_time_delivery_rate_percent"], item["defect_rate_percent"], item["average_lead_time_days"]))
+        return {
+            "tool": "shop_data.supplier_performance_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "supplier_count": len(suppliers),
+            "best_supplier": suppliers[0] if suppliers else None,
+            "slowest_supplier": max(suppliers, key=lambda item: item["average_lead_time_days"]) if suppliers else None,
+            "suppliers": suppliers,
+            "limitation": "So sánh chỉ dựa trên các đơn và lô đã ghi; không đủ để khẳng định nhà cung cấp nào luôn tốt hơn.",
+        }
+
+    def customer_retention_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [
+            row for row in self._read_csv("customer_segments.csv")
+            if period is None or row["month"] == period
+        ]
+        customers = sum(int(row["customer_count"]) for row in rows)
+        orders = sum(int(row["order_count"]) for row in rows)
+        repeat_orders = sum(int(row["repeat_order_count"]) for row in rows)
+        returning_customers = sum(
+            int(row["customer_count"])
+            for row in rows
+            if "quay lại" in row["segment_name"].strip().lower()
+        )
+        return {
+            "tool": "shop_data.customer_retention_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "customer_count": customers,
+            "returning_customer_count": returning_customers,
+            "order_count": orders,
+            "repeat_order_count": repeat_orders,
+            "repeat_order_rate_percent": round((repeat_orders / orders) * 100, 2) if orders else None,
+            "limitation": "Bảng chỉ dùng số liệu tổng hợp, không lưu thông tin nhận diện cá nhân của khách hàng.",
+        }
+
+    def product_funnel_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [
+            row for row in self._read_csv("product_funnel.csv")
+            if period is None or row["month"] == period
+        ]
+        products = {row["sku"]: row["product_name"] for row in self._read_csv("products.csv")}
+        funnel_rows = []
+        for row in rows:
+            views, carts, orders = int(row["views"]), int(row["add_to_cart_count"]), int(row["order_count"])
+            funnel_rows.append({
+                "sku": row["sku"],
+                "product_name": products.get(row["sku"], row["sku"]),
+                "views": views,
+                "add_to_cart_count": carts,
+                "order_count": orders,
+                "view_to_cart_rate_percent": round((carts / views) * 100, 2) if views else None,
+                "cart_to_order_rate_percent": round((orders / carts) * 100, 2) if carts else None,
+            })
+        weak_rows = [item for item in funnel_rows if item["views"] >= 20]
+        weak_product = min(weak_rows, key=lambda item: (item["cart_to_order_rate_percent"] or 0, item["views"])) if weak_rows else None
+        return {
+            "tool": "shop_data.product_funnel_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "product_count": len(funnel_rows),
+            "total_views": sum(item["views"] for item in funnel_rows),
+            "total_add_to_cart_count": sum(item["add_to_cart_count"] for item in funnel_rows),
+            "total_order_count": sum(item["order_count"] for item in funnel_rows),
+            "weak_product": weak_product,
+            "limitation": "Phễu chỉ nêu điểm cần kiểm tra; không chứng minh một thay đổi về ảnh, giá hay mô tả sẽ chắc chắn tăng đơn.",
         }
 
     def returns_summary(self, period: str | None = None) -> dict[str, Any]:

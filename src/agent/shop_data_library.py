@@ -223,6 +223,10 @@ def build_demo_rows(
     operating_costs: list[dict[str, str]] = []
     inventory_movements: list[dict[str, str]] = []
     quality_checks: list[dict[str, str]] = []
+    cash_flow: list[dict[str, str]] = []
+    supplier_performance: list[dict[str, str]] = []
+    customer_segments: list[dict[str, str]] = []
+    product_funnel: list[dict[str, str]] = []
     wanted_ids = set(selected_category_ids) if selected_category_ids is not None else None
     selected_categories = [
         category for category in DEMO_CATEGORY_SEEDS
@@ -336,6 +340,13 @@ def build_demo_rows(
                     "estimated_transaction_fee_vnd": str(int(gmv * 0.05)),
                     "estimated_service_fee_vnd": str(int(gmv * 0.025)),
                 })
+                views = rng.randint(80, 760)
+                carts = rng.randint(max(1, int(views * 0.025)), max(2, int(views * 0.13)))
+                funnel_orders = rng.randint(0, min(carts, max(1, int(carts * 0.38))))
+                product_funnel.append({
+                    "month": period, "sku": sku, "views": str(views),
+                    "add_to_cart_count": str(carts), "order_count": str(funnel_orders),
+                })
 
     campaign_categories = [category[2] for category in selected_categories[:3]]
     for period in DEMO_PERIODS:
@@ -360,6 +371,57 @@ def build_demo_rows(
                 "amount_vnd": str(int(base_cost * multiplier)),
                 "note": note,
             })
+        completed_gmv = sum(
+            int(row["gross_merchandise_value_vnd"])
+            for row in orders
+            if row["order_date"].startswith(period) and row["status"] == "completed"
+        )
+        cash_flow.extend((
+            {
+                "cash_flow_id": f"CF-IN-{period.replace('-', '')}", "date": f"{period}-28",
+                "direction": "Thu", "category": "Tiền bán hàng đã nhận",
+                "amount_vnd": str(int(completed_gmv * 0.86)), "reference": f"Đối soát {period}",
+                "note": "Dòng tiền thu mô phỏng sau đối soát.",
+            },
+            {
+                "cash_flow_id": f"CF-OUT-{period.replace('-', '')}", "date": f"{period}-18",
+                "direction": "Chi", "category": "Nhập hàng",
+                "amount_vnd": str(int(completed_gmv * rng.uniform(0.32, 0.52))), "reference": f"PO {period}",
+                "note": "Thanh toán nhập hàng mô phỏng.",
+            },
+        ))
+        total_orders = max(3, len([row for row in orders if row["order_date"].startswith(period)]))
+        returning = max(1, int(total_orders * rng.uniform(0.18, 0.38)))
+        customer_segments.extend((
+            {
+                "month": period, "segment_name": "Khách mới", "customer_count": str(max(1, total_orders - returning)),
+                "order_count": str(max(1, total_orders - returning)), "repeat_order_count": "0",
+                "gmv_vnd": str(int(completed_gmv * 0.62)),
+            },
+            {
+                "month": period, "segment_name": "Khách quay lại", "customer_count": str(returning),
+                "order_count": str(returning + rng.randint(0, max(1, returning))), "repeat_order_count": str(returning),
+                "gmv_vnd": str(int(completed_gmv * 0.30)),
+            },
+            {
+                "month": period, "segment_name": "Khách có nguy cơ không quay lại", "customer_count": str(max(1, int(total_orders * 0.12))),
+                "order_count": str(max(1, int(total_orders * 0.08))), "repeat_order_count": "0",
+                "gmv_vnd": str(int(completed_gmv * 0.08)),
+            },
+        ))
+        for category_index, (_, _, category, _, _, _) in enumerate(selected_categories, start=1):
+            for supplier_suffix, delivery_rate, defect_rate, lead_days in (
+                ("A", rng.uniform(88, 98), rng.uniform(0.2, 2.0), rng.uniform(2.0, 5.0)),
+                ("B", rng.uniform(76, 94), rng.uniform(1.0, 5.5), rng.uniform(4.0, 9.0)),
+            ):
+                supplier_performance.append({
+                    "supplier_id": f"SUP-{category_index:02d}-{supplier_suffix}",
+                    "supplier_name": f"Nguồn {supplier_suffix} · {category}", "month": period,
+                    "on_time_delivery_rate_percent": f"{delivery_rate:.2f}",
+                    "defect_rate_percent": f"{defect_rate:.2f}",
+                    "average_lead_time_days": f"{lead_days:.1f}",
+                    "order_count": str(rng.randint(1, 5)),
+                })
     return {
         "orders.csv": orders,
         "products.csv": products,
@@ -371,6 +433,10 @@ def build_demo_rows(
         "operating_costs.csv": operating_costs,
         "inventory_movements.csv": inventory_movements,
         "quality_checks.csv": quality_checks,
+        "cash_flow.csv": cash_flow,
+        "supplier_performance.csv": supplier_performance,
+        "customer_segments.csv": customer_segments,
+        "product_funnel.csv": product_funnel,
     }
 
 

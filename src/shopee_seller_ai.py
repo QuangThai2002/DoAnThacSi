@@ -783,6 +783,26 @@ TABLE_SPECS = {
         "help": "Theo dõi số hàng đã kiểm, hàng lỗi và tình trạng phản hồi nhà cung cấp.",
         "columns": ["check_id", "check_date", "purchase_order_id", "sku", "inspected_quantity", "defective_quantity", "defect_type", "status"],
     },
+    "cash_flow.csv": {
+        "title": "Dòng tiền (tùy chọn)",
+        "help": "Ghi tiền thu và chi thực tế để nhận biết thiếu tiền mặt; đây không thay thế sổ sách kế toán.",
+        "columns": ["cash_flow_id", "date", "direction", "category", "amount_vnd", "reference", "note"],
+    },
+    "supplier_performance.csv": {
+        "title": "Hiệu quả nhà cung cấp (tùy chọn)",
+        "help": "So sánh giao đúng hẹn, tỷ lệ lỗi và thời gian giao giữa các nguồn hàng đã có dữ liệu.",
+        "columns": ["supplier_id", "supplier_name", "month", "on_time_delivery_rate_percent", "defect_rate_percent", "average_lead_time_days", "order_count"],
+    },
+    "customer_segments.csv": {
+        "title": "Nhóm khách hàng (tùy chọn)",
+        "help": "Chỉ nhập số liệu tổng hợp để theo dõi khách quay lại, không lưu thông tin cá nhân khách hàng.",
+        "columns": ["month", "segment_name", "customer_count", "order_count", "repeat_order_count", "gmv_vnd"],
+    },
+    "product_funnel.csv": {
+        "title": "Hiệu quả từng sản phẩm (tùy chọn)",
+        "help": "Ghi lượt xem, thêm giỏ và đơn để xác định bước cần kiểm tra ở mỗi sản phẩm.",
+        "columns": ["month", "sku", "views", "add_to_cart_count", "order_count"],
+    },
 }
 COLUMN_LABELS = {
     "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
@@ -802,6 +822,10 @@ COLUMN_LABELS = {
     "cost_id": "Mã chi phí", "cost_category": "Nhóm chi phí", "amount_vnd": "Số tiền (VND)", "note": "Ghi chú",
     "movement_id": "Mã biến động", "movement_date": "Ngày biến động", "movement_type": "Loại biến động", "reference": "Mã tham chiếu",
     "check_id": "Mã kiểm tra", "check_date": "Ngày kiểm tra", "inspected_quantity": "Số lượng đã kiểm", "defective_quantity": "Số lượng lỗi", "defect_type": "Loại lỗi",
+    "cash_flow_id": "Mã dòng tiền", "date": "Ngày ghi nhận", "direction": "Thu / chi", "amount_vnd": "Số tiền (VND)",
+    "supplier_id": "Mã nhà cung cấp", "supplier_name": "Tên nhà cung cấp", "on_time_delivery_rate_percent": "Giao đúng hẹn (%)", "defect_rate_percent": "Tỷ lệ lỗi (%)", "average_lead_time_days": "Số ngày giao trung bình",
+    "segment_name": "Nhóm khách", "customer_count": "Số khách", "repeat_order_count": "Đơn mua lại", "gmv_vnd": "GMV (VND)",
+    "views": "Lượt xem", "add_to_cart_count": "Lượt thêm giỏ", "order_count": "Số đơn",
 }
 
 
@@ -1479,6 +1503,22 @@ def filter_dashboard_rows(
             row for row in rows.get("quality_checks.csv", [])
             if row["sku"] in selected_sku_values and row["check_date"][:7] in selected_month_values
         ],
+        "cash_flow.csv": [
+            row for row in rows.get("cash_flow.csv", [])
+            if row["date"][:7] in selected_month_values
+        ],
+        "supplier_performance.csv": [
+            row for row in rows.get("supplier_performance.csv", [])
+            if row["month"] in selected_month_values
+        ],
+        "customer_segments.csv": [
+            row for row in rows.get("customer_segments.csv", [])
+            if row["month"] in selected_month_values
+        ],
+        "product_funnel.csv": [
+            row for row in rows.get("product_funnel.csv", [])
+            if row["sku"] in selected_sku_values and row["month"] in selected_month_values
+        ],
     }
 
 
@@ -1499,6 +1539,10 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
     operating_costs = tool.operating_cost_summary()
     movements = tool.inventory_movement_summary()
     quality = tool.quality_summary()
+    cash_flow = tool.cash_flow_summary()
+    suppliers = tool.supplier_performance_summary()
+    customers = tool.customer_retention_summary()
+    funnel = tool.product_funnel_summary()
 
     with st.container(horizontal=True):
         st.metric("Doanh thu sau phí ước tính", currency(number(sales["net_revenue_after_estimated_fees_vnd"])), border=True)
@@ -1635,6 +1679,19 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
             rate = "—" if quality["defect_rate_percent"] is None else f"{quality['defect_rate_percent']:.2f}%"
             st.metric("Tỷ lệ lỗi đã kiểm", rate)
             st.caption(f"Đã kiểm {quality['inspected_unit_count']} sản phẩm ở {quality['check_count']} lô.")
+
+    with st.container(border=True):
+        st.markdown("**Dòng tiền và sức khỏe bán hàng**")
+        with st.container(horizontal=True):
+            cash_net = number(cash_flow["net_cash_movement_vnd"])
+            st.metric("Dòng tiền ròng đã ghi", currency(cash_net), border=True)
+            repeat_rate = "—" if customers["repeat_order_rate_percent"] is None else f"{customers['repeat_order_rate_percent']:.2f}%"
+            st.metric("Đơn mua lại", repeat_rate, border=True)
+            best_supplier = suppliers["best_supplier"]
+            supplier_score = "—" if best_supplier is None else f"{best_supplier['on_time_delivery_rate_percent']:.1f}%"
+            st.metric("Giao đúng hẹn tốt nhất", supplier_score, border=True)
+            st.metric("Lượt thêm giỏ", f"{funnel['total_add_to_cart_count']:,}", border=True)
+        st.caption("Các chỉ số chỉ tổng hợp dữ liệu đã nhập; hãy mở bảng tương ứng để kiểm tra từng giao dịch hoặc từng sản phẩm.")
 
 
 def add_demo_category_to_selection(category_id: str) -> None:
@@ -1862,6 +1919,10 @@ def render_data_upload(*, inline: bool = False) -> None:
             "operating_costs.csv": "Chi phí vận hành",
             "inventory_movements.csv": "Biến động kho",
             "quality_checks.csv": "Kiểm tra chất lượng",
+            "cash_flow.csv": "Dòng tiền",
+            "supplier_performance.csv": "Hiệu quả nhà cung cấp",
+            "customer_segments.csv": "Nhóm khách hàng",
+            "product_funnel.csv": "Hiệu quả từng sản phẩm",
         }
         for name in st.session_state.seller_uploaded_names:
             st.success(
@@ -1892,6 +1953,10 @@ def render_data_upload(*, inline: bool = False) -> None:
         operating_costs = st.file_uploader("Chi phí vận hành (operating_costs.csv, không bắt buộc)", type=["csv"])
         inventory_movements = st.file_uploader("Biến động kho (inventory_movements.csv, không bắt buộc)", type=["csv"])
         quality_checks = st.file_uploader("Kiểm tra chất lượng lô hàng (quality_checks.csv, không bắt buộc)", type=["csv"])
+        cash_flow = st.file_uploader("Dòng tiền (cash_flow.csv, không bắt buộc)", type=["csv"])
+        supplier_performance = st.file_uploader("Hiệu quả nhà cung cấp (supplier_performance.csv, không bắt buộc)", type=["csv"])
+        customer_segments = st.file_uploader("Nhóm khách hàng (customer_segments.csv, không bắt buộc)", type=["csv"])
+        product_funnel = st.file_uploader("Hiệu quả từng sản phẩm (product_funnel.csv, không bắt buộc)", type=["csv"])
         submitted = st.form_submit_button("Thêm dữ liệu", icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
@@ -1906,6 +1971,10 @@ def render_data_upload(*, inline: bool = False) -> None:
         "operating_costs.csv": operating_costs,
         "inventory_movements.csv": inventory_movements,
         "quality_checks.csv": quality_checks,
+        "cash_flow.csv": cash_flow,
+        "supplier_performance.csv": supplier_performance,
+        "customer_segments.csv": customer_segments,
+        "product_funnel.csv": product_funnel,
     }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:

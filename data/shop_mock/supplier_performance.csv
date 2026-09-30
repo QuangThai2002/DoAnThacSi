@@ -1,0 +1,5 @@
+supplier_id,supplier_name,month,on_time_delivery_rate_percent,defect_rate_percent,average_lead_time_days,order_count
+SUP-001,Nguồn hàng Điện tử A,2026-07,96.00,1.20,3.0,4
+SUP-002,Nguồn hàng Điện tử B,2026-07,82.00,3.80,6.5,3
+SUP-001,Nguồn hàng Điện tử A,2026-08,95.00,1.10,3.2,5
+SUP-002,Nguồn hàng Điện tử B,2026-08,80.00,4.20,6.8,3

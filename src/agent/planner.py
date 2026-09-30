@@ -83,6 +83,18 @@ class Planner:
         "kiem tra chat luong",
         "chat luong lo hang",
         "that thoat",
+        "dong tien",
+        "tien vao",
+        "tien ra",
+        "nha cung cap tot",
+        "giao hang dung hen",
+        "khach quay lai",
+        "khach hang than thiet",
+        "khach trung thanh",
+        "luot xem",
+        "them gio hang",
+        "hieu qua san pham",
+        "phieu san pham",
     )
     COST_ANALYSIS_TERMS = (
         "khoan chi phi",

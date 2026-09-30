@@ -45,6 +45,10 @@ class AgentRunner:
         operating_costs: dict[str, Any] | None = None
         inventory_movements: dict[str, Any] | None = None
         quality: dict[str, Any] | None = None
+        cash_flow: dict[str, Any] | None = None
+        suppliers: dict[str, Any] | None = None
+        customer_retention: dict[str, Any] | None = None
+        product_funnel: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
 
@@ -56,6 +60,9 @@ class AgentRunner:
                     "chi phi van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh",
                     "bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy",
                     "kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang",
+                    "dong tien", "tien vao", "tien ra", "nha cung cap tot", "giao hang dung hen",
+                    "khach quay lai", "khach hang than thiet", "khach trung thanh",
+                    "luot xem", "them gio hang", "hieu qua san pham", "phieu san pham",
                 )
                 if "ton kho" in normalized:
                     inventory = self.shop_data_tool.inventory_alerts()
@@ -76,7 +83,10 @@ class AgentRunner:
                 if any(term in normalized for term in ("danh gia", "phan hoi", "review")):
                     reviews = self.shop_data_tool.review_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": reviews})
-                if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")):
+                supplier_comparison_terms = ("nha cung cap tot", "nha cung cap nao", "giao hang dung hen")
+                if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")) and not any(
+                    term in normalized for term in supplier_comparison_terms
+                ):
                     procurement = self.shop_data_tool.procurement_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": procurement})
                 if any(term in normalized for term in ("chi phi van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh")):
@@ -88,6 +98,18 @@ class AgentRunner:
                 if any(term in normalized for term in ("kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang", "hang loi")):
                     quality = self.shop_data_tool.quality_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": quality})
+                if any(term in normalized for term in ("dong tien", "tien vao", "tien ra")):
+                    cash_flow = self.shop_data_tool.cash_flow_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": cash_flow})
+                if any(term in normalized for term in ("nha cung cap tot", "giao hang dung hen", "nha cung cap nao")):
+                    suppliers = self.shop_data_tool.supplier_performance_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": suppliers})
+                if any(term in normalized for term in ("khach quay lai", "khach hang than thiet", "khach trung thanh")):
+                    customer_retention = self.shop_data_tool.customer_retention_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": customer_retention})
+                if any(term in normalized for term in ("luot xem", "them gio hang", "hieu qua san pham", "phieu san pham")):
+                    product_funnel = self.shop_data_tool.product_funnel_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": product_funnel})
             except Exception as exc:  # Keep an inspectable failure in the agent trace.
                 trace.append({"tool": "shop_data", "status": "error", "error": str(exc)})
 
@@ -132,6 +154,10 @@ class AgentRunner:
             operating_costs=operating_costs,
             inventory_movements=inventory_movements,
             quality=quality,
+            cash_flow=cash_flow,
+            suppliers=suppliers,
+            customer_retention=customer_retention,
+            product_funnel=product_funnel,
             ranking=ranking,
             citations=citations,
         )
@@ -198,6 +224,10 @@ class AgentRunner:
         operating_costs: dict[str, Any] | None,
         inventory_movements: dict[str, Any] | None,
         quality: dict[str, Any] | None,
+        cash_flow: dict[str, Any] | None,
+        suppliers: dict[str, Any] | None,
+        customer_retention: dict[str, Any] | None,
+        product_funnel: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
     ) -> str:
@@ -316,6 +346,49 @@ class AgentRunner:
                 )
             else:
                 sections.append("Chưa có bảng kiểm tra chất lượng trong kỳ được hỏi.")
+        if cash_flow:
+            movement = int(cash_flow["net_cash_movement_vnd"])
+            label = "dòng tiền tăng ròng" if movement >= 0 else "dòng tiền giảm ròng"
+            sections.append(
+                "Trong kỳ, tiền thu đã ghi nhận là {inflow:,} VND, tiền chi là {outflow:,} VND; {label} {amount:,} VND. {limitation}".format(
+                    inflow=int(cash_flow["inflow_vnd"]), outflow=int(cash_flow["outflow_vnd"]),
+                    label=label, amount=abs(movement), limitation=str(cash_flow["limitation"]),
+                )
+            )
+        if suppliers:
+            best = suppliers["best_supplier"]
+            slowest = suppliers["slowest_supplier"]
+            if best and slowest:
+                sections.append(
+                    "Trong {count} nguồn đã ghi, {best} có tỷ lệ giao đúng hẹn {best_rate:.1f}% và lỗi {best_defect:.1f}%; nguồn có thời gian giao lâu nhất là {slowest} ({days:.1f} ngày). {limitation}".format(
+                        count=suppliers["supplier_count"], best=best["supplier_name"],
+                        best_rate=best["on_time_delivery_rate_percent"], best_defect=best["defect_rate_percent"],
+                        slowest=slowest["supplier_name"], days=slowest["average_lead_time_days"],
+                        limitation=str(suppliers["limitation"]),
+                    )
+                )
+            else:
+                sections.append("Chưa có dữ liệu hiệu quả nhà cung cấp trong kỳ được hỏi.")
+        if customer_retention:
+            rate = customer_retention["repeat_order_rate_percent"]
+            sections.append(
+                "Có {customers} khách trong bảng tổng hợp, gồm {returning} khách quay lại; đơn mua lại chiếm {rate}%. {limitation}".format(
+                    customers=customer_retention["customer_count"], returning=customer_retention["returning_customer_count"],
+                    rate="—" if rate is None else f"{rate:.2f}", limitation=str(customer_retention["limitation"]),
+                )
+            )
+        if product_funnel:
+            weak = product_funnel["weak_product"]
+            if weak:
+                sections.append(
+                    "Có {products} sản phẩm trong phễu. Sản phẩm cần kiểm tra trước là {name}: {views} lượt xem, {carts} lượt thêm giỏ và tỷ lệ từ giỏ sang đơn {rate:.2f}%. {limitation}".format(
+                        products=product_funnel["product_count"], name=weak["product_name"], views=weak["views"],
+                        carts=weak["add_to_cart_count"], rate=weak["cart_to_order_rate_percent"] or 0,
+                        limitation=str(product_funnel["limitation"]),
+                    )
+                )
+            else:
+                sections.append("Chưa có đủ lượt xem để đánh giá phễu sản phẩm trong kỳ được hỏi.")
         if ranking and ranking["cost_ranking"]:
             highest = ranking["cost_ranking"][0]
             sections.append(

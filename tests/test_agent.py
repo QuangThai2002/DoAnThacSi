@@ -109,6 +109,16 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertEqual(quality["defective_unit_count"], 1)
         self.assertEqual(quality["defect_rate_percent"], 1.61)
 
+    def test_business_health_tables_support_cash_supplier_customer_and_funnel(self) -> None:
+        cash = self.tool.cash_flow_summary("2026-08")
+        self.assertEqual(cash["net_cash_movement_vnd"], 420_000)
+        self.assertEqual(
+            self.tool.supplier_performance_summary("2026-08")["best_supplier"]["supplier_name"],
+            "Nguồn hàng Điện tử A",
+        )
+        self.assertEqual(self.tool.customer_retention_summary("2026-08")["repeat_order_rate_percent"], 25.0)
+        self.assertEqual(self.tool.product_funnel_summary("2026-08")["weak_product"]["sku"], "SKU-003")
+
 
 class CalculatorAndRunnerTests(unittest.TestCase):
     def test_common_policy_question_uses_the_cached_fast_retrieval_path(self) -> None:
@@ -192,6 +202,11 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         result = AgentRunner().run("Chi phí vận hành tháng 8 năm 2026 của shop tôi là bao nhiêu?")
         self.assertIn("Chi phí vận hành đã ghi nhận là 840,000 VND", result["answer"])
         self.assertIn("chưa tự suy ra thuế", result["answer"])
+
+    def test_runner_answers_cash_flow_with_a_clear_accounting_limit(self) -> None:
+        result = AgentRunner().run("Dòng tiền tháng 8 năm 2026 của shop tôi thế nào?")
+        self.assertIn("dòng tiền tăng ròng 420,000 VND", result["answer"])
+        self.assertIn("không thay thế sổ sách kế toán", result["answer"])
 
     def test_policy_answer_is_direct_and_does_not_claim_csv_use(self) -> None:
         class FixedFeeRAG:
