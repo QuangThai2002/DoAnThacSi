@@ -833,6 +833,30 @@ def library_repository() -> ShopDataLibrary:
     return ShopDataLibrary()
 
 
+def demo_primary_category_id(
+    rows: dict[str, list[dict[str, str]]],
+    selected_ids: list[str],
+) -> str | None:
+    """Choose a stable market category from the demo stored for this chat."""
+    compatible_ids = {str(item["id"]) for item in market_categories()}
+    selected = next((item for item in selected_ids if item in compatible_ids), None)
+    if selected is not None:
+        return selected
+    stored_categories = {
+        str(row.get("category", "")).strip()
+        for row in rows.get("products.csv", [])
+    }
+    return next(
+        (
+            str(item["id"])
+            for item in demo_catalog()
+            if str(item["id"]) in compatible_ids
+            and str(item["category"]) in stored_categories
+        ),
+        None,
+    )
+
+
 def activate_library_data(scope: str) -> None:
     """Attach one saved data shelf to the active chat, rather than only opening it."""
     rows = library_repository().load(scope)
@@ -854,8 +878,7 @@ def activate_library_data(scope: str) -> None:
     st.session_state.seller_uploaded_names = tuple(rows)
     st.session_state.seller_data_origin = f"{scope}_library"
     if scope == "demo":
-        compatible_ids = {str(item["id"]) for item in market_categories()}
-        primary_category = next((item for item in selected_demo_ids if item in compatible_ids), None)
+        primary_category = demo_primary_category_id(rows, selected_demo_ids)
         if primary_category is not None:
             st.session_state.seller_market_category_id = primary_category
             st.session_state.strategy_category_id = primary_category
