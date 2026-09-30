@@ -364,6 +364,25 @@ def render_color_mode_css() -> None:
           [data-testid="stPills"] button[aria-pressed="true"], [data-testid="stTabs"] button[aria-selected="true"] {
             background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
           }
+          /* These controls had light-mode key-specific rules with higher priority. */
+          [class*="st-key-seller_suggestion"] button,
+          [class*="st-key-open_"] button,
+          [class*="st-key-collapse_sidebar"] button,
+          [class*="st-key-expand_sidebar"] button,
+          [data-testid="stPills"] button {
+            background: #1f2937 !important; border-color: #475569 !important; color: #e5edf7 !important;
+            box-shadow: none !important;
+          }
+          [class*="st-key-seller_suggestion"] button:hover,
+          [class*="st-key-open_"] button:hover,
+          [class*="st-key-collapse_sidebar"] button:hover,
+          [class*="st-key-expand_sidebar"] button:hover,
+          [data-testid="stPills"] button:hover {
+            background: #273449 !important; border-color: #60a5fa !important; color: #ffffff !important;
+          }
+          [class*="st-key-open_"] button:disabled, [data-testid="stPills"] button:disabled {
+            background: #1b2638 !important; border-color: #334155 !important; color: #94a3b8 !important; opacity: 1 !important;
+          }
           [data-testid="stAlert"], [data-testid="stExpander"] details,
           [data-testid="stVerticalBlockBorderWrapper"] { background: #1b2638 !important; border-color: #475569 !important; }
           .seller-eyebrow { color: #93c5fd !important; }
