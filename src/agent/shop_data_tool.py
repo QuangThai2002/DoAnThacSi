@@ -460,6 +460,91 @@ class ShopDataTool:
             "included_status": COMPLETED_STATUS,
         }
 
+    def product_gmv_ranking(self, period: str | None = None) -> dict[str, Any]:
+        """Rank completed-order GMV by product for a focused seller question."""
+        products = {row["sku"]: row["product_name"] for row in self._read_csv("products.csv")}
+        totals: dict[str, dict[str, Decimal | int]] = {}
+        for order in self._read_csv("orders.csv"):
+            if order["status"].strip().lower() != COMPLETED_STATUS:
+                continue
+            if period is not None and not order["order_date"].startswith(period):
+                continue
+            row = totals.setdefault(
+                order["sku"], {"gmv": Decimal("0"), "quantity": 0, "order_count": 0}
+            )
+            row["gmv"] = Decimal(str(row["gmv"])) + as_decimal(order["gross_merchandise_value_vnd"])
+            row["quantity"] = int(row["quantity"]) + int(order["quantity"])
+            row["order_count"] = int(row["order_count"]) + 1
+        ranked = [
+            {
+                "sku": sku,
+                "product_name": products.get(sku, sku),
+                "gmv_vnd": as_number(Decimal(str(values["gmv"]))),
+                "completed_unit_count": int(values["quantity"]),
+                "completed_order_count": int(values["order_count"]),
+            }
+            for sku, values in totals.items()
+        ]
+        ranked.sort(key=lambda item: (-float(item["gmv_vnd"]), item["product_name"]))
+        return {
+            "tool": "shop_data.product_gmv_ranking",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "ranked_products": ranked,
+            "top_product": ranked[0] if ranked else None,
+            "limitation": "Xếp hạng chỉ dựa trên đơn hoàn tất trong dữ liệu đang gắn; GMV không phải lợi nhuận.",
+        }
+
+    def sales_period_comparison(self, period: str | None = None) -> dict[str, Any]:
+        """Compare one recorded month with the immediately preceding recorded month."""
+        monthly: dict[str, dict[str, Decimal | int]] = {}
+        for order in self._read_csv("orders.csv"):
+            if order["status"].strip().lower() != COMPLETED_STATUS:
+                continue
+            month = order["order_date"][:7]
+            totals = monthly.setdefault(
+                month,
+                {"gmv": Decimal("0"), "seller_discount": Decimal("0"), "transaction_fee": Decimal("0"), "service_fee": Decimal("0"), "orders": 0},
+            )
+            totals["gmv"] = Decimal(str(totals["gmv"])) + as_decimal(order["gross_merchandise_value_vnd"])
+            totals["seller_discount"] = Decimal(str(totals["seller_discount"])) + as_decimal(order["seller_discount_vnd"])
+            totals["transaction_fee"] = Decimal(str(totals["transaction_fee"])) + as_decimal(order["estimated_transaction_fee_vnd"])
+            totals["service_fee"] = Decimal(str(totals["service_fee"])) + as_decimal(order["estimated_service_fee_vnd"])
+            totals["orders"] = int(totals["orders"]) + 1
+        months = sorted(monthly)
+        current_month = period if period in monthly else (months[-1] if months else None)
+        previous_month = None
+        if current_month is not None:
+            current_index = months.index(current_month)
+            previous_month = months[current_index - 1] if current_index else None
+
+        def summary(month: str | None) -> dict[str, Any] | None:
+            if month is None:
+                return None
+            values = monthly[month]
+            gmv = Decimal(str(values["gmv"]))
+            net = gmv - Decimal(str(values["seller_discount"])) - Decimal(str(values["transaction_fee"])) - Decimal(str(values["service_fee"]))
+            return {
+                "period": month,
+                "gmv_vnd": as_number(gmv),
+                "net_revenue_after_estimated_fees_vnd": as_number(net),
+                "completed_order_count": int(values["orders"]),
+            }
+
+        current = summary(current_month)
+        previous = summary(previous_month)
+        gmv_change = None
+        if current is not None and previous is not None and previous["gmv_vnd"]:
+            gmv_change = round(((current["gmv_vnd"] - previous["gmv_vnd"]) / previous["gmv_vnd"]) * 100, 2)
+        return {
+            "tool": "shop_data.sales_period_comparison",
+            "data_scope": self.data_scope,
+            "current": current,
+            "previous": previous,
+            "gmv_change_percent": gmv_change,
+            "limitation": "So sánh chỉ dùng hai tháng có đơn hoàn tất liền kề trong dữ liệu đang gắn; không tự suy ra nguyên nhân tăng hoặc giảm.",
+        }
+
     def inventory_alerts(self) -> dict[str, Any]:
         products = {row["sku"]: row for row in self._read_csv("products.csv")}
         alerts: list[dict[str, Any]] = []

@@ -100,11 +100,11 @@ class Planner:
     # the seller's own numbers. Only the latter must have shop data attached.
     BUSINESS_TERM_DEFINITION_TERMS = (
         "gmv", "roas", "sku", "doanh thu", "loi nhuan", "gia von",
-        "hoa von", "dong tien", "ton kho",
+        "hoa von", "dong tien", "ton kho", "don bi huy", "don huy", "don da huy",
     )
     DEFINITION_QUESTION_TERMS = (
         "la gi", "nghia la gi", "co phai", "khac gi", "tinh nhu the nao",
-        "tinh sao", "giai thich",
+        "tinh sao", "giai thich", "co duoc tinh", "co tinh", "tinh doanh thu khong",
     )
     PRIVATE_DATA_CUES = (
         "shop toi", "cua shop", "cua toi", "cua hang toi", "bao nhieu",
@@ -160,13 +160,17 @@ class Planner:
             and any(term in normalized for term in self.DEFINITION_QUESTION_TERMS)
             and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
         )
+        is_general_policy_question = (
+            any(term in normalized for term in ("hop dong", "giao dich dien tu", "phap luat", "luat"))
+            and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
+        )
         needs_cost_analysis = any(
             term in normalized for term in self.COST_ANALYSIS_TERMS
         )
         needs_shop = (
             any(term in normalized for term in self.SHOP_TERMS)
             or needs_cost_analysis
-        ) and not is_definition_question
+        ) and not (is_definition_question or is_general_policy_question)
         needs_policy = any(term in normalized for term in self.POLICY_TERMS)
         needs_calculation = any(term in normalized for term in self.CALCULATION_TERMS)
 

@@ -49,6 +49,8 @@ class AgentRunner:
         suppliers: dict[str, Any] | None = None
         customer_retention: dict[str, Any] | None = None
         product_funnel: dict[str, Any] | None = None
+        product_gmv_ranking: dict[str, Any] | None = None
+        sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
 
@@ -63,8 +65,23 @@ class AgentRunner:
                     "dong tien", "tien vao", "tien ra", "nha cung cap tot", "giao hang dung hen",
                     "khach quay lai", "khach hang than thiet", "khach trung thanh",
                     "luot xem", "them gio hang", "hieu qua san pham", "phieu san pham",
+                    "san pham nao", "mat hang nao", "gmv cao nhat", "thang truoc",
                 )
-                if "ton kho" in normalized:
+                asks_product_gmv = (
+                    "gmv" in normalized
+                    and any(term in normalized for term in ("san pham nao", "mat hang nao", "cao nhat"))
+                )
+                asks_period_comparison = (
+                    "so sanh" in normalized
+                    and any(term in normalized for term in ("doanh thu", "gmv", "thang truoc"))
+                )
+                if asks_product_gmv:
+                    product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
+                elif asks_period_comparison:
+                    sales_period_comparison = self.shop_data_tool.sales_period_comparison(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": sales_period_comparison})
+                elif "ton kho" in normalized:
                     inventory = self.shop_data_tool.inventory_alerts()
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory})
                 elif not any(term in normalized for term in focused_operational_terms):
@@ -84,7 +101,7 @@ class AgentRunner:
                     reviews = self.shop_data_tool.review_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": reviews})
                 supplier_comparison_terms = ("nha cung cap tot", "nha cung cap nao", "giao hang dung hen")
-                if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")) and not any(
+                if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")) and "hop dong" not in normalized and not any(
                     term in normalized for term in supplier_comparison_terms
                 ):
                     procurement = self.shop_data_tool.procurement_summary(plan.period)
@@ -158,6 +175,8 @@ class AgentRunner:
             suppliers=suppliers,
             customer_retention=customer_retention,
             product_funnel=product_funnel,
+            product_gmv_ranking=product_gmv_ranking,
+            sales_period_comparison=sales_period_comparison,
             ranking=ranking,
             citations=citations,
         )
@@ -228,6 +247,8 @@ class AgentRunner:
         suppliers: dict[str, Any] | None,
         customer_retention: dict[str, Any] | None,
         product_funnel: dict[str, Any] | None,
+        product_gmv_ranking: dict[str, Any] | None,
+        sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
     ) -> str:
@@ -237,6 +258,42 @@ class AgentRunner:
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
         sections: list[str] = []
+        if product_gmv_ranking:
+            top_product = product_gmv_ranking["top_product"]
+            if top_product is None:
+                sections.append("Chưa có đơn hoàn tất trong kỳ được hỏi nên chưa thể xếp hạng GMV theo sản phẩm.")
+            else:
+                sections.append(
+                    "Sản phẩm có GMV cao nhất là **{name}**: **{gmv:,} VND** từ {orders} đơn hoàn tất, "
+                    "tổng {units} sản phẩm. {limitation}".format(
+                        name=top_product["product_name"],
+                        gmv=int(top_product["gmv_vnd"]),
+                        orders=top_product["completed_order_count"],
+                        units=top_product["completed_unit_count"],
+                        limitation=str(product_gmv_ranking["limitation"]),
+                    )
+                )
+        if sales_period_comparison:
+            current = sales_period_comparison["current"]
+            previous = sales_period_comparison["previous"]
+            if current is None or previous is None:
+                sections.append("Cần ít nhất hai tháng có đơn hoàn tất để so sánh doanh thu.")
+            else:
+                change = sales_period_comparison["gmv_change_percent"]
+                direction = "tăng" if change is not None and change >= 0 else "giảm"
+                change_text = "không tính được tỷ lệ" if change is None else f"{direction} {abs(change):.2f}%"
+                sections.append(
+                    "So với **{previous_period}**, tháng **{current_period}** có GMV **{current_gmv:,} VND** "
+                    "so với **{previous_gmv:,} VND** ({change_text}). Doanh thu sau phí ước tính là "
+                    "**{current_net:,} VND** so với **{previous_net:,} VND**. {limitation}".format(
+                        previous_period=previous["period"], current_period=current["period"],
+                        current_gmv=int(current["gmv_vnd"]), previous_gmv=int(previous["gmv_vnd"]),
+                        change_text=change_text,
+                        current_net=int(current["net_revenue_after_estimated_fees_vnd"]),
+                        previous_net=int(previous["net_revenue_after_estimated_fees_vnd"]),
+                        limitation=str(sales_period_comparison["limitation"]),
+                    )
+                )
         if sales:
             sections.append(
                 "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
@@ -408,7 +465,7 @@ class AgentRunner:
             else:
                 sections.append("Không có cảnh báo tồn kho theo ngưỡng đã cấu hình.")
         knowledge_answer = AgentRunner._knowledge_answer(question)
-        if knowledge_answer:
+        if knowledge_answer and not sections:
             sections.append(knowledge_answer)
         elif citations and not sections:
             sections.append(
@@ -428,6 +485,11 @@ class AgentRunner:
                 "**Doanh thu sau phí ước tính** = **GMV − giảm giá người bán − phí giao dịch − phí dịch vụ**. "
                 "Ví dụ: GMV 1.000.000 đ, giảm giá 50.000 đ, phí giao dịch 30.000 đ và phí dịch vụ 20.000 đ "
                 "→ còn **900.000 đ**. Con số này chưa trừ giá vốn, quảng cáo, đóng gói, nhân sự, thuế hay các chi phí chưa ghi nhận; vì vậy chưa phải lợi nhuận ròng."
+            )
+        if any(term in normalized_question for term in ("don bi huy", "don huy", "don da huy")):
+            return (
+                "Không. Trong Eslabong, doanh thu và GMV chỉ tính các đơn có trạng thái **hoàn tất**. "
+                "Đơn bị hủy không được cộng vào doanh thu; cần đối chiếu trạng thái đơn và khoản hoàn tiền riêng nếu có."
             )
         if "phi co dinh" in normalized_question:
             return (

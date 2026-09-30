@@ -41,6 +41,11 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.tools, ("rag",))
         self.assertFalse(plan.needs_private_shop_data)
 
+    def test_cancelled_order_rule_does_not_request_private_shop_data(self) -> None:
+        plan = Planner().plan("Nếu đơn bị hủy thì có được tính doanh thu không?")
+        self.assertEqual(plan.tools, ("rag",))
+        self.assertFalse(plan.needs_private_shop_data)
+
 
 class ShopDataToolTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -234,6 +239,24 @@ class CalculatorAndRunnerTests(unittest.TestCase):
 
         self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
         self.assertIn("seller discount (205,000 VND, 46.3%)", result["answer"])
+
+    def test_runner_answers_product_gmv_question_with_a_product_not_generic_sales(self) -> None:
+        result = AgentRunner().run("Sản phẩm nào đem về GMV cao nhất trong kỳ?")
+        self.assertIn("Cáp sạc USB-C 1m", result["answer"])
+        self.assertIn("1,760,000 VND", result["answer"])
+        self.assertNotIn("Trong kỳ toàn bộ kỳ có trong dữ liệu", result["answer"])
+        self.assertNotIn("Ví dụ bán 2 sản phẩm", result["answer"])
+
+    def test_runner_explains_cancelled_orders_without_a_sales_summary(self) -> None:
+        result = AgentRunner().run("Nếu đơn bị hủy thì có được tính doanh thu không?")
+        self.assertIn("Đơn bị hủy không được cộng", result["answer"])
+        self.assertNotIn("Trong kỳ", result["answer"])
+
+    def test_runner_compares_the_latest_two_recorded_months(self) -> None:
+        result = AgentRunner().run("So sánh doanh thu tháng này với tháng trước.")
+        self.assertIn("So với **2026-07**", result["answer"])
+        self.assertIn("tháng **2026-08**", result["answer"])
+        self.assertIn("tăng 220.97%", result["answer"])
 
     def test_runner_uses_review_data_for_a_shop_question(self) -> None:
         result = AgentRunner().run("Đánh giá khách hàng của shop tôi tháng 8 năm 2026 thế nào?")
