@@ -407,23 +407,28 @@ class AgentRunner:
                 sections.append(f"Có {inventory['alert_count']} cảnh báo tồn kho: {products}.")
             else:
                 sections.append("Không có cảnh báo tồn kho theo ngưỡng đã cấu hình.")
-        if citations:
-            knowledge_answer = AgentRunner._knowledge_answer(question)
-            if knowledge_answer:
-                sections.append(knowledge_answer)
-            elif not sections:
-                sections.append(
-                    "Tôi đã tìm được tài liệu chính sách liên quan. Xem nguồn bên dưới "
-                    "để đối chiếu chi tiết."
-                )
-        elif "rag" in plan.tools:
-            sections.append("Agent chưa truy hồi được nguồn chính sách; không đưa ra kết luận chính sách.")
+        knowledge_answer = AgentRunner._knowledge_answer(question)
+        if knowledge_answer:
+            sections.append(knowledge_answer)
+        elif citations and not sections:
+            sections.append(
+                "Tôi chưa có đủ nội dung đã kiểm chứng để trả lời trực tiếp. "
+                "Bạn có thể mở phần nguồn nếu cần đối chiếu."
+            )
+        elif "rag" in plan.tools and not sections:
+            sections.append("Chưa truy hồi được nội dung đủ tin cậy để trả lời trực tiếp.")
         return "\n\n".join(sections)
 
     @staticmethod
     def _knowledge_answer(question: str) -> str:
         """Give short answers only for source-backed common concepts."""
         normalized_question = normalize(question)
+        if any(term in normalized_question for term in ("doanh thu sau phi", "doanh thu thuc nhan", "tien nhan duoc")):
+            return (
+                "**Doanh thu sau phí ước tính** = **GMV − giảm giá người bán − phí giao dịch − phí dịch vụ**. "
+                "Ví dụ: GMV 1.000.000 đ, giảm giá 50.000 đ, phí giao dịch 30.000 đ và phí dịch vụ 20.000 đ "
+                "→ còn **900.000 đ**. Con số này chưa trừ giá vốn, quảng cáo, đóng gói, nhân sự, thuế hay các chi phí chưa ghi nhận; vì vậy chưa phải lợi nhuận ròng."
+            )
         if "phi co dinh" in normalized_question:
             return (
                 "Phí cố định được tính bằng (giá sản phẩm trước Shopee trợ giá − "

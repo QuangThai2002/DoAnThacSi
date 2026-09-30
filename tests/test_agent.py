@@ -175,6 +175,25 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("GMV là tổng giá trị hàng hóa", result["answer"])
         self.assertIn("không phải lợi nhuận", result["answer"])
 
+    def test_net_revenue_question_answers_before_showing_sources(self) -> None:
+        class FeeRAG:
+            def search(self, _question: str) -> dict:
+                return {
+                    "evidence": [
+                        {
+                            "document_id": "fee-1",
+                            "title": "Biểu phí",
+                            "page": "1",
+                            "excerpt": "Các khoản phí được cấn trừ theo chính sách.",
+                        }
+                    ]
+                }
+
+        result = AgentRunner(rag_tool=FeeRAG()).run("Doanh thu sau phí được tính như thế nào?")
+        self.assertIn("Doanh thu sau phí ước tính", result["answer"])
+        self.assertIn("GMV − giảm giá người bán", result["answer"])
+        self.assertNotIn("Tôi đã tìm được tài liệu", result["answer"])
+
     def test_contract_guidance_does_not_present_itself_as_legal_advice(self) -> None:
         class LegalRAG:
             def search(self, _question: str) -> dict:
