@@ -57,6 +57,7 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertIn("#2563eb", rendered_styles)
         self.assertIn("st-key-seller_suggestion", rendered_styles)
         self.assertIn("st-key-open_", rendered_styles)
+        self.assertIn('st-key-open_"] button[kind="primary"]', rendered_styles)
         self.assertIn("stSegmentedControl", rendered_styles)
         self.assertIn("label:has(input:checked)", rendered_styles)
         self.assertIn("stSelectbox", rendered_styles)

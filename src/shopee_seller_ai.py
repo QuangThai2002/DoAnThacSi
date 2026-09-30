@@ -168,6 +168,17 @@ st.markdown(
       [class*="st-key-seller_suggestion"] button:hover {
         background: #fff0ea !important; border-color: #ee4d2d !important; color: #b5371e !important;
       }
+      /* Highlight the currently open chat like a focused Codex conversation. */
+      [class*="st-key-open_"] button[kind="primary"],
+      [class*="st-key-compact_open_"] button[kind="primary"] {
+        background: #fff0ea !important; border: 1.5px solid #ee4d2d !important;
+        color: #a8321d !important; font-weight: 750 !important;
+        box-shadow: 0 4px 14px rgba(238, 77, 45, .16) !important;
+      }
+      [class*="st-key-open_"] button[kind="primary"]:hover,
+      [class*="st-key-compact_open_"] button[kind="primary"]:hover {
+        background: #ffe4dc !important; border-color: #d83f20 !important; color: #8f2817 !important;
+      }
       .stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
         background: #ee4d2d !important; border-color: #ee4d2d !important; color: #ffffff !important;
         min-height: 42px !important; border-radius: 10px !important; font-weight: 700 !important;
@@ -517,6 +528,16 @@ def render_color_mode_css() -> None:
           }
           [class*="st-key-open_"] button:disabled, [data-testid="stPills"] button:disabled {
             background: #1b2638 !important; border-color: #334155 !important; color: #94a3b8 !important; opacity: 1 !important;
+          }
+          [class*="st-key-open_"] button[kind="primary"],
+          [class*="st-key-compact_open_"] button[kind="primary"] {
+            background: #24385a !important; border: 1.5px solid #60a5fa !important;
+            color: #ffffff !important; font-weight: 750 !important;
+            box-shadow: 0 4px 14px rgba(96, 165, 250, .20) !important;
+          }
+          [class*="st-key-open_"] button[kind="primary"]:hover,
+          [class*="st-key-compact_open_"] button[kind="primary"]:hover {
+            background: #2d4a73 !important; border-color: #93c5fd !important;
           }
           [data-testid="stAlert"], [data-testid="stExpander"] details,
           [data-testid="stVerticalBlockBorderWrapper"] { background: #1b2638 !important; border-color: #475569 !important; }
@@ -2748,10 +2769,12 @@ with st.sidebar:
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = active_chat_type(conversation["mode"])
             label = f"{chat_type['name']} · {conversation['title']} · {conversation_data_label(conversation)}"
+            is_active = conversation["id"] == st.session_state.get("seller_active_chat_id")
             st.button(
                 " ",
                 key=f"compact_open_{conversation['id']}",
                 icon=chat_type["icon"],
+                type="primary" if is_active else "secondary",
                 help=label,
                 width="stretch",
                 on_click=open_conversation,
@@ -2770,12 +2793,14 @@ with st.sidebar:
         st.caption(ui_text("Cuộc trò chuyện gần đây", "Recent chats"))
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = active_chat_type(conversation["mode"])
-            active_marker = ui_text("Đang mở · ", "Open · ") if conversation["id"] == st.session_state.get("seller_active_chat_id") else ""
+            is_active = conversation["id"] == st.session_state.get("seller_active_chat_id")
+            active_marker = ui_text("Đang mở · ", "Open · ") if is_active else ""
             label = f"{active_marker}{chat_type['name']} · {conversation['title']}"
             st.button(
                 label,
                 key=f"open_{conversation['id']}",
                 icon=chat_type["icon"],
+                type="primary" if is_active else "secondary",
                 width="stretch",
                 help=conversation_data_label(conversation),
                 on_click=open_conversation,
