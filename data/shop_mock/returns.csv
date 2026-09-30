@@ -1,0 +1,5 @@
+return_id,order_id,request_date,sku,quantity,reason,status,refund_amount_vnd
+RET-202607-001,ORD-202607-002,2026-07-21,SKU-002,1,Không đúng mô tả,refunded,350000
+RET-202608-001,ORD-202608-003,2026-08-13,SKU-003,1,Hàng lỗi,returned_refunded,240000
+RET-202608-002,ORD-202608-005,2026-08-19,SKU-005,1,Hư hại khi vận chuyển,returned_refunded,250000
+RET-202608-003,ORD-202608-007,2026-08-30,SKU-001,1,Đổi ý mua hàng,under_review,222500

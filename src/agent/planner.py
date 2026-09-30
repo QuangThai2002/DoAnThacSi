@@ -45,6 +45,10 @@ class Planner:
         "hoan tien",
         "merchant api",
         "shop api",
+        "hop dong",
+        "giao dich dien tu",
+        "phap luat",
+        "luat",
     )
     SHOP_TERMS = (
         "shop toi",
@@ -59,6 +63,16 @@ class Planner:
         "roas",
         "chi phi cua shop",
         "loi nhuan",
+        "lo von",
+        "gia von",
+        "hang hoan",
+        "hoan hang",
+        "danh gia",
+        "phan hoi",
+        "review",
+        "nhap hang",
+        "nha cung cap",
+        "don nhap",
     )
     COST_ANALYSIS_TERMS = (
         "khoan chi phi",

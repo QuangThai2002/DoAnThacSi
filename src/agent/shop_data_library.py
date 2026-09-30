@@ -217,6 +217,9 @@ def build_demo_rows(
     orders: list[dict[str, str]] = []
     inventory: list[dict[str, str]] = []
     ads: list[dict[str, str]] = []
+    purchase_orders: list[dict[str, str]] = []
+    returns: list[dict[str, str]] = []
+    reviews: list[dict[str, str]] = []
     wanted_ids = set(selected_category_ids) if selected_category_ids is not None else None
     selected_categories = [
         category for category in DEMO_CATEGORY_SEEDS
@@ -245,6 +248,38 @@ def build_demo_rows(
                 "sku": sku, "on_hand": str(max(available + reserved, 0)), "reserved": str(reserved),
                 "reorder_point": str(reorder_point), "last_updated": "2026-09-28",
             })
+            purchase_orders.append({
+                "purchase_order_id": f"PO-{category_index:02d}{product_index:02d}",
+                "order_date": "2026-08-24",
+                "supplier_name": f"Nhà cung cấp {category_index}",
+                "sku": sku,
+                "quantity": str(rng.randint(12, 48)),
+                "unit_cost_vnd": str(cost),
+                "expected_arrival_date": "2026-09-10",
+                "status": "received" if product_index % 3 else "confirmed",
+            })
+            rating = rng.choice((2, 3, 4, 4, 5, 5))
+            issue = "Không nêu vấn đề" if rating >= 4 else rng.choice(("Chất lượng", "Đóng gói", "Không đúng mô tả"))
+            reviews.append({
+                "review_id": f"REV-{category_index:02d}{product_index:02d}",
+                "review_date": "2026-08-27",
+                "sku": sku,
+                "rating": str(rating),
+                "sentiment": "tích cực" if rating >= 4 else "tiêu cực",
+                "issue_type": issue,
+                "comment": "Sản phẩm phù hợp mô tả." if rating >= 4 else "Cần kiểm tra lại trước khi mở rộng bán.",
+            })
+            if product_index % 4 == 0:
+                returns.append({
+                    "return_id": f"RET-{category_index:02d}{product_index:02d}",
+                    "order_id": f"DEMO-202608-{category_index:02d}{product_index:02d}",
+                    "request_date": "2026-08-29",
+                    "sku": sku,
+                    "quantity": "1",
+                    "reason": "Chất lượng cần kiểm tra",
+                    "status": "under_review",
+                    "refund_amount_vnd": str(max(0, int(list_price * 0.9))),
+                })
 
             for period in DEMO_PERIODS:
                 quantity = rng.randint(1, 5)
@@ -271,7 +306,15 @@ def build_demo_rows(
                 "attributed_revenue_vnd": str(int(spend * rng.uniform(2.2, 5.5))),
                 "orders": str(rng.randint(4, 18)),
             })
-    return {"orders.csv": orders, "products.csv": products, "inventory.csv": inventory, "ads.csv": ads}
+    return {
+        "orders.csv": orders,
+        "products.csv": products,
+        "inventory.csv": inventory,
+        "ads.csv": ads,
+        "purchase_orders.csv": purchase_orders,
+        "returns.csv": returns,
+        "reviews.csv": reviews,
+    }
 
 
 DEMO_ROWS = build_demo_rows()

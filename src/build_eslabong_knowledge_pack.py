@@ -40,7 +40,7 @@ TOPICS = [
     ("Combo", "Combo hoặc mua kèm phù hợp khi các sản phẩm liên quan và vẫn giữ biên lợi nhuận. Hãy theo dõi giá trị đơn trung bình, lợi nhuận gộp và tồn kho của từng SKU trong combo."),
     ("So sánh giá", "So sánh giá cần đặt cùng sản phẩm hoặc mức chất lượng tương đương. Giá cao vẫn có thể bán tốt nhờ thương hiệu, đánh giá, bảo hành, giao nhanh hoặc nội dung sản phẩm tốt hơn; đây là giả thuyết cần kiểm tra."),
     ("Kế hoạch 30 ngày", "Một kế hoạch 30 ngày nên có mục tiêu nhỏ đo được, ví dụ xử lý ba SKU chậm bán hoặc thử một combo. Mỗi tuần ghi số đơn, GMV, chi phí, tồn kho và lý do thay đổi để không nhầm tương quan với nguyên nhân."),
-    ("Dữ liệu CSV", "orders.csv mô tả đơn hàng, products.csv mô tả sản phẩm, inventory.csv mô tả tồn kho và ads.csv mô tả quảng cáo. Eslabong chỉ phân tích các dữ liệu được tải vào phiên hoặc bộ demo; không tự đọc tài khoản Shopee."),
+    ("Dữ liệu CSV", "orders.csv mô tả đơn hàng, products.csv mô tả sản phẩm, inventory.csv mô tả tồn kho, ads.csv mô tả quảng cáo, purchase_orders.csv mô tả đơn nhập, returns.csv mô tả hoàn hàng và reviews.csv mô tả đánh giá khách hàng. Eslabong chỉ phân tích dữ liệu được tải vào phiên hoặc bộ demo; không tự đọc tài khoản Shopee."),
     ("Giới hạn kết quả", "Phân tích của Eslabong là hỗ trợ ra quyết định, không bảo đảm doanh thu hay lợi nhuận. Khi thiếu giá vốn, tồn kho, thời gian giao hàng hoặc dữ liệu đủ dài, hệ thống phải hạ mức chắc chắn của gợi ý."),
 ]
 

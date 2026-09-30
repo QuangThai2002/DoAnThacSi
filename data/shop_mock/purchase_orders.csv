@@ -1,0 +1,8 @@
+purchase_order_id,order_date,supplier_name,sku,quantity,unit_cost_vnd,expected_arrival_date,status
+PO-202607-001,2026-07-01,TechHome Supply,SKU-001,40,120000,2026-07-08,received
+PO-202607-002,2026-07-05,PowerPlus VN,SKU-002,24,205000,2026-07-15,received
+PO-202607-003,2026-07-18,Audio Mini,SKU-003,30,150000,2026-07-28,received
+PO-202608-001,2026-08-03,HomeLight Co,SKU-005,36,108000,2026-08-12,received
+PO-202608-002,2026-08-12,Office Gear,SKU-006,20,105000,2026-08-22,received
+PO-202608-003,2026-08-26,PowerPlus VN,SKU-002,18,208000,2026-09-08,confirmed
+PO-202608-004,2026-08-28,Audio Mini,SKU-003,24,152000,2026-09-10,ordered

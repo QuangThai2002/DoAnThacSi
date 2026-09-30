@@ -753,6 +753,21 @@ TABLE_SPECS = {
         "help": "Có thể để trống nếu shop chưa chạy quảng cáo.",
         "columns": ["campaign_id", "month", "campaign_name", "spend_vnd", "attributed_revenue_vnd", "orders"],
     },
+    "purchase_orders.csv": {
+        "title": "Đơn nhập hàng (tùy chọn)",
+        "help": "Theo dõi nhà cung cấp, giá nhập, số lượng và hàng đang về.",
+        "columns": ["purchase_order_id", "order_date", "supplier_name", "sku", "quantity", "unit_cost_vnd", "expected_arrival_date", "status"],
+    },
+    "returns.csv": {
+        "title": "Hoàn hàng (tùy chọn)",
+        "help": "Ghi nhận nguyên nhân, số lượng và tiền hoàn để tìm vấn đề cần xử lý.",
+        "columns": ["return_id", "order_id", "request_date", "sku", "quantity", "reason", "status", "refund_amount_vnd"],
+    },
+    "reviews.csv": {
+        "title": "Đánh giá khách hàng (tùy chọn)",
+        "help": "Theo dõi điểm đánh giá và vấn đề khách nêu để cải thiện sản phẩm.",
+        "columns": ["review_id", "review_date", "sku", "rating", "sentiment", "issue_type", "comment"],
+    },
 }
 COLUMN_LABELS = {
     "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
@@ -765,6 +780,10 @@ COLUMN_LABELS = {
     "reorder_point": "Ngưỡng nhập thêm", "last_updated": "Ngày cập nhật", "campaign_id": "Mã chiến dịch",
     "month": "Tháng", "campaign_name": "Tên chiến dịch", "spend_vnd": "Chi quảng cáo (VND)",
     "attributed_revenue_vnd": "Doanh thu quy gán (VND)", "orders": "Số đơn từ quảng cáo",
+    "purchase_order_id": "Mã đơn nhập", "supplier_name": "Nhà cung cấp", "unit_cost_vnd": "Giá nhập/đơn vị (VND)",
+    "expected_arrival_date": "Ngày dự kiến về", "return_id": "Mã hoàn hàng", "request_date": "Ngày yêu cầu hoàn",
+    "reason": "Lý do", "refund_amount_vnd": "Tiền hoàn (VND)", "review_id": "Mã đánh giá",
+    "review_date": "Ngày đánh giá", "rating": "Số sao", "sentiment": "Cảm xúc", "issue_type": "Vấn đề", "comment": "Nhận xét",
 }
 
 
@@ -1418,6 +1437,18 @@ def filter_dashboard_rows(
             if row["sku"] in selected_sku_values and row["order_date"][:7] in selected_month_values
         ],
         "ads.csv": [row for row in rows.get("ads.csv", []) if row["month"] in selected_month_values],
+        "purchase_orders.csv": [
+            row for row in rows.get("purchase_orders.csv", [])
+            if row["sku"] in selected_sku_values and row["order_date"][:7] in selected_month_values
+        ],
+        "returns.csv": [
+            row for row in rows.get("returns.csv", [])
+            if row["sku"] in selected_sku_values and row["request_date"][:7] in selected_month_values
+        ],
+        "reviews.csv": [
+            row for row in rows.get("reviews.csv", [])
+            if row["sku"] in selected_sku_values and row["review_date"][:7] in selected_month_values
+        ],
     }
 
 
@@ -1431,12 +1462,17 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
     sales = tool.sales_summary()
     inventory = tool.inventory_alerts()
     ads = tool.advertising_summary()
+    profitability = tool.profitability_summary()
+    returns = tool.returns_summary()
+    reviews = tool.review_summary()
+    procurement = tool.procurement_summary()
 
     with st.container(horizontal=True):
         st.metric("Doanh thu sau phí ước tính", currency(number(sales["net_revenue_after_estimated_fees_vnd"])), border=True)
         st.metric("Đơn hoàn tất", f"{sales['completed_order_count']}", border=True)
         st.metric("Sản phẩm cần nhập thêm", f"{inventory['alert_count']}", border=True)
         st.metric("ROAS quảng cáo", f"{number(ads['roas']):.2f}", border=True)
+        st.metric("Lãi góp ước tính", currency(number(profitability["estimated_contribution_vnd"])), border=True)
 
     orders = pd.DataFrame(rows["orders.csv"])
     completed = orders[orders["status"].str.lower() == "completed"].copy()
@@ -1531,6 +1567,27 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
                         "shortfall_units": "Thiếu so với ngưỡng",
                     },
                 )
+
+    returns_col, reviews_col, purchase_col = st.columns(3)
+    with returns_col:
+        with st.container(border=True):
+            st.markdown("**Hoàn hàng**")
+            st.metric("Yêu cầu hoàn", returns["return_request_count"])
+            if returns["reasons"]:
+                st.caption("Lý do nhiều nhất: " + next(iter(returns["reasons"])))
+            else:
+                st.caption("Chưa có dữ liệu hoàn hàng.")
+    with reviews_col:
+        with st.container(border=True):
+            st.markdown("**Đánh giá khách hàng**")
+            score = "—" if reviews["average_rating"] is None else f"{reviews['average_rating']:.2f}/5"
+            st.metric("Điểm trung bình", score)
+            st.caption(f"Đánh giá từ 3 sao trở xuống: {reviews['low_rating_count']}")
+    with purchase_col:
+        with st.container(border=True):
+            st.markdown("**Hàng đang về**")
+            st.metric("Đơn nhập còn mở", procurement["open_purchase_order_count"])
+            st.caption(f"Số lượng dự kiến về: {procurement['open_unit_count']}")
 
 
 def add_demo_category_to_selection(category_id: str) -> None:
@@ -1752,6 +1809,9 @@ def render_data_upload(*, inline: bool = False) -> None:
             "products.csv": "Sản phẩm",
             "inventory.csv": "Tồn kho",
             "ads.csv": "Quảng cáo",
+            "purchase_orders.csv": "Đơn nhập hàng",
+            "returns.csv": "Hoàn hàng",
+            "reviews.csv": "Đánh giá khách hàng",
         }
         for name in st.session_state.seller_uploaded_names:
             st.success(
@@ -1776,10 +1836,21 @@ def render_data_upload(*, inline: bool = False) -> None:
         products = st.file_uploader("Danh mục sản phẩm (products.csv)", type=["csv"])
         inventory = st.file_uploader("Báo cáo tồn kho (inventory.csv)", type=["csv"])
         ads = st.file_uploader("Báo cáo quảng cáo (ads.csv, không bắt buộc)", type=["csv"])
+        purchase_orders = st.file_uploader("Đơn nhập hàng (purchase_orders.csv, không bắt buộc)", type=["csv"])
+        returns = st.file_uploader("Báo cáo hoàn hàng (returns.csv, không bắt buộc)", type=["csv"])
+        reviews = st.file_uploader("Đánh giá khách hàng (reviews.csv, không bắt buộc)", type=["csv"])
         submitted = st.form_submit_button("Thêm dữ liệu", icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
-    files = {"orders.csv": orders, "products.csv": products, "inventory.csv": inventory, "ads.csv": ads}
+    files = {
+        "orders.csv": orders,
+        "products.csv": products,
+        "inventory.csv": inventory,
+        "ads.csv": ads,
+        "purchase_orders.csv": purchase_orders,
+        "returns.csv": returns,
+        "reviews.csv": reviews,
+    }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:
         st.error("Bạn cần thêm đủ báo cáo: " + ", ".join(missing), icon=":material/error:")

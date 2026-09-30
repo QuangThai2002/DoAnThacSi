@@ -38,6 +38,10 @@ class AgentRunner:
         sales: dict[str, Any] | None = None
         inventory: dict[str, Any] | None = None
         advertising: dict[str, Any] | None = None
+        profitability: dict[str, Any] | None = None
+        returns: dict[str, Any] | None = None
+        reviews: dict[str, Any] | None = None
+        procurement: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
 
@@ -53,6 +57,18 @@ class AgentRunner:
                 if any(term in normalized for term in ("quang cao", "roas", "ads")):
                     advertising = self.shop_data_tool.advertising_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": advertising})
+                if any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai gop")):
+                    profitability = self.shop_data_tool.profitability_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
+                if any(term in normalized for term in ("hang hoan", "hoan hang", "ly do hoan")):
+                    returns = self.shop_data_tool.returns_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": returns})
+                if any(term in normalized for term in ("danh gia", "phan hoi", "review")):
+                    reviews = self.shop_data_tool.review_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": reviews})
+                if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")):
+                    procurement = self.shop_data_tool.procurement_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": procurement})
             except Exception as exc:  # Keep an inspectable failure in the agent trace.
                 trace.append({"tool": "shop_data", "status": "error", "error": str(exc)})
 
@@ -90,6 +106,10 @@ class AgentRunner:
             sales=sales,
             inventory=inventory,
             advertising=advertising,
+            profitability=profitability,
+            returns=returns,
+            reviews=reviews,
+            procurement=procurement,
             ranking=ranking,
             citations=citations,
         )
@@ -149,6 +169,10 @@ class AgentRunner:
         sales: dict[str, Any] | None,
         inventory: dict[str, Any] | None,
         advertising: dict[str, Any] | None,
+        profitability: dict[str, Any] | None,
+        returns: dict[str, Any] | None,
+        reviews: dict[str, Any] | None,
+        procurement: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
     ) -> str:
@@ -188,6 +212,49 @@ class AgentRunner:
                         if advertising["period"] == "all_available_periods"
                         else advertising["period"]
                     )
+                )
+            )
+        if profitability:
+            contribution = int(profitability["estimated_contribution_vnd"])
+            label = "lãi góp ước tính" if contribution >= 0 else "lỗ góp ước tính"
+            sections.append(
+                "Sau giá vốn và các phí sàn đã ghi nhận, {label} là {amount:,} VND. {limitation}".format(
+                    label=label,
+                    amount=abs(contribution),
+                    limitation=str(profitability["limitation"]),
+                )
+            )
+        if returns:
+            if returns["return_request_count"]:
+                main_reason = next(iter(returns["reasons"]), "chưa phân loại")
+                sections.append(
+                    "Có {count} yêu cầu hoàn, tổng tiền hoàn đã ghi nhận {refund:,} VND; lý do xuất hiện nhiều nhất là {reason}.".format(
+                        count=returns["return_request_count"],
+                        refund=int(returns["recorded_refund_amount_vnd"]),
+                        reason=main_reason,
+                    )
+                )
+            else:
+                sections.append("Chưa có bản ghi hoàn hàng trong kỳ được hỏi.")
+        if reviews:
+            if reviews["review_count"]:
+                sections.append(
+                    "Có {count} đánh giá, điểm trung bình {rating:.2f}/5 và {low} đánh giá từ 3 sao trở xuống. Vấn đề cần xem trước: {issue}.".format(
+                        count=reviews["review_count"],
+                        rating=float(reviews["average_rating"]),
+                        low=reviews["low_rating_count"],
+                        issue=next(iter(reviews["issues"]), "chưa phân loại"),
+                    )
+                )
+            else:
+                sections.append("Chưa có đánh giá khách hàng trong kỳ được hỏi.")
+        if procurement:
+            sections.append(
+                "Có {count} đơn nhập; {open_count} đơn còn mở với {units} sản phẩm dự kiến về, trị giá nhập ước tính {value:,} VND.".format(
+                    count=procurement["purchase_order_count"],
+                    open_count=procurement["open_purchase_order_count"],
+                    units=procurement["open_unit_count"],
+                    value=int(procurement["open_purchase_value_vnd"]),
                 )
             )
         if ranking and ranking["cost_ranking"]:

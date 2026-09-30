@@ -48,8 +48,38 @@ REQUIRED_UPLOAD_COLUMNS = {
         "attributed_revenue_vnd",
         "orders",
     },
+    "purchase_orders.csv": {
+        "purchase_order_id",
+        "order_date",
+        "supplier_name",
+        "sku",
+        "quantity",
+        "unit_cost_vnd",
+        "expected_arrival_date",
+        "status",
+    },
+    "returns.csv": {
+        "return_id",
+        "order_id",
+        "request_date",
+        "sku",
+        "quantity",
+        "reason",
+        "status",
+        "refund_amount_vnd",
+    },
+    "reviews.csv": {
+        "review_id",
+        "review_date",
+        "sku",
+        "rating",
+        "sentiment",
+        "issue_type",
+        "comment",
+    },
 }
 REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
+OPTIONAL_UPLOAD_FILES = frozenset({"ads.csv", "purchase_orders.csv", "returns.csv", "reviews.csv"})
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
 
@@ -195,7 +225,13 @@ class ShopDataTool:
         if not rows:
             raise ShopDataValidationError(f"{name} chưa có dòng dữ liệu.")
 
-        date_column = {"orders.csv": "order_date", "inventory.csv": "last_updated"}.get(name)
+        date_column = {
+            "orders.csv": "order_date",
+            "inventory.csv": "last_updated",
+            "purchase_orders.csv": "order_date",
+            "returns.csv": "request_date",
+            "reviews.csv": "review_date",
+        }.get(name)
         if date_column:
             for row in rows:
                 try:
@@ -256,6 +292,21 @@ class ShopDataTool:
                     int(row["orders"])
                     as_decimal(row["spend_vnd"])
                     as_decimal(row["attributed_revenue_vnd"])
+                elif name == "purchase_orders.csv":
+                    date.fromisoformat(row["order_date"])
+                    date.fromisoformat(row["expected_arrival_date"])
+                    if int(row["quantity"]) < 0:
+                        raise ValueError("quantity must not be negative")
+                    as_decimal(row["unit_cost_vnd"])
+                elif name == "returns.csv":
+                    date.fromisoformat(row["request_date"])
+                    if int(row["quantity"]) < 0:
+                        raise ValueError("quantity must not be negative")
+                    as_decimal(row["refund_amount_vnd"])
+                elif name == "reviews.csv":
+                    date.fromisoformat(row["review_date"])
+                    if not 1 <= int(row["rating"]) <= 5:
+                        raise ValueError("rating must be between 1 and 5")
             except (InvalidOperation, ValueError) as exc:
                 raise ShopDataValidationError(
                     f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
@@ -355,6 +406,89 @@ class ShopDataTool:
             "formula": "ROAS = attributed_revenue / ad_spend",
         }
 
+    def profitability_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Estimate contribution after product cost and recorded platform fees."""
+        products = {row["sku"]: row for row in self._read_csv("products.csv")}
+        orders = [
+            row for row in self._read_csv("orders.csv")
+            if row["status"].strip().lower() == COMPLETED_STATUS
+            and (period is None or row["order_date"].startswith(period))
+        ]
+        sales = self.sales_summary(period)
+        cost_of_goods = sum(
+            (
+                as_decimal(products.get(row["sku"], {}).get("cost_per_unit_vnd", "0"))
+                * int(row["quantity"])
+                for row in orders
+            ),
+            Decimal("0"),
+        )
+        contribution = as_decimal(sales["net_revenue_after_estimated_fees_vnd"]) - cost_of_goods
+        return {
+            "tool": "shop_data.profitability_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "completed_order_count": len(orders),
+            "estimated_cost_of_goods_vnd": as_number(cost_of_goods),
+            "estimated_contribution_vnd": as_number(contribution),
+            "formula": "GMV - seller_discount - recorded_platform_fees - product_cost",
+            "limitation": "Chưa gồm đóng gói, nhân sự, kho bãi, thuế, chi phí vận chuyển phát sinh và chi phí quảng cáo nếu không được hỏi riêng.",
+        }
+
+    def returns_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [
+            row for row in self._read_csv("returns.csv")
+            if period is None or row["request_date"].startswith(period)
+        ]
+        reasons: dict[str, int] = {}
+        for row in rows:
+            reasons[row["reason"]] = reasons.get(row["reason"], 0) + int(row["quantity"])
+        return {
+            "tool": "shop_data.returns_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "return_request_count": len(rows),
+            "returned_unit_count": sum(int(row["quantity"]) for row in rows),
+            "recorded_refund_amount_vnd": as_number(sum((as_decimal(row["refund_amount_vnd"]) for row in rows), Decimal("0"))),
+            "reasons": dict(sorted(reasons.items(), key=lambda item: (-item[1], item[0]))),
+        }
+
+    def review_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [
+            row for row in self._read_csv("reviews.csv")
+            if period is None or row["review_date"].startswith(period)
+        ]
+        rating_total = sum(int(row["rating"]) for row in rows)
+        issues: dict[str, int] = {}
+        for row in rows:
+            issue = row["issue_type"].strip() or "Không nêu vấn đề"
+            issues[issue] = issues.get(issue, 0) + 1
+        return {
+            "tool": "shop_data.review_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "review_count": len(rows),
+            "average_rating": round(rating_total / len(rows), 2) if rows else None,
+            "low_rating_count": sum(int(row["rating"]) <= 3 for row in rows),
+            "issues": dict(sorted(issues.items(), key=lambda item: (-item[1], item[0]))),
+        }
+
+    def procurement_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [
+            row for row in self._read_csv("purchase_orders.csv")
+            if period is None or row["order_date"].startswith(period)
+        ]
+        open_rows = [row for row in rows if row["status"].strip().lower() not in {"received", "cancelled"}]
+        return {
+            "tool": "shop_data.procurement_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "purchase_order_count": len(rows),
+            "open_purchase_order_count": len(open_rows),
+            "open_unit_count": sum(int(row["quantity"]) for row in open_rows),
+            "open_purchase_value_vnd": as_number(sum((as_decimal(row["unit_cost_vnd"]) * int(row["quantity"]) for row in open_rows), Decimal("0"))),
+        }
+
     def available_periods(self) -> list[str]:
         periods = {
             date.fromisoformat(row["order_date"]).strftime("%Y-%m")
@@ -364,7 +498,7 @@ class ShopDataTool:
 
     def _read_csv(self, name: str) -> list[dict[str, str]]:
         if self._uploaded_rows is not None:
-            if name == "ads.csv" and name not in self._uploaded_rows:
+            if name in OPTIONAL_UPLOAD_FILES and name not in self._uploaded_rows:
                 return []
             try:
                 return self._uploaded_rows[name]
@@ -375,6 +509,8 @@ class ShopDataTool:
 
         path = self.data_dir / name
         if not path.exists():
+            if name in OPTIONAL_UPLOAD_FILES:
+                return []
             raise FileNotFoundError(f"Mock shop data file not found: {path}")
         with path.open("r", encoding="utf-8-sig", newline="") as file:
             return list(csv.DictReader(file))

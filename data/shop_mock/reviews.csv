@@ -1,0 +1,9 @@
+review_id,review_date,sku,rating,sentiment,issue_type,comment
+REV-202607-001,2026-07-07,SKU-001,5,tích cực,Không nêu vấn đề,Cáp dùng ổn và giao đúng mẫu
+REV-202607-002,2026-07-19,SKU-002,3,tiêu cực,Không đúng mô tả,Dung lượng pin không như kỳ vọng
+REV-202607-003,2026-07-28,SKU-005,5,tích cực,Không nêu vấn đề,Đèn sáng tốt và đóng gói chắc
+REV-202608-001,2026-08-05,SKU-001,4,tích cực,Giao hàng,Cần hướng dẫn dùng rõ hơn
+REV-202608-002,2026-08-10,SKU-003,2,tiêu cực,Chất lượng,Tai nghe bị rè sau khi nhận
+REV-202608-003,2026-08-16,SKU-005,3,tiêu cực,Đóng gói,Hộp bị móp khi giao đến
+REV-202608-004,2026-08-22,SKU-006,5,tích cực,Không nêu vấn đề,Chuột gọn nhẹ dễ dùng
+REV-202608-005,2026-08-29,SKU-002,4,tích cực,Không nêu vấn đề,Pin dùng tốt trong tầm giá
