@@ -56,76 +56,43 @@ class AgentRunner:
         rag_result: dict[str, Any] | None = None
         slow_inventory: dict[str, Any] | None = None
 
-        # Route action questions by their decision need, rather than by one
-        # exact keyword. This keeps new phrasings on the same evidence path.
+        # Interpret the decision need once, then use the same tags for tool
+        # selection and answer composition. This avoids one-off fixes for each
+        # Vietnamese wording of the same operational question.
+        analysis_tags = self._analysis_tags(normalized)
         definition_like = any(
             term in normalized
             for term in ("la gi", "nghia la gi", "giai thich", "co phai", "tinh nhu the nao")
         )
-        asks_price_strategy = (
-            any(term in normalized for term in ("giam gia", "dieu chinh gia", "gia ban"))
-            and any(term in normalized for term in ("nen", "co nen", "the nao", "toan bo"))
-        )
-        asks_restock_strategy = any(
-            term in normalized
-            for term in ("nhap bao nhieu", "nhap nhieu hon", "nhap them", "nhap hang")
-        )
-        asks_inventory = not definition_like and any(
-            term in normalized
-            for term in ("ton kho", "sap het", "ton lau", "it ban", "nhap them", "nhap bao nhieu", "nhap nhieu hon")
-        )
-        asks_product_demand = any(
-            term in normalized
-            for term in ("san pham nao ban tot", "san pham ban tot", "nhap nhieu hon")
-        )
-        asks_slow_inventory = not definition_like and any(term in normalized for term in ("ton lau", "it ban", "cham ban"))
-        asks_ad_strategy = (
-            any(term in normalized for term in ("tang ngan sach", "ngan sach quang cao", "chi quang cao"))
-            and any(term in normalized for term in ("nen", "co nen", "hieu qua", "tang"))
-        )
+        asks_price_strategy = "price_strategy" in analysis_tags
+        asks_restock_strategy = "restock_strategy" in analysis_tags
+        asks_inventory = not definition_like and "inventory" in analysis_tags
+        asks_product_demand = "product_demand" in analysis_tags
+        asks_slow_inventory = not definition_like and "slow_inventory" in analysis_tags
+        asks_ad_strategy = "ad_strategy" in analysis_tags
 
         if "shop_data" in plan.tools:
             try:
-                focused_operational_terms = (
-                    "ton kho", "hang hoan", "hoan hang", "ly do hoan",
-                    "danh gia", "phan hoi", "review", "nhap hang", "nha cung cap", "don nhap",
-                    "chi phi van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh",
-                    "bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy",
-                    "kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang",
-                    "dong tien", "tien vao", "tien ra", "nha cung cap tot", "giao hang dung hen",
-                    "khach quay lai", "khach hang than thiet", "khach trung thanh",
-                    "luot xem", "them gio hang", "hieu qua san pham", "phieu san pham",
-                    "san pham nao", "mat hang nao", "gmv cao nhat", "thang truoc",
-                )
-                asks_product_gmv = (
-                    "gmv" in normalized
-                    and any(term in normalized for term in ("san pham nao", "mat hang nao", "cao nhat"))
-                )
-                asks_period_comparison = (
-                    "so sanh" in normalized
-                    and any(term in normalized for term in ("doanh thu", "gmv", "thang truoc"))
-                )
-                asks_product_contribution = (
-                    "lai gop" in normalized
-                    and any(term in normalized for term in ("san pham nao", "mat hang nao", "thap nhat", "thap"))
-                )
+                asks_product_gmv = "product_gmv" in analysis_tags
+                asks_period_comparison = "sales_comparison" in analysis_tags
+                asks_product_contribution = "product_contribution" in analysis_tags
                 if asks_product_contribution:
                     product_contribution_ranking = self.shop_data_tool.product_contribution_ranking(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": product_contribution_ranking})
-                elif asks_product_gmv:
+                if asks_product_gmv:
                     product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
-                elif asks_period_comparison:
+                if asks_period_comparison:
                     sales_period_comparison = self.shop_data_tool.sales_period_comparison(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": sales_period_comparison})
-                elif asks_inventory:
+                if asks_inventory:
                     inventory = self.shop_data_tool.inventory_alerts()
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory})
-                elif not any(term in normalized for term in focused_operational_terms):
+                if not analysis_tags:
                     sales = self.shop_data_tool.sales_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": sales})
 
-                if any(term in normalized for term in ("quang cao", "roas", "ads")):
+                if "advertising" in analysis_tags:
                     advertising = self.shop_data_tool.advertising_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": advertising})
                 if asks_product_demand and product_gmv_ranking is None:
@@ -134,48 +101,52 @@ class AgentRunner:
                 if asks_slow_inventory:
                     slow_inventory = self.shop_data_tool.inventory_slow_products(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": slow_inventory})
-                if (asks_price_strategy or asks_ad_strategy) and profitability is None:
+                if (asks_price_strategy or asks_ad_strategy or "profitability" in analysis_tags) and profitability is None:
                     profitability = self.shop_data_tool.profitability_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
-                if (
-                    any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai gop"))
-                    and not asks_product_contribution
-                ):
-                    profitability = self.shop_data_tool.profitability_summary(plan.period)
-                    trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
-                if any(term in normalized for term in ("hang hoan", "hoan hang", "ly do hoan")):
+                if "returns" in analysis_tags:
                     returns = self.shop_data_tool.returns_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": returns})
-                if any(term in normalized for term in ("danh gia", "phan hoi", "review")):
+                if "reviews" in analysis_tags:
                     reviews = self.shop_data_tool.review_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": reviews})
-                supplier_comparison_terms = ("nha cung cap tot", "nha cung cap nao", "giao hang dung hen")
-                if any(term in normalized for term in ("nhap hang", "nha cung cap", "don nhap")) and "hop dong" not in normalized and not any(
-                    term in normalized for term in supplier_comparison_terms
-                ):
+                if "procurement" in analysis_tags:
                     procurement = self.shop_data_tool.procurement_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": procurement})
-                if any(term in normalized for term in ("chi phi van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh")):
+                if "operating_costs" in analysis_tags:
                     operating_costs = self.shop_data_tool.operating_cost_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": operating_costs})
-                if any(term in normalized for term in ("bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy")):
+                if "inventory_movements" in analysis_tags:
                     inventory_movements = self.shop_data_tool.inventory_movement_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory_movements})
-                if any(term in normalized for term in ("kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang", "hang loi")):
+                if "quality" in analysis_tags:
                     quality = self.shop_data_tool.quality_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": quality})
-                if any(term in normalized for term in ("dong tien", "tien vao", "tien ra")):
+                if "cash_flow" in analysis_tags:
                     cash_flow = self.shop_data_tool.cash_flow_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": cash_flow})
-                if any(term in normalized for term in ("nha cung cap tot", "giao hang dung hen", "nha cung cap nao")):
+                if "suppliers" in analysis_tags:
                     suppliers = self.shop_data_tool.supplier_performance_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": suppliers})
-                if any(term in normalized for term in ("khach quay lai", "khach hang than thiet", "khach trung thanh")):
+                if "customer_retention" in analysis_tags:
                     customer_retention = self.shop_data_tool.customer_retention_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": customer_retention})
-                if any(term in normalized for term in ("luot xem", "them gio hang", "hieu qua san pham", "phieu san pham")):
+                if "product_funnel" in analysis_tags:
                     product_funnel = self.shop_data_tool.product_funnel_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": product_funnel})
+                if "strategy" in analysis_tags:
+                    if product_gmv_ranking is None:
+                        product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
+                        trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
+                    if product_contribution_ranking is None:
+                        product_contribution_ranking = self.shop_data_tool.product_contribution_ranking(plan.period)
+                        trace.append({"tool": "shop_data", "status": "ok", "result": product_contribution_ranking})
+                    if inventory is None:
+                        inventory = self.shop_data_tool.inventory_alerts()
+                        trace.append({"tool": "shop_data", "status": "ok", "result": inventory})
+                    if profitability is None:
+                        profitability = self.shop_data_tool.profitability_summary(plan.period)
+                        trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
             except Exception as exc:  # Keep an inspectable failure in the agent trace.
                 trace.append({"tool": "shop_data", "status": "error", "error": str(exc)})
 
@@ -233,6 +204,7 @@ class AgentRunner:
             asks_restock_strategy=asks_restock_strategy,
             asks_ad_strategy=asks_ad_strategy,
             slow_inventory=slow_inventory,
+            analysis_tags=analysis_tags,
         )
         data_scope = self.shop_data_tool.data_scope
         data_limitation = (
@@ -284,6 +256,96 @@ class AgentRunner:
         return citations[:3]
 
     @staticmethod
+    def _analysis_tags(normalized: str) -> set[str]:
+        """Map question meaning to reusable operational analysis topics.
+
+        Tags describe the data and decision being asked about, rather than one
+        exact sentence. New phrasings therefore share the same data path and
+        safety limits as the tested question bank.
+        """
+        tags: set[str] = set()
+        if "gmv" in normalized and any(term in normalized for term in ("san pham nao", "mat hang nao", "cao nhat")):
+            tags.add("product_gmv")
+        if "lai gop" in normalized and any(term in normalized for term in ("san pham nao", "mat hang nao", "thap nhat", "thap")):
+            tags.add("product_contribution")
+        if "so sanh" in normalized and any(term in normalized for term in ("doanh thu", "gmv", "thang truoc")):
+            tags.add("sales_comparison")
+        if any(term in normalized for term in ("ton kho", "sap het", "ton lau", "it ban", "nhap them", "nhap bao nhieu", "nhap nhieu hon")):
+            tags.add("inventory")
+        if any(term in normalized for term in ("ton lau", "it ban", "cham ban")):
+            tags.add("slow_inventory")
+        if any(term in normalized for term in ("san pham ban tot", "san pham nao ban tot", "nhap nhieu hon")):
+            tags.add("product_demand")
+        if any(term in normalized for term in ("quang cao", "roas", "ads")):
+            tags.add("advertising")
+        if any(term in normalized for term in ("giam gia", "dieu chinh gia", "gia ban")) and any(
+            term in normalized for term in ("nen", "co nen", "the nao", "toan bo")
+        ):
+            tags.add("price_strategy")
+        if any(term in normalized for term in ("nhap bao nhieu", "nhap nhieu hon", "nhap them", "nhap hang")):
+            tags.add("restock_strategy")
+            tags.add("quality")
+        if any(term in normalized for term in ("tang ngan sach", "ngan sach quang cao", "chi quang cao")) and any(
+            term in normalized for term in ("nen", "co nen", "hieu qua", "tang")
+        ):
+            tags.add("ad_strategy")
+        if any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai sau chi phi van hanh", "nguy co lo")):
+            tags.add("profitability")
+        if any(term in normalized for term in ("hang hoan", "hoan hang", "ly do hoan")):
+            tags.add("returns")
+        if any(term in normalized for term in ("danh gia", "review", "phan hoi khach")):
+            tags.add("reviews")
+        if "danh gia xau" in normalized or "giam danh gia" in normalized:
+            tags.add("review_action")
+        if any(term in normalized for term in ("nhap hang", "don nhap")):
+            tags.add("procurement")
+        if any(term in normalized for term in ("chi phi van hanh", "khoan van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh")):
+            tags.add("operating_costs")
+        if "khoan van hanh nao" in normalized or "khoan van hanh" in normalized and any(term in normalized for term in ("lon nhat", "cao nhat")):
+            tags.add("operating_rank")
+        if any(term in normalized for term in ("bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy")):
+            tags.add("inventory_movements")
+        if any(term in normalized for term in ("kiem tra chat luong", "chat luong lo hang", "ty le loi", "lo hang", "hang loi", "nguon hang nao co ty le loi")):
+            tags.add("quality")
+        if any(term in normalized for term in ("dong tien", "tien vao", "tien ra", "tien chi", "thieu tien")):
+            tags.add("cash_flow")
+        if "khoan tien chi" in normalized and any(term in normalized for term in ("lon nhat", "cao nhat")):
+            tags.add("cash_rank")
+        if "doanh thu tang" in normalized and "thieu tien" in normalized:
+            tags.add("cash_explanation")
+        if any(term in normalized for term in ("nha cung cap", "nguon hang", "giao hang dung hen")):
+            tags.add("suppliers")
+        if "phan hoi nha cung cap" in normalized:
+            tags.update({"quality", "supplier_action"})
+        if "nguon hang nao co ty le loi" in normalized:
+            tags.update({"quality", "supplier_defect"})
+        if any(term in normalized for term in ("khach quay lai", "khach hang than thiet", "khach trung thanh")):
+            tags.add("customer_retention")
+        if "lam sao tang khach quay lai" in normalized:
+            tags.add("retention_action")
+        if any(term in normalized for term in ("luot xem", "them gio", "hieu qua san pham", "phieu san pham", "kho chot don", "dat mua")):
+            tags.add("product_funnel")
+        if "luot xem cao" in normalized and "it them gio" in normalized:
+            tags.add("funnel_view_action")
+        if "them gio" in normalized and any(term in normalized for term in ("it dat mua", "it dat")):
+            tags.add("funnel_cart_action")
+        if "that thoat" in normalized:
+            tags.add("inventory_shrinkage")
+        if "lai sau chi phi van hanh" in normalized:
+            tags.update({"profitability", "operating_costs", "profit_after_overhead"})
+        if "ty le loi lo hang" in normalized:
+            tags.add("quality_rate")
+        if any(term in normalized for term in ("30 ngay", "tao combo", "nguy co lo", "tuan nay")):
+            tags.add("strategy")
+        if "tao combo" in normalized:
+            tags.add("combo_strategy")
+        if "nguy co lo" in normalized:
+            tags.add("risk_strategy")
+        if "tuan nay" in normalized:
+            tags.add("weekly_strategy")
+        return tags
+
+    @staticmethod
     def _compose_answer(
         question: str,
         plan: AgentPlan,
@@ -310,6 +372,7 @@ class AgentRunner:
         asks_restock_strategy: bool = False,
         asks_ad_strategy: bool = False,
         slow_inventory: dict[str, Any] | None = None,
+        analysis_tags: set[str] | None = None,
     ) -> str:
         if plan.intent == "out_of_scope":
             return (
@@ -328,6 +391,16 @@ class AgentRunner:
             asks_price_strategy=asks_price_strategy,
             asks_restock_strategy=asks_restock_strategy,
             asks_ad_strategy=asks_ad_strategy,
+            analysis_tags=analysis_tags or set(),
+            reviews=reviews,
+            quality=quality,
+            suppliers=suppliers,
+            customer_retention=customer_retention,
+            product_funnel=product_funnel,
+            operating_costs=operating_costs,
+            cash_flow=cash_flow,
+            product_contribution_ranking=product_contribution_ranking,
+            inventory_movements=inventory_movements,
         )
         # Put the direct answer or bounded next step first; supporting metrics follow.
         if action_answer and not knowledge_answer:
@@ -402,9 +475,10 @@ class AgentRunner:
             )
         if advertising and advertising["campaign_count"]:
             sections.append(
-                "Quảng cáo trong kỳ chi {spend:,} VND, doanh thu quy gán {revenue:,} VND, ROAS {roas:.2f}.".format(
+                "Quảng cáo trong kỳ chi {spend:,} VND, doanh thu quy gán {revenue:,} VND từ {orders} đơn quy gán, ROAS {roas:.2f}.".format(
                     spend=int(advertising["ad_spend_vnd"]),
                     revenue=int(advertising["attributed_revenue_vnd"]),
+                    orders=int(advertising["attributed_order_count"]),
                     roas=float(advertising["roas"]),
                 )
             )
@@ -445,8 +519,9 @@ class AgentRunner:
             if returns["return_request_count"]:
                 main_reason = next(iter(returns["reasons"]), "chưa phân loại")
                 sections.append(
-                    "Có {count} yêu cầu hoàn, tổng tiền hoàn đã ghi nhận {refund:,} VND; lý do xuất hiện nhiều nhất là {reason}.".format(
+                    "Có {count} yêu cầu hoàn, tương ứng {units} sản phẩm; tổng tiền hoàn đã ghi nhận {refund:,} VND; lý do xuất hiện nhiều nhất là {reason}.".format(
                         count=returns["return_request_count"],
+                        units=returns["returned_unit_count"],
                         refund=int(returns["recorded_refund_amount_vnd"]),
                         reason=main_reason,
                     )
@@ -594,6 +669,16 @@ class AgentRunner:
         asks_price_strategy: bool,
         asks_restock_strategy: bool,
         asks_ad_strategy: bool,
+        analysis_tags: set[str],
+        reviews: dict[str, Any] | None,
+        quality: dict[str, Any] | None,
+        suppliers: dict[str, Any] | None,
+        customer_retention: dict[str, Any] | None,
+        product_funnel: dict[str, Any] | None,
+        operating_costs: dict[str, Any] | None,
+        cash_flow: dict[str, Any] | None,
+        product_contribution_ranking: dict[str, Any] | None,
+        inventory_movements: dict[str, Any] | None,
     ) -> str:
         """Give a bounded next step for recommendation questions.
 
@@ -608,6 +693,12 @@ class AgentRunner:
                 "thử ưu đãi nhỏ trong thời gian ngắn, rồi so sánh số đơn, doanh thu sau phí và lãi góp "
                 "với kỳ trước; nếu biên lãi không chịu được thì dừng thử nghiệm."
             )
+        if "cash_explanation" in analysis_tags:
+            return (
+                "Doanh thu tăng vẫn có thể thiếu tiền nhập hàng vì thời điểm thu tiền và thời điểm phải chi không trùng nhau: "
+                "tiền có thể đang nằm ở hàng tồn, đơn chưa được thanh toán, phí, hoàn tiền hoặc quảng cáo. "
+                "Hãy so sánh lịch tiền thu, tiền chi và các đơn nhập sắp đến theo tuần; chưa thể kết luận nguyên nhân duy nhất chỉ từ doanh thu."
+            )
         if asks_restock_strategy:
             alert_text = ""
             if inventory and inventory.get("alert_count"):
@@ -615,7 +706,7 @@ class AgentRunner:
                 alert_text = f"Hiện có cảnh báo cần xem trước: {names}. "
             return (
                 f"{alert_text}Không nên nhập nhiều chỉ vì một sản phẩm bán tốt. "
-                "Hãy đối chiếu tốc độ bán, tồn khả dụng, hàng đang về, thời gian nhập và tiền mặt; "
+                "Hãy đối chiếu tốc độ bán, tồn khả dụng, hàng đang về, thời gian nhập, tỷ lệ lỗi và tiền mặt; "
                 "sau đó thử một lô nhỏ. Dữ liệu hiện tại chưa đủ để khẳng định một số lượng nhập an toàn. "
                 "Muốn tính số lượng cụ thể, hãy tạo hoặc tải thêm bảng **Đơn nhập hàng** có ngày dự kiến về và giá nhập."
             )
@@ -628,6 +719,97 @@ class AgentRunner:
                 "vì còn giá vốn, phí và tồn kho. Nếu vẫn muốn thử, chỉ tăng từng bước nhỏ trong một nhóm quảng cáo, "
                 "đặt giới hạn chi và so sánh lãi góp sau quảng cáo trước khi mở rộng."
             )
+        if "review_action" in analysis_tags:
+            issue = next(iter(reviews.get("issues", {})), "nguyên nhân đánh giá thấp") if reviews else "nguyên nhân đánh giá thấp"
+            return (
+                "Đừng cố xử lý đánh giá xấu bằng một câu trả lời chung. Hãy phản hồi lịch sự trong thời gian ngắn, "
+                f"gom các đánh giá theo vấn đề chính ({issue}), rồi sửa một nguyên nhân có thể kiểm soát như đóng gói, mô tả hoặc kiểm hàng. "
+                "Theo dõi số đánh giá 1–3 sao trong kỳ sau; cách này chỉ là thử cải thiện, không bảo đảm điểm đánh giá sẽ tăng."
+            )
+        if "supplier_action" in analysis_tags:
+            defective = int(quality.get("defective_unit_count", 0)) if quality else 0
+            if defective:
+                return (
+                    "Nên phản hồi nhà cung cấp bằng dữ liệu đã lưu: ảnh hàng lỗi, mã lô, số lượng kiểm, số lượng lỗi và điều kiện đổi trả đã thỏa thuận. "
+                    "Đề nghị hướng xử lý cụ thể trước khi đặt thêm lô lớn; dữ liệu này không tự kết luận trách nhiệm pháp lý của bên nào."
+                )
+            return AgentRunner._data_request_guidance(normalized)
+        if "supplier_defect" in analysis_tags and suppliers:
+            rows = suppliers.get("suppliers", [])
+            if rows:
+                worst = max(rows, key=lambda item: item["defect_rate_percent"])
+                return (
+                    f"Trong các nguồn đã ghi, **{worst['supplier_name']}** có tỷ lệ lỗi cao nhất: **{worst['defect_rate_percent']:.1f}%**. "
+                    "Đây chỉ là so sánh trên lô và đơn đã nhập; hãy kiểm tra thêm số lượng mẫu và điều kiện giao dịch trước khi đổi hoặc dừng nhà cung cấp."
+                )
+            return AgentRunner._data_request_guidance(normalized)
+        if "retention_action" in analysis_tags:
+            return (
+                "Để tăng khách quay lại, hãy thử một việc nhỏ cho nhóm đã mua: nhắn chăm sóc sau bán, ưu đãi mua lại có thời hạn hoặc combo phù hợp. "
+                "Theo dõi riêng tỷ lệ đơn mua lại, đánh giá thấp và chi phí ưu đãi trước khi mở rộng; không có biện pháp nào bảo đảm khách sẽ quay lại."
+            )
+        if "funnel_view_action" in analysis_tags:
+            return (
+                "Lượt xem cao nhưng ít thêm giỏ là tín hiệu cần kiểm tra, chưa chứng minh nguyên nhân. Hãy lần lượt thử ảnh đầu, giá hiển thị, mô tả lợi ích, biến thể, đánh giá và phí giao; "
+                "mỗi lần chỉ đổi một yếu tố rồi đo tỷ lệ xem sang thêm giỏ."
+            )
+        if "funnel_cart_action" in analysis_tags:
+            return (
+                "Nhiều lượt thêm giỏ nhưng ít đặt mua thường cần kiểm tra giá cuối, ưu đãi, tồn khả dụng, thời gian giao, đánh giá và đổi trả. "
+                "Hãy thử một thay đổi nhỏ và theo dõi tỷ lệ từ giỏ sang đơn; dữ liệu phễu không cho phép cam kết thay đổi nào sẽ tăng đơn."
+            )
+        if "inventory_shrinkage" in analysis_tags:
+            return (
+                "Chưa thể kết luận có thất thoát chỉ từ biến động kho. Hãy kiểm kê thực tế theo SKU và đối chiếu với đơn hoàn tất, hàng lỗi/hủy, phiếu nhập và số hàng giữ chỗ. "
+                "Nếu còn chênh lệch sau đối soát, hãy ghi nhận thời điểm và người bàn giao để kiểm tra tiếp."
+            )
+        if "operating_rank" in analysis_tags and operating_costs:
+            category, amount = next(iter(operating_costs.get("by_category", {}).items()), ("chưa phân loại", 0))
+            return f"Khoản vận hành đã ghi nhận lớn nhất là **{category}**: **{int(amount):,} VND**. Hãy kiểm tra chứng từ và mức cần thiết của khoản này trước khi cắt giảm."
+        if "cash_rank" in analysis_tags and cash_flow:
+            category, amount = next(iter(cash_flow.get("outflow_by_category", {}).items()), ("chưa phân loại", 0))
+            return f"Khoản tiền chi đã ghi nhận lớn nhất là **{category}**: **{int(amount):,} VND**. Đây là dòng tiền ghi nhận, không tự cho biết khoản đó có hợp lý hay không."
+        if "profit_after_overhead" in analysis_tags and profitability and operating_costs:
+            value = int(profitability["estimated_contribution_vnd"]) - int(operating_costs["total_operating_cost_vnd"])
+            label = "còn lại" if value >= 0 else "lỗ ước tính"
+            return f"Sau giá vốn, phí sàn đã ghi nhận và chi phí vận hành đã nhập, kết quả ước tính **{label} {abs(value):,} VND**. Đây chưa phải lợi nhuận ròng quyết toán vì chưa gồm mọi khoản như thuế hoặc chi phí chưa ghi."
+        if "quality_rate" in analysis_tags and quality:
+            rate = quality.get("defect_rate_percent")
+            return "Tỷ lệ lỗi trong các lô đã kiểm là **{}%** ({} lỗi trên {} sản phẩm kiểm). Chỉ số này không đại diện cho những lô chưa kiểm.".format(
+                "—" if rate is None else f"{float(rate):.2f}", quality.get("defective_unit_count", 0), quality.get("inspected_unit_count", 0)
+            )
+        if "slow_inventory" in analysis_tags:
+            return (
+                "Hàng tồn lâu và bán chậm chưa nên giảm giá ngay. Hãy kiểm tra ảnh, mô tả, giá, đánh giá, nhu cầu và số ngày tồn; "
+                "nếu cần xả hàng, chỉ thử ưu đãi nhỏ hoặc combo trên một SKU trước. Muốn tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Biến động kho**."
+            )
+        if "inventory" in analysis_tags and "sap het" in normalized:
+            return (
+                "Cảnh báo sắp hết hàng dựa trên **tồn khả dụng = tồn thực tế − số đã giữ chỗ**, rồi so với ngưỡng nhập thêm của từng SKU. "
+                "Đây là tín hiệu để kiểm tra tốc độ bán và đơn đang về, không phải lệnh tự động phải nhập hàng."
+            )
+        if "strategy" in analysis_tags:
+            if "combo_strategy" in analysis_tags:
+                return (
+                    "Có thể thử combo ở quy mô nhỏ nếu hai sản phẩm liên quan, còn tồn và biên lãi góp sau ưu đãi vẫn dương. "
+                    "Hãy đặt giá combo, giới hạn số lượng và so sánh số đơn, lãi góp với bán lẻ; không nên xem combo là giải pháp chắc chắn."
+                )
+            if "risk_strategy" in analysis_tags:
+                return (
+                    "Nguy cơ lỗ cần được kiểm tra theo bốn nhóm: lãi góp theo sản phẩm, chi phí vận hành, hàng lỗi/hoàn và tồn chậm. "
+                    "Dữ liệu hiện tại chỉ cho thấy tín hiệu cần kiểm tra; hãy dừng mở rộng ở SKU có lãi góp thấp hoặc tồn chậm cho đến khi đối soát đủ chi phí."
+                )
+            if "weekly_strategy" in analysis_tags:
+                return (
+                    "Trong tuần này, chỉ nên ưu tiên tối đa ba việc có thể đo: xử lý một SKU tồn chậm, đối soát một khoản chi lớn và kiểm tra một vấn đề chất lượng hoặc đánh giá thấp. "
+                    "Chốt chỉ số trước/sau cho từng việc rồi mới mở rộng; không nên chạy nhiều thay đổi cùng lúc."
+                )
+            top = product_gmv_ranking.get("top_product") if product_gmv_ranking else None
+            if top:
+                return (
+                    f"Trong 30 ngày tới, hãy xem **{top['product_name']}** là ứng viên ưu tiên để kiểm tra trước vì đang có GMV cao trong dữ liệu. "
+                    "Chỉ mở rộng sau khi đối chiếu lãi góp, tồn khả dụng, tỷ lệ lỗi, đánh giá và phễu; hãy thử quy mô nhỏ và đo kết quả thay vì coi đây là dự báo chắc chắn."
+                )
         return ""
 
     @staticmethod
@@ -635,6 +817,14 @@ class AgentRunner:
         """Turn missing evidence into an explicit upload/create instruction."""
         if any(term in normalized for term in ("quang cao", "roas", "ngan sach")):
             return "Để trả lời bằng số liệu, hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
+        if any(term in normalized for term in ("danh gia", "review")):
+            return "Để phân tích đánh giá, hãy tạo hoặc tải bảng **Đánh giá khách hàng**; nên có ngày đánh giá, số sao và vấn đề khách nêu."
+        if any(term in normalized for term in ("lo hang", "ty le loi", "chat luong")):
+            return "Để kiểm tra chất lượng, hãy tạo hoặc tải bảng **Kiểm tra chất lượng**; nên có ngày kiểm, mã lô, số lượng kiểm, số lỗi và dạng lỗi."
+        if any(term in normalized for term in ("dong tien", "tien chi", "thieu tien")):
+            return "Để phân tích dòng tiền, hãy tạo hoặc tải bảng **Dòng tiền** và **Đơn nhập hàng** có ngày thu, ngày chi, nhóm chi và số tiền."
+        if any(term in normalized for term in ("luot xem", "them gio", "dat mua", "chot don")):
+            return "Để phân tích chuyển đổi, hãy tạo hoặc tải bảng **Hiệu quả sản phẩm** có lượt xem, lượt thêm giỏ và số đơn theo từng SKU."
         if any(term in normalized for term in ("ton kho", "sap het", "ton lau", "nhap hang", "nhap them")):
             return "Để phân tích, hãy tạo hoặc tải bảng **Tồn kho**, **Sản phẩm** và **Đơn hàng**; nếu hỏi lượng nhập, thêm **Đơn nhập hàng** và thời gian giao dự kiến."
         if any(term in normalized for term in ("giam gia", "gia ban", "lai", "loi nhuan")):
@@ -645,6 +835,25 @@ class AgentRunner:
     def _knowledge_answer(question: str) -> str:
         """Give short answers only for source-backed common concepts."""
         normalized_question = normalize(question)
+        if "mat hang nay" in normalized_question and "duoc ban" in normalized_question:
+            return (
+                "Chưa thể kết luận một mặt hàng cụ thể có được bán trên Shopee khi chưa biết tên hàng, thành phần và giấy tờ liên quan. "
+                "Hãy đối chiếu danh mục hàng cấm/hạn chế của Shopee và quy định chuyên ngành; với hàng có điều kiện, cần kiểm tra giấy phép hoặc chứng từ trước khi đăng bán."
+            )
+        if "ai co cam ket" in normalized_question or "cam ket giam gia" in normalized_question:
+            return (
+                "Không. Eslabong không cam kết giảm giá sẽ làm bán tốt hơn. AI chỉ có thể nêu giả thuyết, điều kiện cần kiểm tra và một thử nghiệm nhỏ khi dữ liệu đủ; "
+                "bạn vẫn cần tự quyết định giá, giới hạn chi và điều kiện dừng."
+            )
+        if "ai nay da ket noi" in normalized_question and "shopee" in normalized_question:
+            return (
+                "Chưa. Eslabong hiện chỉ dùng bộ dữ liệu demo hoặc các file bạn tự tải lên trong cuộc trò chuyện; AI không tự đọc tài khoản Shopee, không quét dữ liệu shop và không tự gửi thay đổi lên Shopee."
+            )
+        if "tu doan roas" in normalized_question or "khong tai bang quang cao" in normalized_question:
+            return (
+                "Không. Khi chưa có bảng **Quảng cáo**, Eslabong không tự đoán ROAS hoặc chi phí quảng cáo. Hãy tạo hoặc tải bảng Quảng cáo có chi tiêu, doanh thu quy gán và số đơn quy gán; "
+                "nếu thiếu dữ liệu, AI chỉ nên nêu phần còn thiếu."
+            )
         if "sku" in normalized_question:
             if "vi du" in normalized_question:
                 return (
@@ -690,7 +899,10 @@ class AgentRunner:
                 "+ phí vận chuyển người mua trả − khuyến mãi người bán − khuyến mãi "
                 "ngân hàng (nếu có), rồi nhân với mức phí xử lý giao dịch."
             )
-        if "hoan tien" in normalized_question or "tra hang" in normalized_question:
+        if any(
+            phrase in f" {normalized_question} "
+            for phrase in (" hoan tien ", " tra hang ")
+        ):
             return (
                 "Người mua có thể yêu cầu trả hàng/hoàn tiền theo Chính sách Trả hàng "
                 "và Hoàn tiền của Shopee. Nguồn truy hồi nêu việc hoàn tiền khi người "
@@ -728,6 +940,11 @@ class AgentRunner:
             "chi phi quang cao": "Không. Chi phí quảng cáo chỉ là một khoản. Shop còn có thể có giá vốn, phí sàn, đóng gói, nhân sự, kho bãi, vận chuyển và thuế. Muốn tính kết quả sau chi phí, cần xem từng khoản đã được ghi trong dữ liệu.",
         }
         for term, answer in definitions.items():
+            if term == "nha cung cap" and not any(
+                phrase in normalized_question
+                for phrase in ("la gi", "can luu y", "chon nha cung cap")
+            ):
+                continue
             if term in normalized_question:
                 return answer
         return ""

@@ -105,6 +105,21 @@ class Planner:
         "ton lau",
         "it ban",
         "san pham ban tot",
+        "ty le loi lo hang",
+        "ty le loi",
+        "nguon hang",
+        "danh gia xau",
+        "khoan van hanh",
+        "tien chi",
+        "thieu tien",
+        "luot xem cao",
+        "it them gio",
+        "it dat mua",
+        "kho chot don",
+        "30 ngay",
+        "tao combo",
+        "nguy co lo",
+        "tuan nay",
     )
     # A metric word can be either a request for a definition or a request for
     # the seller's own numbers. Only the latter must have shop data attached.
@@ -175,9 +190,21 @@ class Planner:
         # even when the wording contains “của shop”; they do not need CSV data.
         if "chi phi quang cao" in normalized and "co phai" in normalized:
             is_definition_question = True
+        is_system_limit_question = any(
+            term in normalized
+            for term in (
+                "ai co cam ket",
+                "ai nay da ket noi",
+                "tu doan roas",
+                "khong tai bang quang cao",
+            )
+        )
         is_general_policy_question = (
             any(term in normalized for term in ("hop dong", "giao dich dien tu", "phap luat", "luat"))
             and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
+        )
+        is_general_policy_question = is_general_policy_question or (
+            "mat hang nay" in normalized and "duoc ban" in normalized
         )
         needs_cost_analysis = any(
             term in normalized for term in self.COST_ANALYSIS_TERMS
@@ -185,7 +212,7 @@ class Planner:
         needs_shop = (
             any(term in normalized for term in self.SHOP_TERMS)
             or needs_cost_analysis
-        ) and not (is_definition_question or is_general_policy_question)
+        ) and not (is_definition_question or is_general_policy_question or is_system_limit_question)
         needs_policy = any(term in normalized for term in self.POLICY_TERMS)
         needs_calculation = any(term in normalized for term in self.CALCULATION_TERMS)
 

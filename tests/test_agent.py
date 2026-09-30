@@ -400,6 +400,37 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("Giá đỡ điện thoại", result["answer"])
         self.assertIn("Biến động kho", result["answer"])
 
+    def test_operational_question_bank_uses_topic_routing_and_bounded_advice(self) -> None:
+        """Regression coverage for the shared question-bank failure patterns."""
+        checks = {
+            "Mặt hàng này có được bán trên Shopee không?": "Chưa thể kết luận",
+            "Nguồn hàng nào có tỷ lệ lỗi cao hơn?": "tỷ lệ lỗi cao nhất",
+            "Làm gì để giảm đánh giá xấu?": "không bảo đảm",
+            "Lãi sau chi phí vận hành tháng 8 là bao nhiêu?": "612,200 VND",
+            "Khoản vận hành nào đang lớn nhất?": "Nhân sự",
+            "Tại sao doanh thu tăng mà tôi vẫn thiếu tiền nhập hàng?": "thời điểm thu tiền",
+            "Khoản tiền chi nào lớn nhất tháng này?": "Nhập hàng",
+            "Có dấu hiệu thất thoát hàng không?": "Chưa thể kết luận có thất thoát",
+            "Tỷ lệ lỗi lô hàng tháng 8 là bao nhiêu?": "1.61%",
+            "Tôi có nên phản hồi nhà cung cấp không?": "Nên phản hồi nhà cung cấp",
+            "Làm sao tăng khách quay lại?": "không có biện pháp nào bảo đảm",
+            "Nếu lượt xem cao nhưng ít thêm giỏ thì nên kiểm tra gì?": "mỗi lần chỉ đổi một yếu tố",
+            "Nếu nhiều người thêm giỏ nhưng ít đặt mua thì sao?": "giá cuối",
+            "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?": "ứng viên ưu tiên",
+            "Tôi có nên tạo combo không?": "quy mô nhỏ",
+            "Tôi đang có nguy cơ lỗ ở đâu?": "bốn nhóm",
+            "Tôi cần làm gì trước trong tuần này?": "tối đa ba việc",
+            "AI có cam kết giảm giá sẽ giúp tôi bán tốt hơn không?": "Không. Eslabong không cam kết",
+            "AI này đã kết nối trực tiếp với Shopee chưa?": "Chưa. Eslabong hiện chỉ dùng",
+            "Nếu tôi không tải bảng quảng cáo thì AI có tự đoán ROAS không?": "không tự đoán ROAS",
+        }
+        runner = AgentRunner()
+        for question, expected_text in checks.items():
+            with self.subTest(question=question):
+                result = runner.run(question)
+                self.assertIn(expected_text, result["answer"])
+                self.assertNotIn("Tôi chưa có đủ nội dung đã kiểm chứng", result["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()
