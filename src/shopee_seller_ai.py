@@ -316,7 +316,7 @@ def initialise_state() -> None:
 
 
 def render_color_mode_css() -> None:
-    """Use a deliberately neutral black-and-white dark mode with high contrast."""
+    """Use a calm slate theme that keeps dark mode readable for long sessions."""
     if not st.session_state.get("seller_dark_mode"):
         return
     st.markdown(
@@ -325,12 +325,15 @@ def render_color_mode_css() -> None:
           :root { color-scheme: dark !important; }
           html, body, .stApp, [data-testid="stApp"], [data-testid="stAppViewContainer"], [data-testid="stMain"],
           [data-testid="stBottom"], [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"], .stBottom {
-            background: #000000 !important; color: #ffffff !important;
+            background: #111827 !important; color: #f3f4f6 !important;
           }
-          [data-testid="stHeader"], [data-testid="stSidebar"] { background: #000000 !important; border-color: #555555 !important; }
+          [data-testid="stHeader"] { background: rgba(17, 24, 39, .95) !important; border-color: #334155 !important; }
+          [data-testid="stSidebar"] { background: #172033 !important; border-color: #334155 !important; }
           [data-testid="stSidebar"] *, [data-testid="stAppViewContainer"] p, [data-testid="stAppViewContainer"] li,
           [data-testid="stAppViewContainer"] span, [data-testid="stAppViewContainer"] h1,
-          [data-testid="stAppViewContainer"] h2, [data-testid="stAppViewContainer"] h3 { color: #ffffff !important; }
+          [data-testid="stAppViewContainer"] h2, [data-testid="stAppViewContainer"] h3 { color: #f3f4f6 !important; }
+          [data-testid="stAppViewContainer"] [data-testid="stCaptionContainer"] *,
+          [data-testid="stAppViewContainer"] small { color: #b9c5d4 !important; }
           [data-testid="stMain"] .stButton > button, [data-testid="stSidebar"] .stButton > button,
           [data-testid="stChatInput"], [data-testid="stChatInput"] > div, [data-testid="stChatInput"] form,
           [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea,
@@ -338,26 +341,33 @@ def render_color_mode_css() -> None:
           [data-testid="stMultiSelect"] [data-baseweb="select"] > div,
           [data-testid="stFileUploader"], [data-testid="stFileUploader"] section,
           [data-testid="stFileUploaderDropzone"], [data-testid="stChatMessage"] {
-            background: #111111 !important; border-color: #777777 !important; color: #ffffff !important;
+            background: #1f2937 !important; border-color: #475569 !important; color: #f3f4f6 !important;
           }
           [data-testid="stMain"] .stButton > button, [data-testid="stSidebar"] .stButton > button,
           [data-testid="stChatInput"] textarea, [data-testid="stChatInput"] textarea::placeholder,
-          [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea { color: #ffffff !important; }
+          [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea { color: #f3f4f6 !important; }
+          [data-testid="stChatInput"] textarea::placeholder { color: #94a3b8 !important; }
           .stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button,
           [data-testid="stChatInput"] button, [class*="st-key-market_advisor_toggle"] button {
-            background: #ffffff !important; border-color: #ffffff !important; color: #000000 !important;
-            box-shadow: none !important;
+            background: #2563eb !important; border-color: #3b82f6 !important; color: #ffffff !important;
+            box-shadow: 0 6px 18px rgba(37, 99, 235, .28) !important;
           }
           [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
           [data-testid="stSidebar"] .stButton > button:hover, [data-testid="stMain"] .stButton > button:hover,
           [data-testid="stPills"] button:hover, [data-testid="stPills"] button[aria-pressed="true"] {
-            background: #262626 !important; border-color: #ffffff !important; color: #ffffff !important;
+            background: #273449 !important; border-color: #60a5fa !important; color: #f8fafc !important;
           }
-          [data-testid="stPills"] button, [data-testid="stTabs"] button[aria-selected="true"],
+          [data-testid="stPills"] button, [data-testid="stTabs"] button, [data-testid="stTabs"] button[aria-selected="true"],
           [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
-            background: #111111 !important; border-color: #ffffff !important; color: #ffffff !important;
+            background: #1f2937 !important; border-color: #475569 !important; color: #e5edf7 !important;
           }
-          .seller-eyebrow, .seller-subtitle { color: #ffffff !important; }
+          [data-testid="stPills"] button[aria-pressed="true"], [data-testid="stTabs"] button[aria-selected="true"] {
+            background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
+          }
+          [data-testid="stAlert"], [data-testid="stExpander"] details,
+          [data-testid="stVerticalBlockBorderWrapper"] { background: #1b2638 !important; border-color: #475569 !important; }
+          .seller-eyebrow { color: #93c5fd !important; }
+          .seller-subtitle { color: #b9c5d4 !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -2583,7 +2593,7 @@ with st.sidebar:
             key="seller_language",
         )
         st.toggle(
-            ui_text("Chế độ đêm đen trắng", "Black-and-white dark mode"),
+            ui_text("Chế độ đêm dịu mắt", "Comfortable dark mode"),
             key="seller_dark_mode",
         )
         st.caption(ui_text("Cài đặt chỉ áp dụng cho tab đang mở.", "Settings apply only to this browser tab."))

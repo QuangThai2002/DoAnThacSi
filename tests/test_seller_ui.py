@@ -52,6 +52,10 @@ class SellerFacingUiTests(unittest.TestCase):
 
         app.toggle(key="seller_dark_mode").set_value(True).run()
         self.assertTrue(app.session_state["seller_dark_mode"])
+        rendered_styles = "\n".join(item.value for item in app.markdown)
+        self.assertIn("#111827", rendered_styles)
+        self.assertIn("#2563eb", rendered_styles)
+        self.assertNotIn("background: #000000", rendered_styles)
         self.assertEqual(len(app.error), 0)
 
     def test_english_market_shell_has_no_vietnamese_navigation_or_guidance(self) -> None:
