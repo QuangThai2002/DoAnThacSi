@@ -54,6 +54,22 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertTrue(app.session_state["seller_dark_mode"])
         self.assertEqual(len(app.error), 0)
 
+    def test_english_market_shell_has_no_vietnamese_navigation_or_guidance(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.selectbox(key="seller_language").select("en").run()
+        app.button(key="open_market_intelligence").click().run()
+
+        self.assertEqual([title.value for title in app.title], ["Market analysis"])
+        self.assertEqual(
+            [item.label for item in app.selectbox[:2]],
+            ["Choose a category to analyze", "Choose a product to compare prices"],
+        )
+        self.assertIn("Regenerate demo shop and market", [button.label for button in app.button])
+        self.assertTrue(any("Quick guide" in item.value for item in app.markdown))
+        self.assertFalse(any("Cách dùng nhanh" in item.value for item in app.markdown))
+        self.assertFalse(any("Chưa chọn cuộc trò chuyện" in item.value for item in app.caption))
+        self.assertEqual(len(app.error), 0)
+
     def test_attached_data_can_be_downloaded_as_an_editable_excel_workbook(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="new_chat_main").click().run()

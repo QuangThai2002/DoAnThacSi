@@ -429,12 +429,12 @@ def conversation_data_label(conversation: dict[str, Any] | None = None) -> str:
         context = stored if isinstance(stored, dict) else {}
     origin = context.get("seller_data_origin")
     if origin == "demo_library":
-        return "Đã gắn bộ dữ liệu demo"
+        return ui_text("Đã gắn bộ dữ liệu demo", "Demo data attached")
     if origin == "owner_library":
-        return "Đã gắn dữ liệu shop đã lưu"
+        return ui_text("Đã gắn dữ liệu shop đã lưu", "Saved shop data attached")
     if origin == "uploaded_csv":
-        return "Đã gắn dữ liệu CSV của shop"
-    return "Chưa gắn dữ liệu vận hành"
+        return ui_text("Đã gắn dữ liệu CSV của shop", "Uploaded shop data attached")
+    return ui_text("Chưa gắn dữ liệu vận hành", "No operational data attached")
 
 
 def active_runner() -> AgentRunner:
@@ -676,19 +676,25 @@ def render_workspace_context(surface: str) -> None:
     """Make the active chat/data binding visible when tools are opened."""
     conversation = active_conversation()
     if conversation is None:
-        st.caption("Chưa chọn cuộc trò chuyện: kết quả hiện tại chưa được gắn vào lịch sử chat nào.")
+        st.caption(ui_text(
+            "Chưa chọn cuộc trò chuyện: kết quả hiện tại chưa được gắn vào lịch sử chat nào.",
+            "No conversation is selected: these results are not attached to any chat history.",
+        ))
         return
-    workspace = "Phân tích thị trường" if surface == "market" else "Chiến lược kinh doanh"
+    workspace = ui_text("Phân tích thị trường", "Market analysis") if surface == "market" else ui_text("Chiến lược kinh doanh", "Business strategy")
+    chat_type = active_chat_type(str(conversation["mode"]))
     st.caption(
-        f":material/link: {workspace} đang làm việc cho **{CHAT_TYPES[conversation['mode']]['name']} · {conversation['title']}** "
-        f"· **{conversation_data_label(conversation)}**. AI nổi và kết quả ở đây được lưu riêng theo chat này."
+        ui_text(
+            f":material/link: {workspace} đang làm việc cho **{chat_type['name']} · {conversation['title']}** · **{conversation_data_label(conversation)}**. AI nổi và kết quả ở đây được lưu riêng theo chat này.",
+            f":material/link: {workspace} is working for **{chat_type['name']} · {conversation['title']}** · **{conversation_data_label(conversation)}**. The floating AI and these results are stored separately for this chat.",
+        )
     )
 
 
 def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
     """Put a short, non-technical 'what to do next' guide on each workspace."""
     with st.container(border=True):
-        st.markdown(f"**:material/help: Cách dùng nhanh** — Dùng phần này khi {when_to_use}")
+        st.markdown(f"**:material/help: {ui_text('Cách dùng nhanh', 'Quick guide')}** — {ui_text('Dùng phần này khi ', 'Use this area when ')}{when_to_use}")
         st.caption(" → ".join(f"{index + 1}. {step}" for index, step in enumerate(steps)))
 
 
@@ -723,13 +729,13 @@ def human_title(question: str) -> str:
 
 def data_note(source: str | None) -> str | None:
     if source == "uploaded_csv":
-        return "Dữ liệu sử dụng: báo cáo bạn tải lên trong phiên này."
+        return ui_text("Dữ liệu sử dụng: báo cáo bạn tải lên trong phiên này.", "Data used: reports uploaded in this session.")
     if source == "mock_shop_data":
-        return "Dữ liệu sử dụng: dữ liệu mô phỏng phục vụ demo."
+        return ui_text("Dữ liệu sử dụng: dữ liệu mô phỏng phục vụ demo.", "Data used: simulated data for demonstration.")
     if source == "demo_library":
-        return "Dữ liệu sử dụng: bộ dữ liệu demo trong Thư viện dữ liệu."
+        return ui_text("Dữ liệu sử dụng: bộ dữ liệu demo trong Thư viện dữ liệu.", "Data used: demo data from Data library.")
     if source == "owner_library":
-        return "Dữ liệu sử dụng: bảng dữ liệu cửa hàng đã lưu trên máy này."
+        return ui_text("Dữ liệu sử dụng: bảng dữ liệu cửa hàng đã lưu trên máy này.", "Data used: shop tables saved on this device.")
     return None
 
 
@@ -1303,12 +1309,11 @@ def render_strategy_workspace() -> None:
 
     render_workspace_context("strategy")
     render_quick_guide(
-        "bạn muốn thử một cách bán hàng mới nhưng chưa muốn quyết định nhập nhiều hàng hoặc tăng chi phí ngay.",
-        [
-            "Mở tab Mô phỏng chiến lược",
-            "Chọn ngành hàng và thay đổi nhỏ muốn thử",
-            "Bấm Phân tích phương án, rồi xem Vốn & tồn kho và Kế hoạch 30 ngày",
-        ],
+        ui_text("bạn muốn thử một cách bán hàng mới nhưng chưa muốn quyết định nhập nhiều hàng hoặc tăng chi phí ngay.", "you want to test a new selling approach before committing substantial inventory or spend."),
+        ui_text(
+            ["Mở tab Mô phỏng chiến lược", "Chọn ngành hàng và thay đổi nhỏ muốn thử", "Bấm Phân tích phương án, rồi xem Vốn & tồn kho và Kế hoạch 30 ngày"],
+            ["Open Strategy simulation", "Select a category and a small change to test", "Select Analyze plan, then review Capital & inventory and the 30-day plan"],
+        ),
     )
     st.info("Không gian này dùng dữ liệu mô phỏng minh bạch. Khi có dữ liệu shop thật, cùng khung quyết định này có thể dùng để phân tích kết quả thực tế.", icon=":material/lightbulb:")
     with st.expander("Nguồn phương pháp và nguyên tắc an toàn", icon=":material/menu_book:"):
@@ -1515,12 +1520,11 @@ def render_market_intelligence() -> None:
 
     render_workspace_context("market")
     render_quick_guide(
-        "bạn muốn xem giá, doanh thu và sản phẩm của shop mình so với các shop cùng ngành hàng.",
-        [
-            "Chọn ngành hàng",
-            "Chọn đúng sản phẩm cần kiểm tra giá",
-            "Xem bảng/biểu đồ hoặc bấm AI để hỏi hướng cải thiện",
-        ],
+        ui_text("bạn muốn xem giá, doanh thu và sản phẩm của shop mình so với các shop cùng ngành hàng.", "you want to compare your shop's prices, revenue, and products with similar shops."),
+        ui_text(
+            ["Chọn ngành hàng", "Chọn đúng sản phẩm cần kiểm tra giá", "Xem bảng/biểu đồ hoặc bấm AI để hỏi hướng cải thiện"],
+            ["Choose a category", "Choose the exact product to check", "Review the table/chart or ask AI for an improvement direction"],
+        ),
     )
     st.warning(
         ui_text(
@@ -1531,18 +1535,18 @@ def render_market_intelligence() -> None:
     )
     catalog = cached_market_categories()
     labels = {
-        str(item["id"]): f"{item['category']} · {item['product_count']} sản phẩm demo"
+        str(item["id"]): f"{item['category']} · {item['product_count']} {ui_text('sản phẩm demo', 'demo products')}"
         for item in catalog
     }
     category_id = st.selectbox(
-        "Chọn ngành hàng để phân tích",
+        ui_text("Chọn ngành hàng để phân tích", "Choose a category to analyze"),
         options=list(labels),
         format_func=lambda item: labels[str(item)],
         key="seller_market_category_id",
     )
     selected = next(item for item in catalog if item["id"] == category_id)
     st.button(
-        "Tạo lại shop và thị trường demo",
+        ui_text("Tạo lại shop và thị trường demo", "Regenerate demo shop and market"),
         key="refresh_market_scenario",
         icon=":material/autorenew:",
         on_click=refresh_market_scenario,
@@ -1553,10 +1557,10 @@ def render_market_intelligence() -> None:
     listings = pd.DataFrame(marketplace["listings"])
     product_names = sorted(listings["product_name"].unique().tolist())
     selected_product = st.selectbox(
-        "Chọn sản phẩm để so sánh giá",
+        ui_text("Chọn sản phẩm để so sánh giá", "Choose a product to compare prices"),
         options=product_names,
         key="market_price_product",
-        help="Giá và bảng bên dưới chỉ so sánh đúng sản phẩm này giữa các shop.",
+        help=ui_text("Giá và bảng bên dưới chỉ so sánh đúng sản phẩm này giữa các shop.", "The prices and table below compare this exact product across shops."),
     )
     product_rows = listings[listings["product_name"] == selected_product].copy()
     own_product = product_rows[product_rows["shop_type"] == "Shop của bạn"].iloc[0]
@@ -1566,23 +1570,23 @@ def render_market_intelligence() -> None:
     product_upper_price = float(comparable_prices.max())
     product_own_price = float(own_product["listed_price_vnd"])
     if product_own_price < product_lower_price:
-        product_position = "Thấp hơn giá các shop cùng sản phẩm"
+        product_position = ui_text("Thấp hơn giá các shop cùng sản phẩm", "Below comparable-shop prices")
     elif product_own_price > product_upper_price:
-        product_position = "Cao hơn giá các shop cùng sản phẩm"
+        product_position = ui_text("Cao hơn giá các shop cùng sản phẩm", "Above comparable-shop prices")
     else:
-        product_position = "Nằm trong vùng giá cạnh tranh"
+        product_position = ui_text("Nằm trong vùng giá cạnh tranh", "Within the competitive price range")
 
     with st.container(horizontal=True):
-        st.metric("Giá thấp cùng sản phẩm", currency(product_lower_price), help="Mức giá thấp nhất của đúng sản phẩm đang chọn tại 7 shop tham chiếu.", border=True)
-        st.metric("Mặt bằng giá", currency(product_typical_price), help="Giá ở giữa của 7 shop cùng bán sản phẩm đang chọn.", border=True)
-        st.metric("Giá cao cùng sản phẩm", currency(product_upper_price), help="Mức giá cao nhất của đúng sản phẩm đang chọn tại 7 shop tham chiếu.", border=True)
+        st.metric(ui_text("Giá thấp cùng sản phẩm", "Lowest comparable price"), currency(product_lower_price), help=ui_text("Mức giá thấp nhất của đúng sản phẩm đang chọn tại 7 shop tham chiếu.", "The lowest price for this exact product across seven reference shops."), border=True)
+        st.metric(ui_text("Mặt bằng giá", "Typical price"), currency(product_typical_price), help=ui_text("Giá ở giữa của 7 shop cùng bán sản phẩm đang chọn.", "The median price for this exact product across comparable shops."), border=True)
+        st.metric(ui_text("Giá cao cùng sản phẩm", "Highest comparable price"), currency(product_upper_price), help=ui_text("Mức giá cao nhất của đúng sản phẩm đang chọn tại 7 shop tham chiếu.", "The highest price for this exact product across seven reference shops."), border=True)
     with st.container(horizontal=True):
-        st.metric("Giá shop của bạn", currency(product_own_price), help="Giá của đúng sản phẩm đang chọn tại Shop của bạn · Demo.", border=True)
-        st.metric("Vị trí giá", product_position, help="So sánh trực tiếp cùng một sản phẩm, không phải giá trung bình của cả shop.", border=True)
-    st.caption("Đang so sánh từng sản phẩm. Chọn sản phẩm khác để kiểm tra giá khác; bấm “Tạo lại shop và thị trường demo” để tạo bộ shop mới.")
+        st.metric(ui_text("Giá shop của bạn", "Your shop price"), currency(product_own_price), help=ui_text("Giá của đúng sản phẩm đang chọn tại Shop của bạn · Demo.", "The price of this exact product in Your shop · Demo."), border=True)
+        st.metric(ui_text("Vị trí giá", "Price position"), product_position, help=ui_text("So sánh trực tiếp cùng một sản phẩm, không phải giá trung bình của cả shop.", "A direct comparison of the same product, not an average across the full shop."), border=True)
+    st.caption(ui_text("Đang so sánh từng sản phẩm. Chọn sản phẩm khác để kiểm tra giá khác; bấm “Tạo lại shop và thị trường demo” để tạo bộ shop mới.", "This is a product-by-product comparison. Choose another product to check its price, or regenerate the demo market for a new scenario."))
     with st.container(border=True):
-        st.markdown("**Cách đọc nhanh**")
-        st.write("1. Chọn đúng sản phẩm muốn kiểm tra.  2. So giá shop của bạn với 7 shop cùng bán sản phẩm đó.  3. Xem bảng chi tiết trước khi quyết định đổi giá.")
+        st.markdown("**" + ui_text("Cách đọc nhanh", "How to read this") + "**")
+        st.write(ui_text("1. Chọn đúng sản phẩm muốn kiểm tra.  2. So giá shop của bạn với 7 shop cùng bán sản phẩm đó.  3. Xem bảng chi tiết trước khi quyết định đổi giá.", "1. Choose the exact product.  2. Compare your price with seven shops selling that product.  3. Review the detail table before changing a price."))
 
     market_sections = ["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"]
     market_section = st.segmented_control(
@@ -1590,29 +1594,41 @@ def render_market_intelligence() -> None:
         options=market_sections,
         default="So sánh giá",
         key="market_section",
+        format_func=lambda item: {
+            "So sánh giá": ui_text("So sánh giá", "Price comparison"),
+            "So sánh shop": ui_text("So sánh shop", "Shop comparison"),
+            "Sản phẩm cùng thị trường": ui_text("Sản phẩm cùng thị trường", "Products in this market"),
+        }[str(item)],
         label_visibility="collapsed",
         width="stretch",
     )
     if market_section == "So sánh giá":
         st.subheader(selected_product)
-        st.write("Mỗi cột là giá của đúng sản phẩm này tại một shop. Cột đỏ là Shop của bạn.")
+        st.write(ui_text("Mỗi cột là giá của đúng sản phẩm này tại một shop. Cột đỏ là Shop của bạn.", "Each bar is the price of this exact product at one shop. The red bar is Your shop."))
         chart_data = product_rows.copy()
         price_chart = (
             alt.Chart(chart_data)
             .mark_bar(cornerRadiusEnd=4)
             .encode(
-                x=alt.X("listed_price_vnd:Q", title="Giá niêm yết (VND)", axis=alt.Axis(format=",d")),
+                x=alt.X("listed_price_vnd:Q", title=ui_text("Giá niêm yết (VND)", "Listed price (VND)"), axis=alt.Axis(format=",d")),
                 y=alt.Y("shop_name:N", sort="-x", title=None),
                 color=alt.condition(alt.datum.shop_type == "Shop của bạn", alt.value("#ee4d2d"), alt.value("#f7a28f")),
-                tooltip=[alt.Tooltip("shop_name:N", title="Shop"), alt.Tooltip("listed_price_vnd:Q", title="Giá", format=",d"), alt.Tooltip("rating:Q", title="Đánh giá", format=".2f")],
+                tooltip=[alt.Tooltip("shop_name:N", title=ui_text("Cửa hàng", "Shop")), alt.Tooltip("listed_price_vnd:Q", title=ui_text("Giá", "Price"), format=",d"), alt.Tooltip("rating:Q", title=ui_text("Đánh giá", "Rating"), format=".2f")],
             )
             .properties(height=300)
         )
         st.altair_chart(price_chart, width="stretch")
-        product_table = product_rows.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Loại cửa hàng", "listed_price_vnd": "Giá", "rating": "Đánh giá", "review_count": "Số đánh giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T"})
-        st.dataframe(product_table[["Cửa hàng", "Loại cửa hàng", "Giá", "Đánh giá", "Số đánh giá", "Lượng bán 12T", "GMV 12T"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ")})
+        column_labels = {
+            "shop_name": ui_text("Cửa hàng", "Shop"), "shop_type": ui_text("Loại cửa hàng", "Shop type"),
+            "listed_price_vnd": ui_text("Giá", "Price"), "rating": ui_text("Đánh giá", "Rating"),
+            "review_count": ui_text("Số đánh giá", "Reviews"), "units_sold_12m": ui_text("Lượng bán 12T", "Units sold (12 mo.)"),
+            "gmv_12m_vnd": ui_text("GMV 12T", "GMV (12 mo.)"),
+        }
+        product_table = product_rows.rename(columns=column_labels)
+        product_columns = list(column_labels.values())
+        st.dataframe(product_table[product_columns], hide_index=True, width="stretch", column_config={column_labels["listed_price_vnd"]: st.column_config.NumberColumn(format="%,d đ"), column_labels["gmv_12m_vnd"]: st.column_config.NumberColumn(format="%,d đ")})
         st.caption(
-            f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}."
+            ui_text(f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}.", f"This compares the same product in Your shop and seven simulated reference shops; demo snapshot {MARKET_SNAPSHOT_DATE}.")
         )
 
     if market_section == "So sánh shop":
@@ -2076,8 +2092,8 @@ def render_demo_assortment_builder(
 
 def render_business_terms_guide() -> None:
     """Explain the three operational terms that appear in the shop dashboard."""
-    with st.expander("Giải thích nhanh: SKU, GMV và ROAS", icon=":material/help:"):
-        st.markdown(
+    with st.expander(ui_text("Giải thích nhanh: SKU, GMV và ROAS", "Quick definitions: SKU, GMV, and ROAS"), icon=":material/help:"):
+        st.markdown(ui_text(
             """
 **SKU — mã riêng của từng sản phẩm**
 
@@ -2092,13 +2108,28 @@ GMV là tổng giá trị đơn hoàn tất trước khi trừ khuyến mãi c�
 ROAS = doanh thu quy gán từ quảng cáo ÷ tiền chạy quảng cáo. Ví dụ: chi 100.000 đ quảng cáo và tạo ra 400.000 đ doanh thu → **ROAS = 4,0**. Nghĩa là mỗi 1 đ quảng cáo mang về 4 đ doanh thu; chỉ số này cũng chưa trừ giá vốn hay phí.
 
 :small[Mẹo nhớ: SKU = mã sản phẩm · GMV = tổng tiền hàng bán · ROAS = số tiền thu về trên mỗi đồng quảng cáo.]
-"""
-        )
+""",
+            """
+**SKU — a unique product code**
+
+SKU distinguishes one product and links it to its orders and inventory. For example, `FRUIT-TAO-001` can identify an apple basket, allowing AI to find its sold quantity and remaining stock.
+
+**GMV — total value of completed merchandise sales**
+
+GMV is the gross value of completed orders before the shop's discount and estimated fees. Example: 2 products at 250,000 VND each → **GMV = 500,000 VND**. GMV is not profit because product cost, discounts, and fees still apply.
+
+**ROAS — advertising return on spend**
+
+ROAS = revenue attributed to ads ÷ ad spend. Example: 100,000 VND in ads produces 400,000 VND revenue → **ROAS = 4.0**. Each 1 VND of advertising generated 4 VND in attributed revenue; this still excludes product cost and fees.
+
+:small[Remember: SKU = product code · GMV = gross merchandise sales · ROAS = revenue per advertising unit spent.]
+""",
+        ))
 
 
 def render_data_library() -> None:
     """The persistent local shop-data workspace, reached via the bookshelf."""
-    st.markdown('<div class="seller-eyebrow">THƯ VIỆN DỮ LIỆU</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="seller-eyebrow">{ui_text("THƯ VIỆN DỮ LIỆU", "DATA LIBRARY")}</div>', unsafe_allow_html=True)
     header, back = st.columns([8, 2], vertical_alignment="center")
     with header:
         st.title(ui_text("Dữ liệu và báo cáo quản lý", "Data and management reports"))
@@ -2107,17 +2138,16 @@ def render_data_library() -> None:
         st.button(ui_text("Quay lại chat", "Back to chat"), icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
     render_quick_guide(
-        "bạn cần tạo, sửa hoặc chọn dữ liệu để AI phân tích cho đúng cuộc trò chuyện đang mở.",
-        [
-            "Chọn Bộ demo nếu muốn tập thử, hoặc Dữ liệu shop nếu là chủ shop",
-            "Tạo/chỉnh sửa các bảng đơn hàng, sản phẩm và tồn kho",
-            "Bấm Dùng dữ liệu shop trong chat để gắn dữ liệu vào chat hiện tại",
-        ],
+        ui_text("bạn cần tạo, sửa hoặc chọn dữ liệu để AI phân tích cho đúng cuộc trò chuyện đang mở.", "you need to create, edit, or select data for AI to analyze in the current conversation."),
+        ui_text(
+            ["Chọn Bộ demo nếu muốn tập thử, hoặc Dữ liệu shop nếu là chủ shop", "Tạo/chỉnh sửa các bảng đơn hàng, sản phẩm và tồn kho", "Bấm Dùng dữ liệu shop trong chat để gắn dữ liệu vào chat hiện tại"],
+            ["Choose Demo data to practice, or Shop data if you own the shop", "Create or edit orders, products, and inventory tables", "Select Use shop data in chat to attach it to the current chat"],
+        ),
     )
     scope = st.segmented_control(
         "Không gian dữ liệu",
         options=["demo", "owner"],
-        format_func=lambda value: "Bộ demo · Người mới" if value == "demo" else "Dữ liệu shop · Chủ shop",
+        format_func=lambda value: ui_text("Bộ demo · Người mới", "Demo data · New seller") if value == "demo" else ui_text("Dữ liệu shop · Chủ shop", "Shop data · Shop owner"),
         key="seller_library_scope",
         required=True,
         width="stretch",
@@ -2126,11 +2156,13 @@ def render_data_library() -> None:
     library = library_repository()
     saved_rows = library.load(scope)
     is_demo = scope == "demo"
-    scope_title = "Bộ dữ liệu demo cho người mới" if is_demo else "Dữ liệu vận hành của chủ shop"
-    scope_note = (
-        "Dùng để tập thao tác, kiểm tra biểu đồ và thử các câu hỏi phân tích. Đây không phải dữ liệu shop thật."
-        if is_demo
-        else "Dùng để quản lý bảng do chủ shop nhập trực tiếp trên ứng dụng. Dữ liệu được lưu cục bộ trên máy này."
+    scope_title = ui_text("Bộ dữ liệu demo cho người mới", "Demo data for a new seller") if is_demo else ui_text("Dữ liệu vận hành của chủ shop", "Shop operational data")
+    scope_note = ui_text(
+        "Dùng để tập thao tác, kiểm tra biểu đồ và thử các câu hỏi phân tích. Đây không phải dữ liệu shop thật.",
+        "Use it to practice, review charts, and test analytical questions. This is not real shop data.",
+    ) if is_demo else ui_text(
+        "Dùng để quản lý bảng do chủ shop nhập trực tiếp trên ứng dụng. Dữ liệu được lưu cục bộ trên máy này.",
+        "Use it to manage tables entered directly in the app. Data is stored locally on this device.",
     )
     st.subheader(scope_title)
     st.caption(scope_note)
@@ -2404,12 +2436,11 @@ def render_assistant() -> None:
             st.caption(ui_text("Bạn có thể tạo nhiều cuộc trò chuyện; mỗi cuộc được đánh dấu riêng là Người mới hoặc Chủ shop.", "You can create multiple chats; each is marked as a New seller or Shop owner chat."))
             st.button(ui_text("Cuộc trò chuyện mới", "New chat"), key="new_chat_main", type="primary", icon=":material/add_comment:", on_click=show_chat_picker)
         render_quick_guide(
-            "bạn bắt đầu sử dụng AI hoặc muốn tạo một chủ đề hỏi mới.",
-            [
-                "Bấm Cuộc trò chuyện mới",
-                "Chọn Người mới hoặc Chủ shop",
-                "Gõ câu hỏi hoặc dùng câu hỏi gợi ý",
-            ],
+            ui_text("bạn bắt đầu sử dụng AI hoặc muốn tạo một chủ đề hỏi mới.", "you are starting with AI or want a new topic."),
+            ui_text(
+                ["Bấm Cuộc trò chuyện mới", "Chọn Người mới hoặc Chủ shop", "Gõ câu hỏi hoặc dùng câu hỏi gợi ý"],
+                ["Select New chat", "Choose New seller or Shop owner", "Type a question or use a suggested question"],
+            ),
         )
         return
 
@@ -2425,12 +2456,11 @@ def render_assistant() -> None:
             "Lịch sử, dữ liệu và Chiến lược gia AI được tách riêng cho cuộc trò chuyện này."
         )
     render_quick_guide(
-        "bạn muốn hỏi chính sách Shopee, doanh thu, tồn kho hoặc cần AI hướng dẫn bước tiếp theo.",
-        [
-            "Nếu cần số liệu, bấm Thư viện dữ liệu để gắn dữ liệu cho chat này",
-            "Gõ câu hỏi vào ô dưới cùng",
-            "Bấm nút AI tròn để hỏi nhanh và đi thẳng đến Thị trường hoặc Chiến lược",
-        ],
+        ui_text("bạn muốn hỏi chính sách Shopee, doanh thu, tồn kho hoặc cần AI hướng dẫn bước tiếp theo.", "you want help with Shopee policies, revenue, inventory, or the next step."),
+        ui_text(
+            ["Nếu cần số liệu, bấm Thư viện dữ liệu để gắn dữ liệu cho chat này", "Gõ câu hỏi vào ô dưới cùng", "Bấm nút AI tròn để hỏi nhanh và đi thẳng đến Thị trường hoặc Chiến lược"],
+            ["If you need figures, open Data library and attach data to this chat", "Type your question in the bottom field", "Select the round AI button for a quick question or go to Market or Strategy"],
+        ),
     )
 
     if mode == "owner" and not is_uploaded():
