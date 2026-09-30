@@ -480,6 +480,21 @@ class AgentRunner:
     def _knowledge_answer(question: str) -> str:
         """Give short answers only for source-backed common concepts."""
         normalized_question = normalize(question)
+        if "sku" in normalized_question:
+            if "vi du" in normalized_question:
+                return (
+                    "**Ví dụ SKU:** một áo thun cùng mẫu nhưng khác màu và size cần mã khác nhau: "
+                    "`AO-THUN-DEN-M`, `AO-THUN-DEN-L`, `AO-THUN-TRANG-M`. Khi bán một áo đen size M, "
+                    "hệ thống chỉ trừ tồn của đúng biến thể đó; áo đen size L vẫn còn nguyên."
+                )
+            return (
+                "**SKU là mã riêng để nhận diện từng sản phẩm hoặc từng biến thể trong shop.** "
+                "SKU không nhất thiết là mã vạch của nhà sản xuất; đây là mã shop dùng để quản lý cho nhất quán.\n\n"
+                "**Vì sao mỗi biến thể cần SKU riêng?** Màu, size hoặc phiên bản có tồn kho, giá vốn, đơn hoàn và hiệu quả bán khác nhau. "
+                "Dùng chung một SKU sẽ khiến shop trừ nhầm tồn hoặc không biết biến thể nào đang bán tốt.\n\n"
+                "**Ví dụ:** áo thun đen size M có mã `AO-THUN-DEN-M`; áo thun đen size L có mã `AO-THUN-DEN-L`. "
+                "Khách mua size M thì chỉ tồn kho size M giảm, còn size L không thay đổi."
+            )
         if any(term in normalized_question for term in ("doanh thu sau phi", "doanh thu thuc nhan", "tien nhan duoc")):
             return (
                 "**Doanh thu sau phí ước tính** = **GMV − giảm giá người bán − phí giao dịch − phí dịch vụ**. "
@@ -524,7 +539,6 @@ class AgentRunner:
                 "không tự phán quyết hiệu lực hợp đồng."
             )
         definitions = {
-            "sku": "SKU là mã riêng cho từng sản phẩm hoặc biến thể; dùng để tránh nhầm hàng khi theo dõi đơn và tồn kho.",
             "gmv": "GMV là tổng giá trị hàng hóa đã bán trong các đơn được tính, trước khi trừ giảm giá của shop, phí sàn, giá vốn và các chi phí khác. Ví dụ bán 2 sản phẩm giá 250.000 đ thì GMV là 500.000 đ. Vì còn các khoản phải trừ, GMV không phải lợi nhuận.",
             "roas": "ROAS = doanh thu được quy gán cho quảng cáo chia cho chi quảng cáo. Chỉ số này không tự chứng minh chiến dịch có lãi vì còn giá vốn và phí.",
             "gia von": "Giá vốn là chi phí trực tiếp để có sản phẩm sẵn sàng bán. Cần có giá vốn thì mới ước lượng được biên lợi nhuận gộp.",

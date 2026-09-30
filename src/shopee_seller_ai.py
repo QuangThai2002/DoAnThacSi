@@ -27,7 +27,7 @@ from agent.market_intelligence import (
     market_categories,
     simulated_marketplace,
 )
-from agent.planner import Planner
+from agent.planner import Planner, normalize
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 from agent.strategy_engine import action_plan, inventory_risk_analysis, opportunity_radar, simulate_strategy
 from agent.strategy_evidence import STRATEGY_EVIDENCE
@@ -714,11 +714,34 @@ def missing_data_response() -> dict[str, Any]:
     }
 
 
+def question_with_chat_context(question: str) -> str:
+    """Resolve short follow-ups such as “ví dụ” from the current chat only."""
+    normalized = normalize(question)
+    follow_up_starts = (
+        "vi du", "cho vi du", "them vi du", "giai thich them", "tai sao",
+        "con cach nao", "cu the hon",
+    )
+    if not any(normalized.startswith(prefix) for prefix in follow_up_starts):
+        return question
+    prior_questions = [
+        str(message.get("content", "")).strip()
+        for message in st.session_state.get("seller_messages", [])
+        if message.get("role") == "user" and str(message.get("content", "")).strip()
+    ]
+    if prior_questions and prior_questions[-1] == question.strip():
+        prior_questions.pop()
+    if not prior_questions:
+        return question
+    return f"{prior_questions[-1]}\n\nNgười dùng hỏi tiếp: {question}"
+
+
 def answer_question(question: str) -> dict[str, Any]:
-    plan = Planner().plan(question)
+    effective_question = question_with_chat_context(question)
+    plan = Planner().plan(effective_question)
     if plan.needs_private_shop_data and not is_uploaded():
         return missing_data_response()
-    result = active_runner().run(question)
+    result = active_runner().run(effective_question)
+    result["question"] = question
     result["confidence"] = (
         "Cao" if result.get("citations") or result.get("data_source") else "Trung bình"
     )

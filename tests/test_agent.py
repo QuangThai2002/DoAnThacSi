@@ -162,6 +162,26 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("SKU là mã riêng", result["answer"])
         self.assertNotIn("chính sách Shopee", result["answer"])
 
+    def test_sku_explanation_includes_why_and_a_concrete_variant_example(self) -> None:
+        class GuideRAG:
+            def search(self, _question: str) -> dict:
+                return {"evidence": [{"document_id": "ESLABONG_GUIDE_001", "title": "Sổ tay vận hành Eslabong", "page": "", "excerpt": "SKU là mã định danh."}]}
+
+        result = AgentRunner(rag_tool=GuideRAG()).run("SKU là gì? Vì sao mỗi biến thể cần SKU riêng?")
+        self.assertIn("Vì sao mỗi biến thể cần SKU riêng", result["answer"])
+        self.assertIn("AO-THUN-DEN-M", result["answer"])
+
+    def test_sku_follow_up_example_stays_on_the_previous_topic(self) -> None:
+        class GuideRAG:
+            def search(self, _question: str) -> dict:
+                return {"evidence": [{"document_id": "ESLABONG_GUIDE_001", "title": "Sổ tay vận hành Eslabong", "page": "", "excerpt": "SKU là mã định danh."}]}
+
+        result = AgentRunner(rag_tool=GuideRAG()).run(
+            "SKU là gì? Vì sao mỗi biến thể cần SKU riêng?\n\nNgười dùng hỏi tiếp: ví dụ"
+        )
+        self.assertIn("Ví dụ SKU", result["answer"])
+        self.assertIn("AO-THUN-DEN-L", result["answer"])
+
     def test_gmv_definition_does_not_need_shop_numbers(self) -> None:
         class GuideRAG:
             def search(self, _question: str) -> dict:
