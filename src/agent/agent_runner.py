@@ -458,6 +458,7 @@ class AgentRunner:
             )
         definitions = {
             "sku": "SKU là mã riêng cho từng sản phẩm hoặc biến thể; dùng để tránh nhầm hàng khi theo dõi đơn và tồn kho.",
+            "gmv": "GMV là tổng giá trị hàng hóa đã bán trong các đơn được tính, trước khi trừ giảm giá của shop, phí sàn, giá vốn và các chi phí khác. Ví dụ bán 2 sản phẩm giá 250.000 đ thì GMV là 500.000 đ. Vì còn các khoản phải trừ, GMV không phải lợi nhuận.",
             "roas": "ROAS = doanh thu được quy gán cho quảng cáo chia cho chi quảng cáo. Chỉ số này không tự chứng minh chiến dịch có lãi vì còn giá vốn và phí.",
             "gia von": "Giá vốn là chi phí trực tiếp để có sản phẩm sẵn sàng bán. Cần có giá vốn thì mới ước lượng được biên lợi nhuận gộp.",
             "hoa von": "Điểm hòa vốn là mức bán đủ bù chi phí. Đây là ước tính kế hoạch, không phải cam kết kết quả thực tế.",

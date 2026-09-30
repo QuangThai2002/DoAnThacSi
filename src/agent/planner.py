@@ -96,6 +96,20 @@ class Planner:
         "hieu qua san pham",
         "phieu san pham",
     )
+    # A metric word can be either a request for a definition or a request for
+    # the seller's own numbers. Only the latter must have shop data attached.
+    BUSINESS_TERM_DEFINITION_TERMS = (
+        "gmv", "roas", "sku", "doanh thu", "loi nhuan", "gia von",
+        "hoa von", "dong tien", "ton kho",
+    )
+    DEFINITION_QUESTION_TERMS = (
+        "la gi", "nghia la gi", "co phai", "khac gi", "tinh nhu the nao",
+        "tinh sao", "giai thich",
+    )
+    PRIVATE_DATA_CUES = (
+        "shop toi", "cua shop", "cua toi", "cua hang toi", "bao nhieu",
+        "san pham nao", "thang nay", "thang ", "ky nay", "hien tai",
+    )
     COST_ANALYSIS_TERMS = (
         "khoan chi phi",
         "chi phi nao",
@@ -141,13 +155,18 @@ class Planner:
                 needs_private_shop_data=False,
                 rationale=("Câu hỏi nằm ngoài phạm vi chính sách và vận hành Shopee.",),
             )
+        is_definition_question = (
+            any(term in normalized for term in self.BUSINESS_TERM_DEFINITION_TERMS)
+            and any(term in normalized for term in self.DEFINITION_QUESTION_TERMS)
+            and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
+        )
         needs_cost_analysis = any(
             term in normalized for term in self.COST_ANALYSIS_TERMS
         )
         needs_shop = (
             any(term in normalized for term in self.SHOP_TERMS)
             or needs_cost_analysis
-        )
+        ) and not is_definition_question
         needs_policy = any(term in normalized for term in self.POLICY_TERMS)
         needs_calculation = any(term in normalized for term in self.CALCULATION_TERMS)
 

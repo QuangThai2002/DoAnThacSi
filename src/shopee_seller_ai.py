@@ -834,13 +834,32 @@ def library_repository() -> ShopDataLibrary:
 
 
 def activate_library_data(scope: str) -> None:
+    """Attach one saved data shelf to the active chat, rather than only opening it."""
     rows = library_repository().load(scope)
     if rows is None:
         st.session_state.seller_upload_error = "Hãy lưu đủ bảng dữ liệu trước khi dùng trong chat."
         return
+    expected_mode = "learner" if scope == "demo" else "owner"
+    selected_demo_ids = list(st.session_state.get("seller_demo_selected_ids", []))
+    active_mode = st.session_state.get("seller_chat_mode")
+    if active_mode is None or active_conversation() is None:
+        start_conversation(expected_mode)
+    elif active_mode != expected_mode:
+        st.session_state.seller_upload_error = (
+            "Bộ demo chỉ gắn với chat Người mới; dữ liệu cửa hàng chỉ gắn với chat Chủ shop. "
+            "Hãy mở đúng loại chat trước."
+        )
+        return
     st.session_state.seller_uploaded_rows = rows
     st.session_state.seller_uploaded_names = tuple(rows)
     st.session_state.seller_data_origin = f"{scope}_library"
+    if scope == "demo":
+        compatible_ids = {str(item["id"]) for item in market_categories()}
+        primary_category = next((item for item in selected_demo_ids if item in compatible_ids), None)
+        if primary_category is not None:
+            st.session_state.seller_market_category_id = primary_category
+            st.session_state.strategy_category_id = primary_category
+            st.session_state.strategy_inventory_category = primary_category
     st.session_state.seller_upload_message = (
         "Đã dùng bộ dữ liệu demo cho cuộc trò chuyện này."
         if scope == "demo"
@@ -1929,13 +1948,25 @@ def render_data_library() -> None:
 
     if saved_rows is not None:
         if is_demo:
-            st.button(
-                "Mở phân tích thị trường demo",
-                icon=":material/insights:",
-                type="primary",
-                on_click=open_market_intelligence,
+            with st.container(horizontal=True):
+                st.button(
+                    "Dùng bộ demo cho chat đang mở",
+                    key="attach_demo_to_current_chat",
+                    icon=":material/link:",
+                    type="primary",
+                    on_click=activate_library_data,
+                    args=(scope,),
+                )
+                st.button(
+                    "Xem thị trường cùng ngành",
+                    key="open_demo_market",
+                    icon=":material/insights:",
+                    on_click=open_market_intelligence,
+                )
+            st.caption(
+                "Nút đầu tiên gắn dữ liệu vào chat đang mở. Phân tích thị trường và Chiến lược "
+                "giữ ngành hàng của chat đó."
             )
-            st.caption("Từ đây bạn sẽ xem shop demo, các shop tương tự và hỏi Trợ lý AI về hướng phát triển.")
         else:
             st.button(
                 "Dùng dữ liệu shop trong chat",

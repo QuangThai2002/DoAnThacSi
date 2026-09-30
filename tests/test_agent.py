@@ -36,6 +36,11 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.period, "2026-08")
         self.assertEqual(plan.tools, ("shop_data", "calculator"))
 
+    def test_metric_definition_does_not_request_private_shop_data(self) -> None:
+        plan = Planner().plan("GMV là gì? GMV có phải lợi nhuận không?")
+        self.assertEqual(plan.tools, ("rag",))
+        self.assertFalse(plan.needs_private_shop_data)
+
 
 class ShopDataToolTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -151,6 +156,24 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         result = AgentRunner(rag_tool=GuideRAG()).run("SKU là gì?")
         self.assertIn("SKU là mã riêng", result["answer"])
         self.assertNotIn("chính sách Shopee", result["answer"])
+
+    def test_gmv_definition_does_not_need_shop_numbers(self) -> None:
+        class GuideRAG:
+            def search(self, _question: str) -> dict:
+                return {
+                    "evidence": [
+                        {
+                            "document_id": "ESLABONG_GUIDE_001",
+                            "title": "Sổ tay vận hành Eslabong",
+                            "page": "",
+                            "excerpt": "GMV là tổng giá trị hàng hóa.",
+                        }
+                    ]
+                }
+
+        result = AgentRunner(rag_tool=GuideRAG()).run("GMV là gì? GMV có phải lợi nhuận không?")
+        self.assertIn("GMV là tổng giá trị hàng hóa", result["answer"])
+        self.assertIn("không phải lợi nhuận", result["answer"])
 
     def test_contract_guidance_does_not_present_itself_as_legal_advice(self) -> None:
         class LegalRAG:
