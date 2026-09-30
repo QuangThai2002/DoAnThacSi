@@ -57,6 +57,8 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertIn("#2563eb", rendered_styles)
         self.assertIn("st-key-seller_suggestion", rendered_styles)
         self.assertIn("st-key-open_", rendered_styles)
+        self.assertIn("stSegmentedControl", rendered_styles)
+        self.assertIn("--gdg-bg-cell: #1f2937", rendered_styles)
         self.assertNotIn("background: #000000", rendered_styles)
         self.assertEqual(len(app.error), 0)
 

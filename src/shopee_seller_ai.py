@@ -289,8 +289,8 @@ def dark_mode_chart(chart: alt.Chart) -> alt.Chart:
     )
 
 
-def market_dataframe(data: pd.DataFrame, **kwargs: Any) -> None:
-    """Render market tables in the same calm palette as dark-mode charts."""
+def themed_dataframe(data: pd.DataFrame, **kwargs: Any) -> None:
+    """Render every app table in the same calm palette as dark-mode charts."""
     display_data: Any = data
     if st.session_state.get("seller_dark_mode"):
         display_data = (
@@ -422,6 +422,14 @@ def render_color_mode_css() -> None:
           [data-testid="stPills"] button[aria-pressed="true"], [data-testid="stTabs"] button[aria-selected="true"] {
             background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
           }
+          [data-testid="stSegmentedControl"] button {
+            background: #1f2937 !important; border-color: #475569 !important; color: #e5edf7 !important;
+            box-shadow: none !important;
+          }
+          [data-testid="stSegmentedControl"] button[aria-checked="true"],
+          [data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            background: #1d4ed8 !important; border-color: #60a5fa !important; color: #ffffff !important;
+          }
           /* These controls had light-mode key-specific rules with higher priority. */
           [class*="st-key-seller_suggestion"] button,
           [class*="st-key-open_"] button,
@@ -444,7 +452,7 @@ def render_color_mode_css() -> None:
           [data-testid="stAlert"], [data-testid="stExpander"] details,
           [data-testid="stVerticalBlockBorderWrapper"] { background: #1b2638 !important; border-color: #475569 !important; }
           /* Glide Data Grid is drawn on a canvas, so give it its own dark palette. */
-          [data-testid="stDataFrame"] {
+          [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
             --gdg-bg-cell: #1f2937 !important;
             --gdg-bg-cell-medium: #1f2937 !important;
             --gdg-bg-header: #273449 !important;
@@ -1442,7 +1450,7 @@ def render_strategy_workspace() -> None:
             "positive_review_score": "Đánh giá tích cực", "longevity_score": "Độ bền xu hướng",
             "opportunity_score": "Điểm cơ hội", "recommendation": "Khuyến nghị",
         })
-        st.dataframe(
+        themed_dataframe(
             radar_frame[["Xếp hạng", "Ngành hàng", "Sản phẩm gợi ý", "Lượng bán ước tính", "Doanh thu ước tính", "Đánh giá tích cực", "Độ bền xu hướng", "Điểm cơ hội", "Khuyến nghị"]].head(12),
             hide_index=True,
             width="stretch",
@@ -1576,7 +1584,7 @@ def render_strategy_workspace() -> None:
             "Số lượng tồn", "Vốn đang nằm trong hàng", "Tín hiệu khách quay lại",
             "Đề xuất nhập (cái)", "Ngân sách nhập nhỏ", "Tình trạng", "Việc nên làm",
         ]
-        st.dataframe(
+        themed_dataframe(
             inventory_frame[visible_columns],
             hide_index=True,
             width="stretch",
@@ -1604,7 +1612,7 @@ def render_strategy_workspace() -> None:
             st.info("Hãy tạo một phương án trong tab “Mô phỏng chiến lược” trước; kế hoạch sẽ tự dùng phương án đó.", icon=":material/arrow_back:")
         else:
             plan = pd.DataFrame(action_plan(simulation))
-            st.dataframe(plan, hide_index=True, width="stretch")
+            themed_dataframe(plan, hide_index=True, width="stretch")
             st.caption("Nguyên tắc: chỉ thay đổi một vài yếu tố trong một kỳ để biết kết quả đến từ đâu.")
 
     render_advisor_launcher("strategy")
@@ -1731,7 +1739,7 @@ def render_market_intelligence() -> None:
         product_table[column_labels["shop_name"]] = product_table[column_labels["shop_name"]].map(market_shop_name_label)
         product_table[column_labels["shop_type"]] = product_table[column_labels["shop_type"]].map(market_shop_type_label)
         product_columns = list(column_labels.values())
-        market_dataframe(product_table[product_columns], hide_index=True, width="stretch", column_config={column_labels["listed_price_vnd"]: st.column_config.NumberColumn(format="%,d đ"), column_labels["gmv_12m_vnd"]: st.column_config.NumberColumn(format="%,d đ")})
+        themed_dataframe(product_table[product_columns], hide_index=True, width="stretch", column_config={column_labels["listed_price_vnd"]: st.column_config.NumberColumn(format="%,d đ"), column_labels["gmv_12m_vnd"]: st.column_config.NumberColumn(format="%,d đ")})
         st.caption(
             ui_text(f"So sánh đúng một sản phẩm ở Shop của bạn và 7 shop tham chiếu mô phỏng; snapshot demo {MARKET_SNAPSHOT_DATE}.", f"This compares the same product in Your shop and seven simulated reference shops; demo snapshot {MARKET_SNAPSHOT_DATE}.")
         )
@@ -1758,7 +1766,7 @@ def render_market_intelligence() -> None:
         table = shops.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Quy mô", "listing_count": "Số sản phẩm", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "average_price_vnd": "Giá TB", "rating": "Đánh giá", "review_count": "Số đánh giá", "shop_score": "Điểm cửa hàng"})
         table["Cửa hàng"] = table["Cửa hàng"].map(market_shop_name_label)
         table["Quy mô"] = table["Quy mô"].map(market_shop_type_label)
-        market_dataframe(table[["Cửa hàng", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Số đánh giá", "Điểm cửa hàng"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm cửa hàng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        themed_dataframe(table[["Cửa hàng", "Quy mô", "Số sản phẩm", "Lượng bán 12T", "GMV 12T", "Giá TB", "Đánh giá", "Số đánh giá", "Điểm cửa hàng"]], hide_index=True, width="stretch", column_config={"GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Giá TB": st.column_config.NumberColumn(format="%,d đ"), "Điểm cửa hàng": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
         with st.expander(ui_text("“Shop dẫn đầu” nghĩa là gì?", "What does “Leading shop” mean?"), icon=":material/info:"):
             st.write(ui_text("Đây là một shop tham chiếu mô phỏng có tín hiệu mạnh hơn trong kịch bản đang xem, thường có lượng bán, đánh giá hoặc GMV tương đối cao. Đây không phải shop thật, không phải xếp hạng Shopee và không khẳng định kết quả kinh doanh thực tế.", "This is a simulated reference shop with stronger signals in the current scenario, often relatively higher units sold, ratings, or GMV. It is not a real shop, a Shopee ranking, or a guarantee of business results."))
 
@@ -1785,7 +1793,7 @@ def render_market_intelligence() -> None:
         display = shown.rename(columns={"shop_name": "Cửa hàng", "shop_type": "Quy mô", "product_name": "Sản phẩm", "listed_price_vnd": "Giá", "units_sold_12m": "Lượng bán 12T", "gmv_12m_vnd": "GMV 12T", "rating": "Đánh giá", "review_count": "Số đánh giá", "product_score": "Điểm sản phẩm", "data_scope": "Nguồn dữ liệu"})
         display["Cửa hàng"] = display["Cửa hàng"].map(market_shop_name_label)
         display["Quy mô"] = display["Quy mô"].map(market_shop_type_label)
-        market_dataframe(display[["Cửa hàng", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Số đánh giá", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
+        themed_dataframe(display[["Cửa hàng", "Quy mô", "Sản phẩm", "Giá", "Lượng bán 12T", "GMV 12T", "Đánh giá", "Số đánh giá", "Điểm sản phẩm", "Nguồn dữ liệu"]], hide_index=True, width="stretch", column_config={"Giá": st.column_config.NumberColumn(format="%,d đ"), "GMV 12T": st.column_config.NumberColumn(format="%,d đ"), "Điểm sản phẩm": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%.1f")})
         st.info("Điểm sản phẩm cân bằng lượng bán, GMV và review. Nó không phải dự báo chắc chắn; dùng để chọn mặt hàng cần thử trước.", icon=":material/insights:")
 
     render_advisor_launcher("market")
@@ -2003,7 +2011,7 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
                 y=alt.Y("GMV:Q", title="GMV (VND)"),
                 tooltip=[alt.Tooltip("Sản phẩm:N"), alt.Tooltip("GMV:Q", format=",.0f"), alt.Tooltip("quantity:Q", title="Số lượng")],
             )
-            st.altair_chart(bar, width="stretch")
+            st.altair_chart(dark_mode_chart(bar), width="stretch")
     with cost_col:
         with st.container(border=True):
             st.markdown("**Cơ cấu khoản giảm trừ**")
@@ -2022,14 +2030,19 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
                     color=alt.Color("Khoản mục:N", scale=alt.Scale(range=["#EE4D2D", "#FF9B77", "#F7C65A", "#8CB7D8"])),
                     tooltip=[alt.Tooltip("Khoản mục:N"), alt.Tooltip("Giá trị:Q", format=",.0f")],
                 )
-                st.altair_chart(pie, width="stretch")
+                st.altair_chart(dark_mode_chart(pie), width="stretch")
 
     completed["Tháng"] = completed["order_date"].str.slice(0, 7)
     monthly = completed.groupby("Tháng", as_index=False)["gross_merchandise_value_vnd"].sum().rename(columns={"gross_merchandise_value_vnd": "GMV"})
     with st.container(border=True):
         st.markdown("**So sánh doanh thu theo kỳ**")
         if len(monthly) > 1:
-            st.bar_chart(monthly, x="Tháng", y="GMV", color="#EE4D2D")
+            monthly_chart = alt.Chart(monthly).mark_bar(color="#EE4D2D", cornerRadiusTopLeft=5, cornerRadiusTopRight=5).encode(
+                x=alt.X("Tháng:N", title=None),
+                y=alt.Y("GMV:Q", title="GMV (VND)"),
+                tooltip=[alt.Tooltip("Tháng:N"), alt.Tooltip("GMV:Q", format=",.0f")],
+            )
+            st.altair_chart(dark_mode_chart(monthly_chart), width="stretch")
         else:
             st.caption("Thêm đơn hàng của ít nhất hai tháng để so sánh biến động doanh thu.")
 
@@ -2037,7 +2050,7 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
     with details_col:
         with st.container(border=True):
             st.markdown("**Hiệu quả ước tính theo sản phẩm**")
-            st.dataframe(
+            themed_dataframe(
                 product_summary[["Sản phẩm", "GMV", "Giá vốn ước tính", "Lợi nhuận đóng góp ước tính"]],
                 hide_index=True,
                 column_config={
@@ -2053,7 +2066,7 @@ def render_management_dashboard(rows: dict[str, list[dict[str, str]]], scope: st
             if alerts.empty:
                 st.success("Không có sản phẩm nào chạm ngưỡng cần nhập thêm.", icon=":material/check_circle:")
             else:
-                st.dataframe(
+                themed_dataframe(
                     alerts[["product_name", "available_units", "reorder_point", "shortfall_units"]],
                     hide_index=True,
                     column_config={
@@ -2179,7 +2192,7 @@ def render_demo_assortment_builder(
                     expanded=len(selected_ids) == 1,
                     icon=":material/inventory_2:",
                 ):
-                    st.dataframe(
+                    themed_dataframe(
                         pd.DataFrame({"Sản phẩm AI sẽ tạo cho loại shop này": product_names}),
                         hide_index=True,
                         column_config={
