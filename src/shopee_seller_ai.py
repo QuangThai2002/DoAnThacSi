@@ -2850,7 +2850,6 @@ with st.sidebar:
                 icon=chat_type["icon"],
                 type="primary" if is_active else "secondary",
                 width="stretch",
-                help=f"{conversation['title']} · {conversation_data_label(conversation)}",
                 on_click=open_conversation,
                 args=(conversation["id"],),
             )
