@@ -97,10 +97,15 @@ st.markdown(
       /* Recent-chat controls deliberately have one compact, stable footprint. */
       [class*="st-key-open_"] > div > button {
         height: 56px !important; min-height: 56px !important; max-height: 56px !important;
-        padding: .55rem .65rem !important; overflow: hidden !important;
+        padding: .55rem .65rem !important; overflow: hidden !important; flex-wrap: nowrap !important;
       }
-      [class*="st-key-open_"] > div > button p {
-        display: block !important; overflow: hidden !important; text-overflow: ellipsis !important;
+      [class*="st-key-open_"] > div > button > div,
+      [class*="st-key-open_"] > div > button [data-testid="stMarkdownContainer"] {
+        min-width: 0 !important; overflow: hidden !important;
+      }
+      [class*="st-key-open_"] > div > button p,
+      [class*="st-key-open_"] > div > button [data-testid="stMarkdownContainer"] p {
+        display: block !important; width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important;
         white-space: nowrap !important;
       }
       [class*="st-key-open_"] > div > button * {
@@ -962,7 +967,9 @@ def human_title(question: str, limit: int = 44) -> str:
 def sidebar_chat_label(conversation: dict[str, Any]) -> str:
     """Keep a recent-chat control compact without duplicating its active state."""
     chat_type = active_chat_type(str(conversation["mode"]))
-    return f"{chat_type['name']} · {human_title(str(conversation['title']), limit=26)}"
+    # The sidebar has a fixed 56 px card.  Trim before rendering as well as in
+    # CSS, so its text remains one line on narrow displays and older browsers.
+    return f"{chat_type['name']} · {human_title(str(conversation['title']), limit=16)}"
 
 
 def data_note(source: str | None) -> str | None:
@@ -2843,7 +2850,7 @@ with st.sidebar:
                 icon=chat_type["icon"],
                 type="primary" if is_active else "secondary",
                 width="stretch",
-                help=conversation_data_label(conversation),
+                help=f"{conversation['title']} · {conversation_data_label(conversation)}",
                 on_click=open_conversation,
                 args=(conversation["id"],),
             )
