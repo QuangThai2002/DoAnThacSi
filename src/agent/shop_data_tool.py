@@ -1223,6 +1223,15 @@ class ShopDataTool:
                 "combined_list_price_vnd": as_number(
                     as_decimal(first["list_price_vnd"]) + as_decimal(second["list_price_vnd"])
                 ),
+                "combined_cost_vnd": as_number(
+                    as_decimal(first["cost_per_unit_vnd"]) + as_decimal(second["cost_per_unit_vnd"])
+                ),
+                # A clearly labeled, reversible starting point. It is not a
+                # profitability calculation because platform fees and returns
+                # can differ by campaign and order.
+                "trial_price_vnd": as_number(
+                    (as_decimal(first["list_price_vnd"]) + as_decimal(second["list_price_vnd"])) * Decimal("0.95")
+                ),
             })
         candidates.sort(
             key=lambda item: (
@@ -1325,21 +1334,25 @@ class ShopDataTool:
             for row in self._read_csv("inventory.csv")
         }
         low_reviews: dict[str, int] = {}
+        reviewed_skus: set[str] = set()
         review_rows = [
             row for row in self._read_csv("reviews.csv")
             if period is None or row["review_date"].startswith(period)
         ]
         for row in review_rows:
+            reviewed_skus.add(row["sku"])
             if int(row["rating"]) <= 3:
                 low_reviews[row["sku"]] = low_reviews.get(row["sku"], 0) + 1
         defects: dict[str, int] = {}
         inspected: dict[str, int] = {}
+        quality_checked_skus: set[str] = set()
         quality_rows = [
             row for row in self._read_csv("quality_checks.csv")
             if period is None or row["check_date"].startswith(period)
         ]
         for row in quality_rows:
             sku = row["sku"]
+            quality_checked_skus.add(sku)
             defects[sku] = defects.get(sku, 0) + int(row["defective_quantity"])
             inspected[sku] = inspected.get(sku, 0) + int(row["inspected_quantity"])
         returned: dict[str, int] = {}
@@ -1378,6 +1391,13 @@ class ShopDataTool:
             funnel = funnel_by_sku.get(sku)
             contribution = contribution_values[sku]
             signals: list[str] = []
+            evidence_gaps: list[str] = []
+            if sku not in reviewed_skus:
+                evidence_gaps.append("chưa có đánh giá theo SKU")
+            if sku not in quality_checked_skus:
+                evidence_gaps.append("chưa có kiểm tra chất lượng theo SKU")
+            if funnel is None:
+                evidence_gaps.append("chưa có dữ liệu phễu theo SKU")
             if sku == lowest_contribution_sku and order_totals.get(sku):
                 signals.append("lãi góp thấp nhất trong các SKU đã bán")
             if stock and stock["available_units"] <= stock["reorder_point"]:
@@ -1404,6 +1424,7 @@ class ShopDataTool:
                     "views": funnel.get("views") if funnel else None,
                     "view_to_cart_rate_percent": funnel.get("view_to_cart_rate_percent") if funnel else None,
                     "risk_signals": signals,
+                    "evidence_gaps": evidence_gaps,
                 }
             )
 
@@ -1412,6 +1433,7 @@ class ShopDataTool:
             if row["gmv_vnd"] > 0
             and row["estimated_contribution_vnd"] > 0
             and (row["available_units"] is None or row["available_units"] > row["reorder_point"])
+            and not row["evidence_gaps"]
             and not any(
                 marker in signal
                 for signal in row["risk_signals"]
@@ -1427,6 +1449,7 @@ class ShopDataTool:
             "products": rows,
             "recommended_candidate": recommended,
             "risk_products": [row for row in risk_rows if row["risk_signals"]][:3],
+            "evidence_gaps": [row for row in rows if row["evidence_gaps"]],
             "coverage": {
                 "reviews": bool(review_rows),
                 "quality_checks": bool(quality_rows),

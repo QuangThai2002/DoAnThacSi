@@ -192,6 +192,17 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertGreater(bundle["joint_order_count"], 0)
         self.assertIsNotNone(bundle["available_units"])
         self.assertIsNotNone(bundle["paired_available_units"])
+        self.assertLess(bundle["trial_price_vnd"], bundle["combined_list_price_vnd"])
+        self.assertGreater(bundle["trial_price_vnd"], bundle["combined_cost_vnd"])
+
+    def test_scorecard_keeps_missing_sku_evidence_visible(self) -> None:
+        rows = build_demo_rows(seed=7)
+        rows["quality_checks.csv"] = []
+        scorecard = ShopDataTool(uploaded_rows=rows).product_decision_scorecard("2026-08")
+
+        self.assertTrue(scorecard["evidence_gaps"])
+        self.assertTrue(all("chưa có kiểm tra chất lượng theo SKU" in row["evidence_gaps"] for row in scorecard["products"]))
+        self.assertIsNone(scorecard["recommended_candidate"])
 
 
 class CalculatorAndRunnerTests(unittest.TestCase):
@@ -477,6 +488,23 @@ class CalculatorAndRunnerTests(unittest.TestCase):
                 for expected_phrase in expected_phrases:
                     self.assertIn(expected_phrase, answer)
                 self.assertNotIn("Tôi chưa có đủ nội dung đã kiểm chứng", answer)
+
+    def test_strategy_answers_do_not_treat_missing_evidence_as_zero_risk(self) -> None:
+        rows = build_demo_rows(seed=7)
+        rows["quality_checks.csv"] = []
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=rows))
+        priority = runner.run("Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?")["answer"]
+
+        self.assertIn("không coi dữ liệu thiếu là rủi ro bằng 0", priority)
+        risk = AgentRunner().run("Tôi đang có nguy cơ lỗ ở đâu?")["answer"]
+        self.assertIn("Hàng bán chậm so với tồn hiện có", risk)
+
+    def test_combo_with_pair_data_includes_a_labeled_trial_price_and_stop_rules(self) -> None:
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=7)))
+        answer = runner.run("Tôi có nên tạo combo nào? Hãy nêu giá thử và điều kiện dừng.")["answer"]
+
+        self.assertIn("Giá thử minh họa giảm 5%", answer)
+        self.assertIn("Dừng thử nếu", answer)
 
 
 if __name__ == "__main__":

@@ -871,7 +871,8 @@ class AgentRunner:
                     return (
                         f"Cặp có dữ liệu mua cùng nhiều nhất là **{pair['product_name']} + {pair['paired_product_name']}** "
                         f"({pair['joint_order_count']} đơn trong kỳ). {stock_text} "
-                        f"Tổng giá niêm yết là {int(pair['combined_list_price_vnd']):,} VND; chỉ thử ưu đãi nhỏ sau khi kiểm tra tổng lãi góp vẫn dương. "
+                        f"Tổng giá niêm yết là {int(pair['combined_list_price_vnd']):,} VND, giá vốn cộng lại là {int(pair['combined_cost_vnd']):,} VND. "
+                        f"Giá thử minh họa giảm 5% là {int(pair['trial_price_vnd']):,} VND; chỉ bật thử sau khi đối soát phí sàn, khuyến mãi và lãi góp mỗi combo vẫn dương. "
                         "Dừng thử nếu lãi góp mỗi combo âm, tồn của một SKU chạm ngưỡng nhập thêm hoặc tỷ lệ hoàn tăng. Số đơn mua cùng là tín hiệu để thử, không phải bằng chứng combo sẽ thành công."
                     )
                 return (
@@ -885,6 +886,17 @@ class AgentRunner:
                     f"**{row['product_name']}**: " + ", ".join(row["risk_signals"])
                     for row in risks
                 ]
+                slow_candidates = slow_inventory.get("candidates", []) if slow_inventory else []
+                slow_text = (
+                    "Hàng bán chậm so với tồn hiện có: "
+                    + ", ".join(
+                        f"**{row['product_name']}** (đã bán {row['sold_units']}, còn {row['available_units']})"
+                        for row in slow_candidates[:3]
+                    )
+                    + "."
+                    if slow_candidates
+                    else "Chưa đủ dữ liệu đơn hoàn tất và tồn kho để nêu SKU bán chậm."
+                )
                 operating_text = (
                     f"Chi phí vận hành đã ghi nhận là **{int(operating_costs['total_operating_cost_vnd']):,} VND**, "
                     f"khoản lớn nhất là **{next(iter(operating_costs['by_category']), 'chưa phân loại')}**."
@@ -897,7 +909,7 @@ class AgentRunner:
                 return (
                     "**Các điểm có nguy cơ làm giảm kết quả trước:** "
                     + ("; ".join(risk_lines) if risk_lines else "chưa đủ dữ liệu theo SKU; hãy tạo hoặc tải các bảng Sản phẩm, Đơn hàng, Tồn kho, Hoàn hàng và Kiểm tra chất lượng.")
-                    + f". {operating_text} {returns_text} "
+                    + f". {slow_text} {operating_text} {returns_text} "
                     "Đây là tín hiệu cần đối soát, không phải kết luận lỗ ròng. Tạm dừng mở rộng những SKU có nhiều tín hiệu rủi ro; để tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Biến động kho** có ngày, SKU, loại biến động và số lượng."
                 )
             if "weekly_strategy" in analysis_tags:
@@ -916,11 +928,22 @@ class AgentRunner:
                 return (
                     f"Trong 30 ngày tới, hãy chọn **{candidate['product_name']}** làm ứng viên **thử nhỏ trước**, không phải SKU để mở rộng ngay: "
                     f"GMV đã ghi là {int(candidate['gmv_vnd']):,} VND, lãi góp ước tính {int(candidate['estimated_contribution_vnd']):,} VND và tồn khả dụng {candidate['available_units']}. "
-                    "Ứng viên này không có cảnh báo tồn, đánh giá 1–3 sao hoặc lỗi lô trong bộ dữ liệu đã gắn. Trước khi mở rộng, kiểm tra thêm tỷ lệ hoàn và phễu; theo dõi GMV, lãi góp, tồn khả dụng, đánh giá thấp, tỷ lệ lỗi và tỷ lệ xem sang thêm giỏ theo SKU. "
+                    "Ứng viên này có đủ bản ghi đánh giá, kiểm tra chất lượng và phễu theo SKU, đồng thời không có cảnh báo tồn, đánh giá 1–3 sao hoặc lỗi lô trong bộ dữ liệu đã gắn. Trước khi mở rộng, kiểm tra thêm tỷ lệ hoàn; theo dõi GMV, lãi góp, tồn khả dụng, đánh giá thấp, tỷ lệ lỗi và tỷ lệ xem sang thêm giỏ theo SKU. "
                     "Kết quả chỉ là sàng lọc từ dữ liệu hiện có, không phải dự báo chắc chắn."
                 )
+            evidence_gaps = product_scorecard.get("evidence_gaps", []) if product_scorecard else []
+            if evidence_gaps:
+                gap_text = "; ".join(
+                    f"**{row['product_name']}**: {', '.join(row['evidence_gaps'])}"
+                    for row in evidence_gaps[:3]
+                )
+                return (
+                    "Chưa có SKU nào đủ bằng chứng để ưu tiên trong 30 ngày mà không coi dữ liệu thiếu là rủi ro bằng 0. "
+                    f"Cần bổ sung bản ghi theo SKU trước: {gap_text}. "
+                    "Bạn hãy tạo hoặc tải thêm dòng **Đánh giá khách hàng**, **Kiểm tra chất lượng** hoặc **Hiệu quả sản phẩm** cho các SKU này; sau đó AI mới xếp hạng được theo đủ GMV, lãi góp, tồn, đánh giá, lỗi và phễu."
+                )
             return (
-                "Chưa có SKU nào đủ dữ liệu sạch để ưu tiên trong 30 ngày. Bạn hãy tạo hoặc tải các bảng **Đơn hàng**, **Sản phẩm và giá vốn**, **Tồn kho**, **Đánh giá khách hàng**, **Kiểm tra chất lượng** và **Hiệu quả sản phẩm** theo SKU; sau đó AI mới xếp hạng được mà không bỏ qua một tiêu chí quan trọng."
+                "Chưa có SKU nào đủ điều kiện để ưu tiên trong 30 ngày vì các SKU đã đủ dữ liệu đều có tín hiệu rủi ro. Hãy xử lý hoặc đối soát tín hiệu đó trước, rồi thử một thay đổi nhỏ thay vì mở rộng vốn."
             )
         return ""
 
