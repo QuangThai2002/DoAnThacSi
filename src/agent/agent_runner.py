@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import re
 from time import perf_counter
 from typing import Any
 
@@ -65,6 +66,7 @@ class AgentRunner:
         # selection and answer composition. This avoids one-off fixes for each
         # Vietnamese wording of the same operational question.
         analysis_tags = self._analysis_tags(normalized)
+        wants_detail = self._wants_detailed_answer(normalized)
         definition_like = any(
             term in normalized
             for term in ("la gi", "nghia la gi", "giai thich", "co phai", "tinh nhu the nao")
@@ -229,6 +231,7 @@ class AgentRunner:
             asks_ad_strategy=asks_ad_strategy,
             slow_inventory=slow_inventory,
             analysis_tags=analysis_tags,
+            wants_detail=wants_detail,
         )
         data_scope = self.shop_data_tool.data_scope
         data_limitation = (
@@ -249,6 +252,7 @@ class AgentRunner:
                 data_scope if "shop_data" in plan.tools else None
             ),
             "trace": trace,
+            "show_summary_metrics": self._should_show_summary_metrics(analysis_tags),
             "agent_latency_seconds": round(perf_counter() - started, 6),
             "limitations": [
                 data_limitation,
@@ -393,6 +397,77 @@ class AgentRunner:
         return tags
 
     @staticmethod
+    def _wants_detailed_answer(normalized: str) -> bool:
+        """Recognize an explicit request for explanation, not just an answer.
+
+        The default is deliberately concise: state the finding or the missing
+        table first.  These phrases opt into the supporting reasoning, examples,
+        comparisons, or operational checklist.
+        """
+        detail_cues = (
+            "chi tiet", "cu the", "giai thich", "vi sao", "tai sao",
+            "phan tich", "so sanh", "vi du", "lam the nao", "cach tinh",
+            "tung buoc", "dieu kien", "neu ro", "ky hon", "the nao",
+        )
+        return any(cue in normalized for cue in detail_cues)
+
+    @staticmethod
+    def _brief_answer(answer: str) -> str:
+        """Keep the decisive finding, with enough information to act safely."""
+        blocks = [block.strip() for block in answer.split("\n\n") if block.strip()]
+        if not blocks:
+            return answer
+
+        first = blocks[0]
+        # A ranked answer is only useful when its requested rows stay visible.
+        if len(blocks) > 1 and re.match(r"(?:1\.|[-*•])\s", blocks[1]):
+            return f"{first}\n\n{blocks[1]}"
+
+        # Missing data must always say what the user needs to create or upload.
+        sentences = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỵ])", first)
+        first_lower = first.lower()
+        if ("chưa thể" in first_lower or "chưa có" in first_lower) and len(sentences) > 1:
+            return " ".join(sentences[:2])
+        # Never reduce a useful answer to “Có.” or “Không.”, and retain one
+        # material caveat such as legal review or an accounting limitation.
+        essential_cues = (
+            "không phải", "không tự", "không bảo đảm", "không thay thế",
+            "chuyên gia pháp lý", "chưa tự suy ra", "không đại diện",
+        )
+        for sentence in sentences[1:]:
+            if any(cue in sentence.lower() for cue in essential_cues):
+                return f"{sentences[0]} {sentence}"
+        for sentence in sentences[1:]:
+            if "bạn hãy tạo hoặc tải" in sentence.lower():
+                return f"{sentences[0]} {sentence}"
+        if len(sentences[0].strip()) <= 24 and len(sentences) > 1:
+            return " ".join(sentences[:2])
+        if len(sentences) > 1:
+            return sentences[0]
+        return first
+
+    @staticmethod
+    def _answer_for_detail_level(answer: str, wants_detail: bool) -> str:
+        return answer if wants_detail else AgentRunner._brief_answer(answer)
+
+    @staticmethod
+    def _should_show_summary_metrics(analysis_tags: set[str]) -> bool:
+        """Avoid unrelated dashboard cards below a focused answer.
+
+        A SKU, batch, review, or strategy question already names its key result
+        in prose. Aggregate sales/advertising cards below it can look like a
+        second, contradictory answer.
+        """
+        focused_topics = {
+            "product_gmv", "product_contribution", "sales_comparison",
+            "price_promotions", "ads_sku_daily", "inventory_batches",
+            "slow_inventory", "product_funnel", "reviews", "returns",
+            "quality", "cash_flow", "suppliers", "customer_retention",
+            "strategy", "price_strategy", "restock_strategy", "ad_strategy",
+        }
+        return not bool(analysis_tags & focused_topics)
+
+    @staticmethod
     def _compose_answer(
         question: str,
         plan: AgentPlan,
@@ -425,6 +500,7 @@ class AgentRunner:
         asks_ad_strategy: bool = False,
         slow_inventory: dict[str, Any] | None = None,
         analysis_tags: set[str] | None = None,
+        wants_detail: bool = False,
     ) -> str:
         if plan.intent == "out_of_scope":
             return (
@@ -470,7 +546,7 @@ class AgentRunner:
             or asks_price_strategy
             or asks_ad_strategy
         ):
-            return action_answer
+            return AgentRunner._answer_for_detail_level(action_answer, wants_detail)
         if product_gmv_ranking:
             top_product = product_gmv_ranking["top_product"]
             if top_product is None:
@@ -526,6 +602,15 @@ class AgentRunner:
                         limitation=str(sales_period_comparison["limitation"]),
                     )
                 )
+        if ranking and ranking["cost_ranking"]:
+            highest = ranking["cost_ranking"][0]
+            sections.append(
+                "Trong các khoản được xếp hạng, lớn nhất là {name} ({amount:,} VND, {share:.1%}).".format(
+                    name=str(highest["name"]).replace("_", " "),
+                    amount=int(highest["amount_vnd"]),
+                    share=float(highest["share_of_ranked_costs"]),
+                )
+            )
         if sales:
             sections.append(
                 "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
@@ -731,15 +816,6 @@ class AgentRunner:
                     )
             else:
                 sections.append("Chưa có đủ lượt xem để đánh giá phễu sản phẩm trong kỳ được hỏi.")
-        if ranking and ranking["cost_ranking"]:
-            highest = ranking["cost_ranking"][0]
-            sections.append(
-                "Trong các khoản được xếp hạng, lớn nhất là {name} ({amount:,} VND, {share:.1%}).".format(
-                    name=str(highest["name"]).replace("_", " "),
-                    amount=int(highest["amount_vnd"]),
-                    share=float(highest["share_of_ranked_costs"]),
-                )
-            )
         if inventory:
             if inventory["alert_count"]:
                 products = ", ".join(
@@ -773,7 +849,7 @@ class AgentRunner:
             sections.append(AgentRunner._data_request_guidance(normalize(question)))
         elif "rag" in plan.tools and not sections:
             sections.append("Chưa truy hồi được nội dung đủ tin cậy để trả lời trực tiếp.")
-        return "\n\n".join(sections)
+        return AgentRunner._answer_for_detail_level("\n\n".join(sections), wants_detail)
 
     @staticmethod
     def _action_answer(
@@ -834,12 +910,13 @@ class AgentRunner:
             alert_text = ""
             if inventory and inventory.get("alert_count"):
                 names = ", ".join(item["product_name"] for item in inventory["alerts"][:3])
-                alert_text = f"Hiện có cảnh báo cần xem trước: {names}. "
+                alert_text = f" Hiện có cảnh báo cần xem trước: {names}."
             return (
-                f"{alert_text}Không nên nhập nhiều chỉ vì một sản phẩm bán tốt. "
+                "Không nên nhập nhiều chỉ vì một sản phẩm bán tốt. "
                 "Hãy đối chiếu tốc độ bán, tồn khả dụng, hàng đang về, thời gian nhập, tỷ lệ lỗi và tiền mặt; "
                 "sau đó thử một lô nhỏ. Dữ liệu hiện tại chưa đủ để khẳng định một số lượng nhập an toàn. "
                 "Muốn tính số lượng cụ thể, hãy tạo hoặc tải thêm bảng **Đơn nhập hàng** có ngày dự kiến về và giá nhập."
+                + alert_text
             )
         if asks_ad_strategy:
             if advertising is None or ads_sku_daily is None:
@@ -955,19 +1032,20 @@ class AgentRunner:
                 if batch else ""
             )
             slow_rows = slow_inventory.get("candidates", []) if slow_inventory else []
-            slow_text = (
-                " Theo số liệu bán–tồn, cần kiểm tra trước: "
+            lead = (
+                "Cần kiểm tra trước: "
                 + ", ".join(
-                    f"{row['product_name']} (đã bán {row['sold_units']}, còn {row['available_units']})"
+                    f"**{row['product_name']}** (đã bán {row['sold_units']}, còn {row['available_units']})"
                     for row in slow_rows[:3]
                 )
-                + "."
-                if slow_rows else ""
+                + ". "
+                if slow_rows else "Hàng tồn lâu và bán chậm cần kiểm tra trước. "
             )
             return (
-                "Hàng tồn lâu và bán chậm chưa nên giảm giá ngay. Hãy kiểm tra ảnh, mô tả, giá, đánh giá, nhu cầu và số ngày tồn; "
+                lead
+                + "Chưa nên giảm giá ngay; hãy kiểm tra ảnh, mô tả, giá, đánh giá, nhu cầu và số ngày tồn; "
                 "nếu cần xả hàng, chỉ thử ưu đãi nhỏ hoặc combo trên một SKU trước. Muốn tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**."
-                + slow_text + batch_text
+                + batch_text
             )
         if "inventory" in analysis_tags and "sap het" in normalized:
             return (

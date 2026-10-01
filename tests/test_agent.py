@@ -392,7 +392,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
 
     def test_runner_explains_cancelled_orders_without_a_sales_summary(self) -> None:
         result = AgentRunner().run("Nếu đơn bị hủy thì có được tính doanh thu không?")
-        self.assertIn("Đơn bị hủy không được cộng", result["answer"])
+        self.assertIn("chỉ tính các đơn có trạng thái **hoàn tất**", result["answer"])
         self.assertNotIn("Trong kỳ", result["answer"])
 
     def test_runner_compares_the_latest_two_recorded_months(self) -> None:
@@ -440,11 +440,9 @@ class CalculatorAndRunnerTests(unittest.TestCase):
     def test_action_questions_share_one_evidence_first_routing_path(self) -> None:
         price = AgentRunner().run("Tôi có nên giảm giá toàn bộ sản phẩm không?")
         self.assertIn("Chưa có cơ sở để giảm giá toàn bộ", price["answer"])
-        self.assertIn("1–2 SKU", price["answer"])
 
         restock = AgentRunner().run("Sản phẩm bán tốt có chắc nên nhập nhiều hơn không?")
         self.assertIn("Không nên nhập nhiều chỉ vì một sản phẩm bán tốt", restock["answer"])
-        self.assertIn("Đơn nhập hàng", restock["answer"])
 
         ads = AgentRunner().run("Tôi có nên tăng ngân sách quảng cáo không?")
         self.assertIn("ROAS hiện ghi nhận", ads["answer"])
@@ -462,14 +460,16 @@ class CalculatorAndRunnerTests(unittest.TestCase):
     def test_slow_inventory_answer_exposes_age_data_limit_and_next_upload(self) -> None:
         result = AgentRunner().run("Hàng nào tồn lâu mà ít bán?")
         self.assertIn("Giá đỡ điện thoại", result["answer"])
-        self.assertIn("Tuổi tồn kho theo lô", result["answer"])
+        self.assertTrue(result["answer"].startswith("Cần kiểm tra trước:"))
 
     def test_sku_analysis_question_does_not_fall_back_to_sku_definition(self) -> None:
         runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
-        answer = runner.run("Giá khuyến mãi SKU nào đang giảm nhiều nhất?")["answer"]
+        result = runner.run("Giá khuyến mãi SKU nào đang giảm nhiều nhất?")
+        answer = result["answer"]
 
         self.assertIn("Giá–khuyến mãi đã ghi", answer)
         self.assertNotIn("SKU là mã riêng", answer)
+        self.assertFalse(result["show_summary_metrics"])
 
     def test_inventory_batch_question_leads_with_two_oldest_batches(self) -> None:
         runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
@@ -480,12 +480,36 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("2. **", answer)
         self.assertNotIn("Hàng tồn lâu và bán chậm chưa nên", answer)
 
+    def test_default_answer_is_brief_but_detail_cues_keep_the_explanation(self) -> None:
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
+
+        brief = runner.run("Lô hàng nào tồn lâu nhất?")["answer"]
+        detailed = runner.run("Lô hàng nào tồn lâu nhất? Hãy phân tích chi tiết.")["answer"]
+
+        self.assertIn("Hai lô tồn lâu nhất", brief)
+        self.assertIn("1. **", brief)
+        self.assertIn("2. **", brief)
+        self.assertNotIn("Cần kiểm tra trước", brief)
+        self.assertIn("Cần kiểm tra trước", detailed)
+
+    def test_missing_data_keeps_a_concrete_create_or_upload_instruction_when_brief(self) -> None:
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows={
+            name: build_demo_rows(seed=20261001)[name]
+            for name in ("orders.csv", "products.csv", "inventory.csv")
+        }))
+
+        answer = runner.run("Lô hàng nào tồn lâu nhất?")["answer"]
+
+        self.assertIn("Chưa thể nêu", answer)
+        self.assertIn("Bạn hãy tạo hoặc tải", answer)
+        self.assertIn("Tuổi tồn kho theo lô", answer)
+
     def test_operational_question_bank_uses_topic_routing_and_bounded_advice(self) -> None:
         """Regression coverage for the shared question-bank failure patterns."""
         checks = {
             "Mặt hàng này có được bán trên Shopee không?": "Chưa thể kết luận",
             "Nguồn hàng nào có tỷ lệ lỗi cao hơn?": "tỷ lệ lỗi cao nhất",
-            "Làm gì để giảm đánh giá xấu?": "không bảo đảm",
+            "Làm gì để giảm đánh giá xấu?": "Ưu tiên xử lý",
             "Lãi sau chi phí vận hành tháng 8 là bao nhiêu?": "612,200 VND",
             "Khoản vận hành nào đang lớn nhất?": "Nhân sự",
             "Tại sao doanh thu tăng mà tôi vẫn thiếu tiền nhập hàng?": "thời điểm thu tiền",
@@ -493,12 +517,12 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             "Có dấu hiệu thất thoát hàng không?": "Chưa thể kết luận có thất thoát",
             "Tỷ lệ lỗi lô hàng tháng 8 là bao nhiêu?": "1.61%",
             "Tôi có nên phản hồi nhà cung cấp không?": "Nên phản hồi nhà cung cấp",
-            "Làm sao tăng khách quay lại?": "không có biện pháp nào bảo đảm",
-            "Nếu lượt xem cao nhưng ít thêm giỏ thì nên kiểm tra gì?": "mỗi lần chỉ đổi một yếu tố",
+            "Làm sao tăng khách quay lại?": "Để tăng khách quay lại",
+            "Nếu lượt xem cao nhưng ít thêm giỏ thì nên kiểm tra gì?": "Lượt xem cao nhưng ít thêm giỏ",
             "Nếu nhiều người thêm giỏ nhưng ít đặt mua thì sao?": "giá cuối",
             "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?": "không coi dữ liệu thiếu là rủi ro bằng 0",
             "Tôi có nên tạo combo không?": "Sản phẩm mua cùng",
-            "Tôi đang có nguy cơ lỗ ở đâu?": "không phải kết luận lỗ ròng",
+            "Tôi đang có nguy cơ lỗ ở đâu?": "Các điểm có nguy cơ",
             "Tôi cần làm gì trước trong tuần này?": "Ba việc tuần này",
             "AI có cam kết giảm giá sẽ giúp tôi bán tốt hơn không?": "Không. Eslabong không cam kết",
             "AI này đã kết nối trực tiếp với Shopee chưa?": "Chưa. Eslabong hiện chỉ dùng",
@@ -521,7 +545,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
                 "đánh giá 1–3 sao", "tỷ lệ đánh giá thấp",
             ],
             "Sản phẩm nào có nhiều lượt xem nhưng tỷ lệ từ xem sang thêm giỏ thấp nhất? Tôi nên thử cải thiện gì trước?": [
-                "tỷ lệ từ xem sang thêm giỏ", "mỗi lần chỉ đổi một yếu tố",
+                "Lượt xem cao nhưng ít thêm giỏ",
             ],
             "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới nếu xét GMV, lãi góp, tồn kho, đánh giá, tỷ lệ lỗi và phễu?": [
                 "không coi dữ liệu thiếu là rủi ro bằng 0", "bổ sung bản ghi theo SKU",
@@ -530,7 +554,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
                 "Sản phẩm mua cùng", "dừng thử",
             ],
             "Tôi đang có nguy cơ lỗ ở đâu nếu xét lãi góp, chi phí vận hành, hàng hoàn, hàng lỗi và tồn chậm?": [
-                "Các điểm có nguy cơ", "Biến động kho",
+                "Các điểm có nguy cơ", "không phải kết luận lỗ ròng",
             ],
             "Dựa trên dữ liệu hiện có, ba việc nào tôi cần làm trước trong tuần này? Mỗi việc đo bằng chỉ số nào?": [
                 "Ba việc tuần này", "chứng từ hợp lệ",
@@ -554,7 +578,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
 
         self.assertIn("không coi dữ liệu thiếu là rủi ro bằng 0", priority)
         risk = AgentRunner().run("Tôi đang có nguy cơ lỗ ở đâu?")["answer"]
-        self.assertIn("Hàng bán chậm so với tồn hiện có", risk)
+        self.assertIn("Các điểm có nguy cơ", risk)
 
     def test_combo_with_pair_data_includes_a_labeled_trial_price_and_stop_rules(self) -> None:
         runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=7)))

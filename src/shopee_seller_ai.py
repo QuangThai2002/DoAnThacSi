@@ -1090,6 +1090,8 @@ def render_sources(citations: list[dict[str, str]]) -> None:
 
 
 def render_metrics(result: dict[str, Any]) -> None:
+    if not result.get("show_summary_metrics", True):
+        return
     sales = result_from_trace(result, "sales_summary")
     ads = result_from_trace(result, "advertising_summary")
     inventory = result_from_trace(result, "inventory_alerts")
