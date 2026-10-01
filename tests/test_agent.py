@@ -439,7 +439,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             "Làm sao tăng khách quay lại?": "không có biện pháp nào bảo đảm",
             "Nếu lượt xem cao nhưng ít thêm giỏ thì nên kiểm tra gì?": "mỗi lần chỉ đổi một yếu tố",
             "Nếu nhiều người thêm giỏ nhưng ít đặt mua thì sao?": "giá cuối",
-            "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?": "thử nhỏ trước",
+            "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?": "không coi dữ liệu thiếu là rủi ro bằng 0",
             "Tôi có nên tạo combo không?": "Sản phẩm mua cùng",
             "Tôi đang có nguy cơ lỗ ở đâu?": "không phải kết luận lỗ ròng",
             "Tôi cần làm gì trước trong tuần này?": "Ba việc tuần này",
@@ -467,7 +467,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
                 "tỷ lệ từ xem sang thêm giỏ", "mỗi lần chỉ đổi một yếu tố",
             ],
             "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới nếu xét GMV, lãi góp, tồn kho, đánh giá, tỷ lệ lỗi và phễu?": [
-                "thử nhỏ trước", "không phải dự báo chắc chắn",
+                "không coi dữ liệu thiếu là rủi ro bằng 0", "bổ sung bản ghi theo SKU",
             ],
             "Tôi có nên tạo combo nào? Hãy nêu điều kiện chọn hai sản phẩm, giá thử và chỉ số dừng thử nghiệm.": [
                 "Sản phẩm mua cùng", "dừng thử",

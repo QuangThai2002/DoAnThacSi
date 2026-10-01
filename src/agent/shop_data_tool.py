@@ -1434,11 +1434,7 @@ class ShopDataTool:
             and row["estimated_contribution_vnd"] > 0
             and (row["available_units"] is None or row["available_units"] > row["reorder_point"])
             and not row["evidence_gaps"]
-            and not any(
-                marker in signal
-                for signal in row["risk_signals"]
-                for marker in ("lãi góp thấp", "tồn khả dụng", "đánh giá từ", "sản phẩm lỗi")
-            )
+            and not row["risk_signals"]
         ]
         recommended = max(eligible, key=lambda row: (row["gmv_vnd"], row["estimated_contribution_vnd"])) if eligible else None
         risk_rows = sorted(rows, key=lambda row: (-len(row["risk_signals"]), row["estimated_contribution_vnd"], -row["gmv_vnd"]))

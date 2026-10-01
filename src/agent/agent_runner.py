@@ -937,10 +937,22 @@ class AgentRunner:
                     f"**{row['product_name']}**: {', '.join(row['evidence_gaps'])}"
                     for row in evidence_gaps[:3]
                 )
+                risk_rows = product_scorecard.get("risk_products", []) if product_scorecard else []
+                risk_text = (
+                    " Các SKU đã đủ bản ghi nhưng có tín hiệu cần đối soát: "
+                    + "; ".join(
+                        f"**{row['product_name']}** ({', '.join(row['risk_signals'])})"
+                        for row in risk_rows[:2]
+                    )
+                    + "."
+                    if risk_rows
+                    else ""
+                )
                 return (
                     "Chưa có SKU nào đủ bằng chứng để ưu tiên trong 30 ngày mà không coi dữ liệu thiếu là rủi ro bằng 0. "
                     f"Cần bổ sung bản ghi theo SKU trước: {gap_text}. "
                     "Bạn hãy tạo hoặc tải thêm dòng **Đánh giá khách hàng**, **Kiểm tra chất lượng** hoặc **Hiệu quả sản phẩm** cho các SKU này; sau đó AI mới xếp hạng được theo đủ GMV, lãi góp, tồn, đánh giá, lỗi và phễu."
+                    + risk_text
                 )
             return (
                 "Chưa có SKU nào đủ điều kiện để ưu tiên trong 30 ngày vì các SKU đã đủ dữ liệu đều có tín hiệu rủi ro. Hãy xử lý hoặc đối soát tín hiệu đó trước, rồi thử một thay đổi nhỏ thay vì mở rộng vốn."
