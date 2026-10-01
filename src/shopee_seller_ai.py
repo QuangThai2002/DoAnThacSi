@@ -225,20 +225,77 @@ st.markdown(
       .empty-state h2 { margin: 0 0 .55rem; font-size: 1.75rem; }
       .empty-state p { margin: 0; color: #756d69 !important; }
 
-      /* The market adviser remains available while the seller reads charts. */
-      [class*="st-key-market_advisor_toggle"] {
-        position: fixed !important; right: 2rem; bottom: 5.8rem; z-index: 1000;
-      }
-      [class*="st-key-market_advisor_toggle"] button {
-        width: 62px !important; min-width: 62px !important; height: 62px !important; min-height: 62px !important;
-        padding: 0 !important; border-radius: 50% !important; background: #ee4d2d !important;
-        color: #ffffff !important; border: 2px solid #ffffff !important; box-shadow: 0 8px 24px rgba(187, 61, 31, .32) !important;
-        font-size: .86rem !important; font-weight: 750 !important;
-      }
-      [class*="st-key-market_advisor_toggle"] button:hover { background: #d83f20 !important; transform: translateY(-2px); }
     </style>
     """,
     unsafe_allow_html=True,
+)
+
+
+_SCROLL_NAVIGATION = st.components.v2.component(
+    "seller_scroll_navigation",
+    html="""
+    <button id="scroll-to-top" type="button" aria-label="Scroll to top">
+      <span aria-hidden="true">↑</span>
+    </button>
+    """,
+    css="""
+    #scroll-to-top {
+      align-items: center;
+      background: #ee4d2d;
+      border: 2px solid #ffffff;
+      border-radius: 999px;
+      bottom: 2.4rem;
+      box-shadow: 0 8px 24px rgba(187, 61, 31, .28);
+      color: #ffffff;
+      cursor: pointer;
+      display: inline-flex;
+      font-size: 1.45rem;
+      font-weight: 700;
+      height: 52px;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
+      position: fixed;
+      right: 2rem;
+      transition: background .16s ease, opacity .16s ease, transform .16s ease;
+      width: 52px;
+      z-index: 1000;
+    }
+    #scroll-to-top:hover { background: #d83f20; transform: translateY(-2px); }
+    #scroll-to-top.is-at-top { opacity: .42; pointer-events: none; transform: none; }
+    #scroll-to-top:focus-visible { outline: 3px solid rgba(238, 77, 45, .32); outline-offset: 3px; }
+    """,
+    js="""
+    export default function(component) {
+      const { data, parentElement } = component;
+      const button = parentElement.querySelector("#scroll-to-top");
+      if (!button) return;
+
+      const scrollToTop = () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        const main = document.querySelector('[data-testid="stMain"]');
+        if (main && typeof main.scrollTo === "function") {
+          main.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      };
+      const updateButtonState = () => {
+        button.classList.toggle("is-at-top", window.scrollY < 24);
+      };
+      button.setAttribute("aria-label", data?.top_label || "Scroll to top");
+      button.onclick = scrollToTop;
+      updateButtonState();
+      window.addEventListener("scroll", updateButtonState, { passive: true });
+
+      const token = data?.scroll_token;
+      if (data?.scroll_to_latest && token && parentElement.dataset.scrollToken !== token) {
+        parentElement.dataset.scrollToken = token;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => parentElement.scrollIntoView({ block: "end", behavior: "auto" }));
+        });
+      }
+      return () => window.removeEventListener("scroll", updateButtonState);
+    }
+    """,
 )
 
 
@@ -408,6 +465,8 @@ def initialise_state() -> None:
     st.session_state.setdefault("strategy_section", "Radar cơ hội")
     st.session_state.setdefault("seller_language", "vi")
     st.session_state.setdefault("seller_dark_mode", False)
+    st.session_state.setdefault("seller_scroll_to_latest", False)
+    st.session_state.setdefault("seller_chat_scroll_sequence", 0)
 
 
 def render_color_mode_css() -> None:
@@ -443,7 +502,7 @@ def render_color_mode_css() -> None:
           [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea { color: #f3f4f6 !important; }
           [data-testid="stChatInput"] textarea::placeholder { color: #94a3b8 !important; }
           .stButton > button[kind="primary"], [data-testid="stFormSubmitButton"] > button,
-          [data-testid="stChatInput"] button, [class*="st-key-market_advisor_toggle"] button {
+          [data-testid="stChatInput"] button {
             background: #2563eb !important; border-color: #3b82f6 !important; color: #ffffff !important;
             box-shadow: 0 6px 18px rgba(37, 99, 235, .28) !important;
           }
@@ -753,6 +812,7 @@ def open_conversation(chat_id: str) -> None:
     restore_conversation_context(conversation)
     st.session_state.seller_view = "chat"
     st.session_state.pop("seller_suggestion", None)
+    request_scroll_to_latest()
 
 
 def show_chat_picker() -> None:
@@ -806,7 +866,7 @@ def route_from_advisor(view: str) -> None:
 
 
 def latest_advisor_exchange() -> tuple[str, str] | None:
-    """Return the latest complete question-and-answer pair from the floating adviser."""
+    """Return the latest complete question-and-answer pair from the strategy adviser."""
     messages = st.session_state.get("seller_market_advisor_messages", [])
     for index in range(len(messages) - 1, -1, -1):
         message = messages[index]
@@ -890,13 +950,13 @@ def render_advisor_handoff() -> None:
     with st.container(border=True):
         st.markdown("#### :material/link: Ghi chú từ Chiến lược gia AI")
         st.caption(
-            f"Đã chuyển từ cửa sổ AI nổi cho **{category_name}**. Đây là bản ghi chú để AI chính có ngữ cảnh; "
+            f"Đã chuyển từ Chiến lược gia AI cho **{category_name}**. Đây là bản ghi chú để AI chính có ngữ cảnh; "
             "lịch sử của hai cửa sổ vẫn được lưu riêng."
         )
         st.markdown(f"**Bạn đã hỏi:** {latest['question']}")
         st.markdown(f"**Gợi ý chiến lược:** {latest['answer']}")
         with st.container(horizontal=True):
-            if st.button("Mở lại AI nổi", key="reopen_advisor_from_handoff", icon=":material/smart_toy:"):
+            if st.button("Mở lại Chiến lược gia AI", key="reopen_advisor_from_handoff", icon=":material/smart_toy:"):
                 open_market_advisor("chat")
                 st.rerun()
             if st.button("Hỏi AI chính cần kiểm tra gì", key="ask_main_from_handoff", icon=":material/fact_check:"):
@@ -922,8 +982,8 @@ def render_workspace_context(surface: str) -> None:
     chat_type = active_chat_type(str(conversation["mode"]))
     st.caption(
         ui_text(
-            f":material/link: {workspace} đang làm việc cho **{chat_type['name']} · {conversation['title']}** · **{conversation_data_label(conversation)}**. AI nổi và kết quả ở đây được lưu riêng theo chat này.",
-            f":material/link: {workspace} is working for **{chat_type['name']} · {conversation['title']}** · **{conversation_data_label(conversation)}**. The floating AI and these results are stored separately for this chat.",
+            f":material/link: {workspace} đang làm việc cho **{chat_type['name']} · {conversation['title']}** · **{conversation_data_label(conversation)}**. Chiến lược gia AI và kết quả ở đây được lưu riêng theo chat này.",
+            f":material/link: {workspace} is working for **{chat_type['name']} · {conversation['title']}** · **{conversation_data_label(conversation)}**. The strategy adviser and these results are stored separately for this chat.",
         )
     )
 
@@ -937,6 +997,32 @@ def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
 
 def open_chat_view() -> None:
     st.session_state.seller_view = "chat"
+    if st.session_state.get("seller_active_chat_id"):
+        request_scroll_to_latest()
+
+
+def request_scroll_to_latest() -> None:
+    """Queue one browser-side scroll after the selected chat has rendered."""
+    st.session_state.seller_scroll_to_latest = True
+    st.session_state.seller_chat_scroll_sequence += 1
+
+
+def render_scroll_navigation() -> None:
+    """Mount the global top button and scroll to the newest message after chat switches."""
+    should_scroll = bool(st.session_state.pop("seller_scroll_to_latest", False))
+    active = active_conversation()
+    token = None
+    if should_scroll and st.session_state.get("seller_view") == "chat" and active is not None:
+        token = f"{active['id']}:{st.session_state.seller_chat_scroll_sequence}"
+    _SCROLL_NAVIGATION(
+        key="seller_scroll_navigation",
+        data={
+            "scroll_to_latest": bool(token),
+            "scroll_token": token,
+            "top_label": ui_text("Lên đầu trang", "Back to top"),
+        },
+        height=0,
+    )
 
 
 def toggle_sidebar_compact() -> None:
@@ -1459,21 +1545,20 @@ def advisor_marketplace(surface: str) -> tuple[str, dict[str, Any]]:
     )
 
 
-def render_advisor_launcher(surface: str) -> None:
-    """Show one consistent floating adviser on chat, market, and strategy views."""
-    active = active_conversation()
-    help_text = (
-        f"Mở Chiến lược gia AI cho: {CHAT_TYPES[active['mode']]['name']} · {active['title']}"
-        if active is not None
-        else "Mở Chiến lược gia AI. Tạo hoặc chọn một cuộc trò chuyện để lưu lịch sử theo chat."
-    )
+def render_advisor_entry(surface: str, key: str) -> None:
+    """Put the adviser at the workspace header, where its chat binding is visible."""
     st.button(
-        "AI",
-        key="market_advisor_toggle",
-        help=help_text,
+        ui_text("Chiến lược gia AI", "AI strategist"),
+        key=key,
+        icon=":material/smart_toy:",
+        width="stretch",
         on_click=open_market_advisor,
         args=(surface,),
     )
+
+
+def render_advisor_launcher(surface: str) -> None:
+    """Render the adviser only after the user intentionally opens it from a header."""
     if st.session_state.seller_market_advisor_open:
         category, marketplace = advisor_marketplace(surface)
         render_market_advisor_dialog(category, marketplace)
@@ -1552,10 +1637,12 @@ def render_market_advisor_dialog(category: str, marketplace: dict[str, Any]) -> 
 def render_strategy_workspace() -> None:
     """Help a seller turn market signals into a small, measurable experiment."""
     st.markdown('<div class="seller-eyebrow">CHIẾN LƯỢC KINH DOANH · DEMO</div>', unsafe_allow_html=True)
-    header, back = st.columns([8, 2], vertical_alignment="center")
+    header, adviser, back = st.columns([6, 2, 2], vertical_alignment="center")
     with header:
         st.title(ui_text("Chiến lược kinh doanh", "Business strategy"))
         st.caption(ui_text("Tìm cơ hội, mô phỏng phương án và tạo kế hoạch hành động. Kết quả là ước tính để chọn thử nghiệm nhỏ, không phải cam kết doanh thu.", "Find opportunities, simulate options, and create an action plan. Results are estimates for small tests, not revenue promises."))
+    with adviser:
+        render_advisor_entry("strategy", "strategy_open_advisor")
     with back:
         st.button(ui_text("Quay lại chat", "Back to chat"), key="strategy_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
@@ -1763,10 +1850,12 @@ def render_strategy_workspace() -> None:
 def render_market_intelligence() -> None:
     """Show a useful but explicitly simulated market-analysis workspace."""
     st.markdown(f'<div class="seller-eyebrow">{ui_text("PHÂN TÍCH THỊ TRƯỜNG · BẢN MÔ PHỎNG", "MARKET ANALYSIS · DEMO")}</div>', unsafe_allow_html=True)
-    header, back = st.columns([8, 2], vertical_alignment="center")
+    header, adviser, back = st.columns([6, 2, 2], vertical_alignment="center")
     with header:
         st.title(ui_text("Phân tích thị trường", "Market analysis"))
         st.caption(ui_text("So sánh giá, shop tham chiếu và hướng thử nghiệm cho một ngành hàng.", "Compare prices, reference shops, and test directions for a product category."))
+    with adviser:
+        render_advisor_entry("market", "market_open_advisor")
     with back:
         st.button(ui_text("Quay lại chat", "Back to chat"), key="market_back_to_chat", icon=":material/chat:", width="stretch", on_click=open_chat_view)
 
@@ -2724,8 +2813,12 @@ def render_assistant() -> None:
     chat_type = active_chat_type(mode)
     conversation = active_conversation()
     st.markdown('<div class="seller-eyebrow">ESLABONG</div>', unsafe_allow_html=True)
-    st.subheader(f"{chat_type['icon']} {chat_type['name']}")
-    st.caption(chat_type["description"])
+    chat_header, adviser = st.columns([8, 2], vertical_alignment="center")
+    with chat_header:
+        st.subheader(f"{chat_type['icon']} {chat_type['name']}")
+        st.caption(chat_type["description"])
+    with adviser:
+        render_advisor_entry("chat", "chat_open_advisor")
     if conversation is not None:
         st.caption(
             f":material/forum: **{conversation['title']}** · "
@@ -2735,8 +2828,8 @@ def render_assistant() -> None:
     render_quick_guide(
         ui_text("bạn muốn hỏi chính sách Shopee, doanh thu, tồn kho hoặc cần AI hướng dẫn bước tiếp theo.", "you want help with Shopee policies, revenue, inventory, or the next step."),
         ui_text(
-            ["Nếu cần số liệu, bấm Thư viện dữ liệu để gắn dữ liệu cho chat này", "Gõ câu hỏi vào ô dưới cùng", "Bấm nút AI tròn để hỏi nhanh và đi thẳng đến Thị trường hoặc Chiến lược"],
-            ["If you need figures, open Data library and attach data to this chat", "Type your question in the bottom field", "Select the round AI button for a quick question or go to Market or Strategy"],
+            ["Nếu cần số liệu, bấm Thư viện dữ liệu để gắn dữ liệu cho chat này", "Gõ câu hỏi vào ô dưới cùng", "Mở Chiến lược gia AI ở đầu chat khi cần trao đổi về Thị trường hoặc Chiến lược"],
+            ["If you need figures, open Data library and attach data to this chat", "Type your question in the bottom field", "Open AI strategist at the top when you need to discuss Market or Strategy"],
         ),
     )
 
@@ -2888,3 +2981,5 @@ elif st.session_state.seller_view == "strategy":
     render_strategy_workspace()
 else:
     render_assistant()
+
+render_scroll_navigation()

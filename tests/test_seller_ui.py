@@ -23,6 +23,7 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertFalse(app.button(key="open_learner_1").disabled)
         app.button(key="open_learner_1").click().run()
         self.assertEqual(len(app.chat_input), 1)
+        self.assertEqual(app.session_state["seller_chat_scroll_sequence"], 1)
         self.assertEqual(len(app.error), 0)
 
     def test_owner_chat_exposes_human_readable_uploads(self) -> None:
@@ -131,7 +132,7 @@ class SellerFacingUiTests(unittest.TestCase):
             app.segmented_control(key="market_section").options,
             ["So sánh giá", "So sánh shop", "Sản phẩm cùng thị trường"],
         )
-        self.assertEqual(app.button(key="market_advisor_toggle").label, "AI")
+        self.assertEqual(app.button(key="market_open_advisor").label, "Chiến lược gia AI")
         self.assertTrue(any("dữ liệu thị trường mô phỏng" in warning.value for warning in app.warning))
         self.assertEqual(len(app.error), 0)
 
@@ -149,7 +150,7 @@ class SellerFacingUiTests(unittest.TestCase):
     def test_market_adviser_opens_a_chat_for_the_current_demo_scene(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="open_market_intelligence").click().run()
-        app.button(key="market_advisor_toggle").click().run()
+        app.button(key="market_open_advisor").click().run()
 
         self.assertTrue(app.session_state["seller_market_advisor_open"])
         self.assertEqual(len(app.chat_input), 1)
@@ -164,7 +165,7 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
         app.button(key="open_market_intelligence").click().run()
-        app.button(key="market_advisor_toggle").click().run()
+        app.button(key="market_open_advisor").click().run()
         app.chat_input[0].set_value("Sản phẩm nào nên ưu tiên?").run()
 
         conversation = app.session_state["seller_conversations"][0]
@@ -177,7 +178,7 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_owner").click().run()
         app.button(key="open_market_intelligence").click().run()
-        app.button(key="market_advisor_toggle").click().run()
+        app.button(key="market_open_advisor").click().run()
         app.chat_input[0].set_value("Tôi nên điều chỉnh giá thế nào?").run()
         app.button(key="advisor_handoff_to_chat").click().run()
 
@@ -195,7 +196,7 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
         app.button(key="open_market_intelligence").click().run()
-        app.button(key="market_advisor_toggle").click().run()
+        app.button(key="market_open_advisor").click().run()
         app.button(key="advisor_to_strategy").click().run()
 
         self.assertEqual(app.session_state["seller_view"], "strategy")
@@ -209,7 +210,7 @@ class SellerFacingUiTests(unittest.TestCase):
     def test_market_adviser_answers_follow_up_without_repeating_a_summary(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="open_market_intelligence").click().run()
-        app.button(key="market_advisor_toggle").click().run()
+        app.button(key="market_open_advisor").click().run()
         app.chat_input[0].set_value("Tại sao shop tôi có đánh giá thấp?").run()
         app.chat_input[0].set_value("Còn cách khác nữa không?").run()
 
