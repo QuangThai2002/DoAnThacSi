@@ -2770,7 +2770,15 @@ def render_assistant() -> None:
         if choice:
             prompt = SUGGESTIONS[mode][str(choice)]
 
-    typed_prompt = st.chat_input(chat_type["placeholder"], key="seller_chat_input", submit_mode="disable")
+    # Nest the composer so Streamlit renders it inline below the conversation
+    # instead of pinning it over the page when a recent chat is opened.
+    with st.container():
+        typed_prompt = st.chat_input(
+            ui_text("Nhập câu hỏi…", "Type a question…"),
+            key="seller_chat_input",
+            submit_mode="disable",
+            height="content",
+        )
     if typed_prompt:
         prompt = typed_prompt
     if not prompt:
