@@ -309,6 +309,9 @@ class AgentRunner:
             tags.add("ads_sku_daily")
         if any(term in normalized for term in ("tuoi ton", "ton theo lo", "lo hang ton", "lo ton lau")):
             tags.add("inventory_batches")
+        if "lo hang" in normalized and any(term in normalized for term in ("ton", "nam lau", "ton lau", "tuoi ton")):
+            tags.add("inventory_batch_question")
+            tags.add("inventory_batches")
         if any(term in normalized for term in ("giam gia", "dieu chinh gia", "gia ban")) and any(
             term in normalized for term in ("nen", "co nen", "the nao", "toan bo")
         ):
@@ -923,6 +926,27 @@ class AgentRunner:
             rate = quality.get("defect_rate_percent")
             return "Tỷ lệ lỗi trong các lô đã kiểm là **{}%** ({} lỗi trên {} sản phẩm kiểm). Chỉ số này không đại diện cho những lô chưa kiểm.".format(
                 "—" if rate is None else f"{float(rate):.2f}", quality.get("defective_unit_count", 0), quality.get("inspected_unit_count", 0)
+            )
+        if "inventory_batch_question" in analysis_tags:
+            batches = list(inventory_batches.get("batches", [])) if inventory_batches else []
+            if not batches:
+                return (
+                    "Chưa thể nêu **2 lô tồn lâu nhất** vì chat này chưa có bảng **Tuổi tồn kho theo lô**. "
+                    "Bạn hãy tạo hoặc tải bảng có: mã lô, SKU, ngày nhập kho, số lượng còn lại và giá vốn đơn vị; "
+                    "khi có dữ liệu, AI sẽ xếp đúng hai lô theo số ngày tồn thay vì đoán từ tồn kho chung."
+                )
+            lines = []
+            for index, batch in enumerate(batches[:2], start=1):
+                lines.append(
+                    f"{index}. **{batch['batch_id']} — {batch['product_name']}**: "
+                    f"đã tồn **{batch['age_days']} ngày**, còn **{batch['available_units']}** sản phẩm "
+                    f"(nhập ngày {batch['received_date']})."
+                )
+            return (
+                "**Hai lô tồn lâu nhất đã ghi nhận:**\n\n"
+                + "\n".join(lines)
+                + "\n\n**Cần kiểm tra trước:** đối chiếu tồn thực tế, tình trạng hàng và tốc độ bán của đúng SKU. "
+                "Tuổi tồn là tín hiệu ưu tiên kiểm tra, không tự chứng minh cần giảm giá hay xả hàng."
             )
         if "slow_inventory" in analysis_tags and "strategy" not in analysis_tags:
             batch = inventory_batches.get("oldest_batch") if inventory_batches else None

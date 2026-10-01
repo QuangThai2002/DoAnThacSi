@@ -471,6 +471,15 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("Giá–khuyến mãi đã ghi", answer)
         self.assertNotIn("SKU là mã riêng", answer)
 
+    def test_inventory_batch_question_leads_with_two_oldest_batches(self) -> None:
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
+        answer = runner.run("Lô hàng nào tồn lâu nhất?")["answer"]
+
+        self.assertIn("Hai lô tồn lâu nhất", answer)
+        self.assertIn("1. **", answer)
+        self.assertIn("2. **", answer)
+        self.assertNotIn("Hàng tồn lâu và bán chậm chưa nên", answer)
+
     def test_operational_question_bank_uses_topic_routing_and_bounded_advice(self) -> None:
         """Regression coverage for the shared question-bank failure patterns."""
         checks = {
