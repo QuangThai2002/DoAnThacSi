@@ -536,13 +536,24 @@ class AgentRunner:
                     net=int(sales["net_revenue_after_estimated_fees_vnd"]),
                 )
             )
-        if advertising and advertising["campaign_count"]:
+        if advertising and advertising["campaign_count"] and not ads_sku_daily:
             sections.append(
                 "Quảng cáo trong kỳ chi {spend:,} VND, doanh thu quy gán {revenue:,} VND từ {orders} đơn quy gán, ROAS {roas:.2f}.".format(
                     spend=int(advertising["ad_spend_vnd"]),
                     revenue=int(advertising["attributed_revenue_vnd"]),
                     orders=int(advertising["attributed_order_count"]),
                     roas=float(advertising["roas"]),
+                )
+            )
+        elif advertising and not ads_sku_daily:
+            sections.append(
+                "Không tìm thấy bản ghi quảng cáo cho kỳ {period} trong ads.csv, "
+                "nên Agent không suy diễn chi phí hoặc ROAS.".format(
+                    period=(
+                        "được hỏi"
+                        if advertising["period"] == "all_available_periods"
+                        else advertising["period"]
+                    )
                 )
             )
         if price_promotions:
@@ -580,17 +591,6 @@ class AgentRunner:
                 )
             else:
                 sections.append("Chưa có dữ liệu tuổi tồn theo lô. Hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**.")
-        elif advertising:
-            sections.append(
-                "Không tìm thấy bản ghi quảng cáo cho kỳ {period} trong ads.csv, "
-                "nên Agent không suy diễn chi phí hoặc ROAS.".format(
-                    period=(
-                        "được hỏi"
-                        if advertising["period"] == "all_available_periods"
-                        else advertising["period"]
-                    )
-                )
-            )
         if profitability:
             contribution = int(profitability["estimated_contribution_vnd"])
             label = "lãi góp ước tính" if contribution >= 0 else "lỗ góp ước tính"
