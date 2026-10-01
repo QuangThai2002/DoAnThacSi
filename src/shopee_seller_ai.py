@@ -89,7 +89,8 @@ st.markdown(
          Keep reports, chat responses, and data tables selectable for copying. */
       [data-testid="stSidebar"] h3,
       [data-testid="stSidebar"] details > summary,
-      [data-testid="stSidebar"] details > summary * {
+      [data-testid="stSidebar"] details > summary *,
+      [data-testid="stMain"] h1 {
         user-select: none !important;
         -webkit-user-select: none !important;
       }
