@@ -126,6 +126,19 @@ class Planner:
         "quang cao theo sku",
         "tuoi ton",
         "lo hang ton",
+        "tu khoa",
+        "tim kiem",
+        "vi tri tim kiem",
+        "giao tre",
+        "van chuyen",
+        "thoi gian xu ly",
+        "ly do huy don",
+        "doi soat",
+        "tien shopee phai tra",
+        "phi thuc te",
+        "ngay nhan tien",
+        "doi thu",
+        "shop tham khao",
     )
     # A metric word can be either a request for a definition or a request for
     # the seller's own numbers. Only the latter must have shop data attached.

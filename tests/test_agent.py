@@ -210,6 +210,14 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertGreater(batches["batch_count"], 0)
         self.assertIsNotNone(batches["oldest_batch"])
 
+    def test_new_search_shipping_settlement_and_competitor_tables_are_usable(self) -> None:
+        tool = ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001))
+
+        self.assertIsNotNone(tool.search_performance_summary("2026-08")["top_term"])
+        self.assertGreater(tool.shipping_performance_summary("2026-08")["order_count"], 0)
+        self.assertGreater(tool.settlement_summary("2026-08")["settlement_count"], 0)
+        self.assertIsNotNone(tool.competitor_catalog_summary("2026-08")["leading_reference"])
+
     def test_new_tables_accept_vietnamese_no_accent_headers(self) -> None:
         files = {
             name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
@@ -503,6 +511,18 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("Chưa thể nêu", answer)
         self.assertIn("Bạn hãy tạo hoặc tải", answer)
         self.assertIn("Tuổi tồn kho theo lô", answer)
+
+    def test_new_operational_data_routes_directly_to_its_own_table(self) -> None:
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
+        checks = {
+            "Từ khóa nào có lượt nhấp cao nhất?": "Từ khóa có nhiều lượt nhấp nhất",
+            "Shop có bao nhiêu đơn giao trễ?": "đơn giao trễ",
+            "Đối soát thanh toán tháng 8 thế nào?": "Shopee phải trả",
+            "Đối thủ nào bán ước tính cao nhất?": "chỉ là dữ liệu tham khảo",
+        }
+        for question, expected in checks.items():
+            with self.subTest(question=question):
+                self.assertIn(expected, runner.run(question)["answer"])
 
     def test_operational_question_bank_uses_topic_routing_and_bounded_advice(self) -> None:
         """Regression coverage for the shared question-bank failure patterns."""

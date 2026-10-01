@@ -57,6 +57,10 @@ class AgentRunner:
         price_promotions: dict[str, Any] | None = None
         ads_sku_daily: dict[str, Any] | None = None
         inventory_batches: dict[str, Any] | None = None
+        search_performance: dict[str, Any] | None = None
+        shipping_performance: dict[str, Any] | None = None
+        settlements: dict[str, Any] | None = None
+        competitor_catalog: dict[str, Any] | None = None
         sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
@@ -111,6 +115,18 @@ class AgentRunner:
                 if "inventory_batches" in analysis_tags:
                     inventory_batches = self.shop_data_tool.inventory_batch_age_summary()
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory_batches})
+                if "search_performance" in analysis_tags:
+                    search_performance = self.shop_data_tool.search_performance_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": search_performance})
+                if "shipping_performance" in analysis_tags:
+                    shipping_performance = self.shop_data_tool.shipping_performance_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": shipping_performance})
+                if "settlements" in analysis_tags:
+                    settlements = self.shop_data_tool.settlement_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": settlements})
+                if "competitor_catalog" in analysis_tags:
+                    competitor_catalog = self.shop_data_tool.competitor_catalog_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": competitor_catalog})
                 if asks_product_demand and product_gmv_ranking is None:
                     product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
@@ -223,6 +239,10 @@ class AgentRunner:
             price_promotions=price_promotions,
             ads_sku_daily=ads_sku_daily,
             inventory_batches=inventory_batches,
+            search_performance=search_performance,
+            shipping_performance=shipping_performance,
+            settlements=settlements,
+            competitor_catalog=competitor_catalog,
             sales_period_comparison=sales_period_comparison,
             ranking=ranking,
             citations=citations,
@@ -316,6 +336,14 @@ class AgentRunner:
         if "lo hang" in normalized and any(term in normalized for term in ("ton", "nam lau", "ton lau", "tuoi ton")):
             tags.add("inventory_batch_question")
             tags.add("inventory_batches")
+        if any(term in normalized for term in ("tu khoa", "tim kiem", "vi tri tim kiem", "hien thi tim kiem")):
+            tags.add("search_performance")
+        if any(term in normalized for term in ("giao tre", "van chuyen", "thoi gian xu ly", "ly do huy don")):
+            tags.add("shipping_performance")
+        if any(term in normalized for term in ("doi soat", "tien shopee phai tra", "phi thuc te", "ngay nhan tien")):
+            tags.add("settlements")
+        if any(term in normalized for term in ("doi thu", "shop tham khao", "gia doi thu", "danh muc doi thu")):
+            tags.add("competitor_catalog")
         if any(term in normalized for term in ("giam gia", "dieu chinh gia", "gia ban")) and any(
             term in normalized for term in ("nen", "co nen", "the nao", "toan bo")
         ):
@@ -432,7 +460,7 @@ class AgentRunner:
         # material caveat such as legal review or an accounting limitation.
         essential_cues = (
             "không phải", "không tự", "không bảo đảm", "không thay thế",
-            "chuyên gia pháp lý", "chưa tự suy ra", "không đại diện",
+            "chuyên gia pháp lý", "chưa tự suy ra", "không đại diện", "dữ liệu tham khảo",
         )
         for sentence in sentences[1:]:
             if any(cue in sentence.lower() for cue in essential_cues):
@@ -464,6 +492,7 @@ class AgentRunner:
             "slow_inventory", "product_funnel", "reviews", "returns",
             "quality", "cash_flow", "suppliers", "customer_retention",
             "strategy", "price_strategy", "restock_strategy", "ad_strategy",
+            "search_performance", "shipping_performance", "settlements", "competitor_catalog",
         }
         return not bool(analysis_tags & focused_topics)
 
@@ -492,6 +521,10 @@ class AgentRunner:
         price_promotions: dict[str, Any] | None,
         ads_sku_daily: dict[str, Any] | None,
         inventory_batches: dict[str, Any] | None,
+        search_performance: dict[str, Any] | None,
+        shipping_performance: dict[str, Any] | None,
+        settlements: dict[str, Any] | None,
+        competitor_catalog: dict[str, Any] | None,
         sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
@@ -679,6 +712,16 @@ class AgentRunner:
                 )
             else:
                 sections.append("Chưa có dữ liệu tuổi tồn theo lô. Hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**.")
+        if search_performance:
+            top = search_performance.get("top_term")
+            sections.append(f"Từ khóa có nhiều lượt nhấp nhất là **{top['search_term']}**: {top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị, vị trí trung bình {top['average_position']}." if top else "Chưa có dữ liệu hiệu quả tìm kiếm. Hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm**.")
+        if shipping_performance:
+            sections.append("Có {late} đơn giao trễ, {cancelled} đơn hủy; thời gian xử lý trung bình {hours} giờ. Lý do hủy nhiều nhất: {reason}.".format(late=shipping_performance["late_order_count"], cancelled=shipping_performance["cancelled_order_count"], hours="—" if shipping_performance["average_processing_hours"] is None else shipping_performance["average_processing_hours"], reason=shipping_performance["top_cancellation_reason"] or "chưa ghi"))
+        if settlements:
+            sections.append("Đối soát đã ghi: Shopee phải trả {payable:,} VND, phí thực tế {fees:,} VND, dự kiến nhận {expected:,} VND và đã nhận {received:,} VND.".format(payable=int(settlements["shopee_payable_vnd"]), fees=int(settlements["actual_fee_vnd"]), expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"])))
+        if competitor_catalog:
+            top = competitor_catalog.get("leading_reference")
+            sections.append(f"Shop tham khảo có lượng bán ước tính cao nhất là **{top['competitor_shop']}**: giá {top['price_vnd']:,} VND, {top['rating']:.2f}/5 và {top['estimated_monthly_units']} lượt bán ước tính/tháng. Đây chỉ là dữ liệu tham khảo do bạn nhập." if top else "Chưa có danh mục đối thủ. Hãy tạo hoặc tải bảng **Danh mục đối thủ**.")
         if profitability:
             contribution = int(profitability["estimated_contribution_vnd"])
             label = "lãi góp ước tính" if contribution >= 0 else "lỗ góp ước tính"
@@ -1160,6 +1203,14 @@ class AgentRunner:
     @staticmethod
     def _data_request_guidance(normalized: str) -> str:
         """Turn missing evidence into an explicit upload/create instruction."""
+        if any(term in normalized for term in ("tu khoa", "tim kiem", "vi tri tim kiem", "hien thi tim kiem")):
+            return "Để phân tích tìm kiếm, hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm** có ngày, SKU, từ khóa, lượt hiển thị, lượt nhấp và vị trí trung bình."
+        if any(term in normalized for term in ("giao tre", "van chuyen", "thoi gian xu ly", "ly do huy don")):
+            return "Để phân tích vận chuyển, hãy tạo hoặc tải bảng **Vận chuyển** có mã đơn, ngày đặt, trạng thái, giao trễ, lý do hủy và số giờ xử lý."
+        if any(term in normalized for term in ("doi soat", "tien shopee phai tra", "phi thuc te", "ngay nhan tien")):
+            return "Để đối soát thanh toán, hãy tạo hoặc tải bảng **Đối soát thanh toán** có mã đối soát, ngày đối soát, ngày nhận tiền, tiền Shopee phải trả, phí thực tế và tiền đã nhận."
+        if any(term in normalized for term in ("doi thu", "shop tham khao", "gia doi thu", "danh muc doi thu")):
+            return "Để so sánh đối thủ, hãy tạo hoặc tải bảng **Danh mục đối thủ** có ngày quan sát, SKU tham chiếu, tên shop, sản phẩm, giá, điểm đánh giá, số đánh giá và lượng bán ước tính."
         if "tao combo" in normalized or "combo" in normalized:
             return "Để chọn combo bằng dữ liệu, hãy tạo hoặc tải bảng **Sản phẩm mua cùng** có SKU thứ nhất, SKU thứ hai, số đơn mua cùng và kỳ dữ liệu; đồng thời gắn **Sản phẩm và giá vốn**, **Tồn kho** và **Đơn hàng**."
         if any(term in normalized for term in ("30 ngay", "tuan nay", "nguy co lo")):

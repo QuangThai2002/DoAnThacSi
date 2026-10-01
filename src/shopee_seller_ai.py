@@ -1263,6 +1263,10 @@ TABLE_SPECS = {
         "help": "Ghi ngày nhập và số còn lại của từng lô để AI cảnh báo hàng nằm lâu; vẫn cần kiểm kê thực tế trước khi xử lý hàng.",
         "columns": ["batch_id", "sku", "received_date", "available_units", "unit_cost_vnd"],
     },
+    "search_performance.csv": {"title": "Hiệu quả tìm kiếm (tùy chọn)", "help": "Theo dõi từ khóa, lượt hiển thị, vị trí và lượt nhấp; không dùng để khẳng định một từ khóa chắc chắn tạo ra đơn.", "columns": ["date", "sku", "search_term", "impressions", "clicks", "average_position"]},
+    "shipping_performance.csv": {"title": "Vận chuyển (tùy chọn)", "help": "Theo dõi giao trễ, lý do hủy và thời gian xử lý theo đơn để tìm điểm vận hành cần kiểm tra.", "columns": ["order_id", "order_date", "status", "is_late", "cancellation_reason", "processing_hours"]},
+    "settlements.csv": {"title": "Đối soát thanh toán (tùy chọn)", "help": "Đối chiếu số tiền Shopee phải trả, phí thực tế và tiền đã nhận; vẫn cần sao kê và hóa đơn gốc.", "columns": ["settlement_id", "settlement_date", "payout_date", "shopee_payable_vnd", "actual_fee_vnd", "received_amount_vnd", "status"]},
+    "competitor_catalog.csv": {"title": "Danh mục đối thủ (tham khảo)", "help": "Chỉ nhập dữ liệu quan sát/ước tính. Eslabong không coi đây là dữ liệu trực tiếp từ Shopee hoặc bằng chứng doanh số của đối thủ.", "columns": ["observed_date", "reference_sku", "competitor_shop", "product_name", "price_vnd", "rating", "review_count", "estimated_monthly_units"]},
 }
 COLUMN_LABELS = {
     "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
@@ -1290,6 +1294,9 @@ COLUMN_LABELS = {
     "batch_id": "Mã lô", "received_date": "Ngày nhập kho", "available_units": "Số lượng còn lại",
     "final_price_vnd": "Giá sau khuyến mãi (VND)", "voucher_source": "Nguồn mã giảm giá", "campaign_name": "Tên chương trình",
     "impressions": "Lượt hiển thị", "clicks": "Lượt nhấp", "attributed_orders": "Số đơn quy gán",
+    "search_term": "Từ khóa", "average_position": "Vị trí trung bình", "is_late": "Giao trễ", "cancellation_reason": "Lý do hủy", "processing_hours": "Số giờ xử lý",
+    "settlement_id": "Mã đối soát", "settlement_date": "Ngày đối soát", "payout_date": "Ngày nhận tiền", "shopee_payable_vnd": "Tiền Shopee phải trả (VND)", "actual_fee_vnd": "Phí thực tế (VND)", "received_amount_vnd": "Tiền đã nhận (VND)",
+    "observed_date": "Ngày quan sát", "reference_sku": "SKU tham chiếu", "competitor_shop": "Shop đối thủ", "price_vnd": "Giá (VND)", "estimated_monthly_units": "Lượt bán ước tính/tháng",
 }
 
 # Các mẫu dùng tiếng Việt không dấu để người dùng có thể tự lập bảng trong
@@ -1320,6 +1327,7 @@ EXCEL_SHEET_NAMES = {
     "co_purchase.csv": "San pham mua cung",
     "price_promotions.csv": "Gia khuyen mai", "ads_sku_daily.csv": "Quang cao SKU ngay",
     "inventory_batches.csv": "Tuoi ton kho",
+    "search_performance.csv": "Hieu qua tim kiem", "shipping_performance.csv": "Van chuyen", "settlements.csv": "Doi soat thanh toan", "competitor_catalog.csv": "Danh muc doi thu",
 }
 
 
@@ -2733,6 +2741,7 @@ def render_data_upload(*, inline: bool = False) -> None:
         ads = purchase_orders = returns = reviews = operating_costs = None
         inventory_movements = quality_checks = cash_flow = supplier_performance = None
         customer_segments = product_funnel = co_purchase = price_promotions = ads_sku_daily = inventory_batches = None
+        search_performance = shipping_performance = settlements = competitor_catalog = None
         with st.form("seller_upload_form", border=False):
             orders = st.file_uploader(ui_text("Đơn hàng (bắt buộc)", "Orders (required)"), type=["csv", "xlsx"])
             products = st.file_uploader(ui_text("Sản phẩm và giá vốn (bắt buộc)", "Products and costs (required)"), type=["csv", "xlsx"])
@@ -2754,6 +2763,10 @@ def render_data_upload(*, inline: bool = False) -> None:
                 price_promotions = st.file_uploader(ui_text("Giá và khuyến mãi theo SKU", "Price and promotions by SKU"), type=["csv", "xlsx"])
                 ads_sku_daily = st.file_uploader(ui_text("Quảng cáo theo SKU/ngày", "Advertising by SKU/day"), type=["csv", "xlsx"])
                 inventory_batches = st.file_uploader(ui_text("Tuổi tồn kho theo lô", "Inventory age by batch"), type=["csv", "xlsx"])
+                search_performance = st.file_uploader(ui_text("Hiệu quả tìm kiếm", "Search performance"), type=["csv", "xlsx"])
+                shipping_performance = st.file_uploader(ui_text("Vận chuyển", "Shipping performance"), type=["csv", "xlsx"])
+                settlements = st.file_uploader(ui_text("Đối soát thanh toán", "Settlement reconciliation"), type=["csv", "xlsx"])
+                competitor_catalog = st.file_uploader(ui_text("Danh mục đối thủ (tham khảo)", "Competitor catalogue (reference)"), type=["csv", "xlsx"])
             submitted = st.form_submit_button(ui_text("Thêm dữ liệu", "Add data"), icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
@@ -2776,6 +2789,10 @@ def render_data_upload(*, inline: bool = False) -> None:
         "price_promotions.csv": price_promotions,
         "ads_sku_daily.csv": ads_sku_daily,
         "inventory_batches.csv": inventory_batches,
+        "search_performance.csv": search_performance,
+        "shipping_performance.csv": shipping_performance,
+        "settlements.csv": settlements,
+        "competitor_catalog.csv": competitor_catalog,
     }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:

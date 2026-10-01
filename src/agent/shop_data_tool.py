@@ -173,6 +173,18 @@ REQUIRED_UPLOAD_COLUMNS = {
         "available_units",
         "unit_cost_vnd",
     },
+    "search_performance.csv": {
+        "date", "sku", "search_term", "impressions", "clicks", "average_position",
+    },
+    "shipping_performance.csv": {
+        "order_id", "order_date", "status", "is_late", "cancellation_reason", "processing_hours",
+    },
+    "settlements.csv": {
+        "settlement_id", "settlement_date", "payout_date", "shopee_payable_vnd", "actual_fee_vnd", "received_amount_vnd", "status",
+    },
+    "competitor_catalog.csv": {
+        "observed_date", "reference_sku", "competitor_shop", "product_name", "price_vnd", "rating", "review_count", "estimated_monthly_units",
+    },
 }
 REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
 OPTIONAL_UPLOAD_FILES = frozenset({
@@ -180,6 +192,7 @@ OPTIONAL_UPLOAD_FILES = frozenset({
     "operating_costs.csv", "inventory_movements.csv", "quality_checks.csv",
     "cash_flow.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv",
     "co_purchase.csv", "price_promotions.csv", "ads_sku_daily.csv", "inventory_batches.csv",
+    "search_performance.csv", "shipping_performance.csv", "settlements.csv", "competitor_catalog.csv",
 })
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
@@ -210,6 +223,10 @@ WORKBOOK_SHEET_FILE_NAMES = {
     "quang_cao_sku_ngay": "ads_sku_daily.csv",
     "tuoi_ton_kho": "inventory_batches.csv",
     "lo_hang_ton_kho": "inventory_batches.csv",
+    "hieu_qua_tim_kiem": "search_performance.csv",
+    "van_chuyen": "shipping_performance.csv",
+    "doi_soat_thanh_toan": "settlements.csv",
+    "danh_muc_doi_thu": "competitor_catalog.csv",
 }
 
 
@@ -319,6 +336,24 @@ VIETNAMESE_COLUMN_ALIASES: dict[str, dict[str, tuple[str, ...]]] = {
         "batch_id": ("ma_lo", "ma_lo_hang"), "sku": ("ma_sku", "ma_san_pham"),
         "received_date": ("ngay_nhap_kho", "ngay_nhan_hang"), "available_units": ("so_luong_con_lai", "ton_kha_dung"),
         "unit_cost_vnd": ("gia_von_don_vi", "gia_von_don_vi_vnd"),
+    },
+    "search_performance.csv": {
+        "date": ("ngay",), "sku": ("ma_sku", "ma_san_pham"), "search_term": ("tu_khoa", "tu_khoa_tim_kiem"),
+        "impressions": ("luot_hien_thi",), "clicks": ("luot_nhap", "luot_click"), "average_position": ("vi_tri_trung_binh", "vi_tri"),
+    },
+    "shipping_performance.csv": {
+        "order_id": ("ma_don", "ma_don_hang"), "order_date": ("ngay_dat", "ngay_dat_hang"), "status": ("trang_thai",),
+        "is_late": ("giao_tre", "don_giao_tre"), "cancellation_reason": ("ly_do_huy",), "processing_hours": ("gio_xu_ly", "thoi_gian_xu_ly_gio"),
+    },
+    "settlements.csv": {
+        "settlement_id": ("ma_doi_soat",), "settlement_date": ("ngay_doi_soat",), "payout_date": ("ngay_nhan_tien",),
+        "shopee_payable_vnd": ("tien_shopee_phai_tra_vnd", "tien_san_phai_tra_vnd"), "actual_fee_vnd": ("phi_thuc_te_vnd",),
+        "received_amount_vnd": ("tien_da_nhan_vnd",), "status": ("trang_thai",),
+    },
+    "competitor_catalog.csv": {
+        "observed_date": ("ngay_quan_sat",), "reference_sku": ("ma_san_pham_tham_chieu", "ma_sku"),
+        "competitor_shop": ("shop_doi_thu",), "product_name": ("ten_san_pham",), "price_vnd": ("gia_vnd", "gia_ban_vnd"),
+        "rating": ("diem_danh_gia", "so_sao"), "review_count": ("so_danh_gia",), "estimated_monthly_units": ("luot_ban_uoc_tinh_thang", "so_luong_ban_uoc_tinh"),
     },
 }
 
@@ -532,6 +567,10 @@ class ShopDataTool:
             "price_promotions.csv": "date",
             "ads_sku_daily.csv": "date",
             "inventory_batches.csv": "received_date",
+            "search_performance.csv": "date",
+            "shipping_performance.csv": "order_date",
+            "settlements.csv": "settlement_date",
+            "competitor_catalog.csv": "observed_date",
         }.get(name)
         if date_column:
             for row in rows:
@@ -766,6 +805,24 @@ class ShopDataTool:
                     date.fromisoformat(row["received_date"])
                     if int(row["available_units"]) < 0 or as_decimal(row["unit_cost_vnd"]) < 0:
                         raise ValueError("invalid inventory batch values")
+                elif name == "search_performance.csv":
+                    date.fromisoformat(row["date"])
+                    impressions, clicks = int(row["impressions"]), int(row["clicks"])
+                    if impressions < 0 or clicks < 0 or clicks > impressions or float(row["average_position"]) <= 0:
+                        raise ValueError("invalid search values")
+                elif name == "shipping_performance.csv":
+                    date.fromisoformat(row["order_date"])
+                    if normalize_header(row["is_late"]) not in {"co", "khong", "yes", "no", "true", "false", "1", "0"} or float(row["processing_hours"]) < 0:
+                        raise ValueError("invalid shipping values")
+                elif name == "settlements.csv":
+                    date.fromisoformat(row["settlement_date"])
+                    date.fromisoformat(row["payout_date"])
+                    if any(as_decimal(row[column]) < 0 for column in ("shopee_payable_vnd", "actual_fee_vnd", "received_amount_vnd")):
+                        raise ValueError("invalid settlement amounts")
+                elif name == "competitor_catalog.csv":
+                    date.fromisoformat(row["observed_date"])
+                    if as_decimal(row["price_vnd"]) < 0 or not 0 <= float(row["rating"]) <= 5 or int(row["review_count"]) < 0 or int(row["estimated_monthly_units"]) < 0:
+                        raise ValueError("invalid competitor values")
             except (InvalidOperation, ValueError) as exc:
                 raise ShopDataValidationError(
                     f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
@@ -1420,6 +1477,46 @@ class ShopDataTool:
             "batches": batches[:20], "oldest_batch": oldest,
             "limitation": "Tuổi tồn được tính từ ngày nhập của các lô đã ghi và số lượng còn lại; chưa thay thế kiểm kê hoặc xác định nguyên nhân bán chậm.",
         }
+
+    def search_performance_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [row for row in self._read_csv("search_performance.csv") if period is None or row["date"].startswith(period)]
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            entry = grouped.setdefault(row["search_term"], {"impressions": 0, "clicks": 0, "positions": [], "skus": set()})
+            entry["impressions"] += int(row["impressions"]); entry["clicks"] += int(row["clicks"])
+            entry["positions"].append(float(row["average_position"])); entry["skus"].add(row["sku"])
+        terms = [{"search_term": term, "impressions": value["impressions"], "clicks": value["clicks"], "average_position": round(sum(value["positions"]) / len(value["positions"]), 2), "ctr_percent": round(value["clicks"] / value["impressions"] * 100, 2) if value["impressions"] else None, "sku_count": len(value["skus"])} for term, value in grouped.items()]
+        terms.sort(key=lambda item: (-item["clicks"], item["average_position"], item["search_term"]))
+        return {"tool": "shop_data.search_performance_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "term_count": len(terms), "terms": terms[:20], "top_term": terms[0] if terms else None, "limitation": "Dữ liệu tìm kiếm chỉ phản ánh các lượt hiển thị và nhấp đã ghi; không chứng minh một từ khóa tự làm tăng đơn."}
+
+    def shipping_performance_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [row for row in self._read_csv("shipping_performance.csv") if period is None or row["order_date"].startswith(period)]
+        late = [row for row in rows if normalize_header(row["is_late"]) in {"co", "yes", "true", "1"}]
+        cancelled = [row for row in rows if normalize_header(row["status"]) in {"huy", "cancelled", "canceled", "da_huy"}]
+        reasons: dict[str, int] = {}
+        for row in cancelled:
+            reason = row["cancellation_reason"].strip() or "Chưa ghi lý do"
+            reasons[reason] = reasons.get(reason, 0) + 1
+        average_hours = round(sum(float(row["processing_hours"]) for row in rows) / len(rows), 2) if rows else None
+        top_reason = next(iter(sorted(reasons.items(), key=lambda item: (-item[1], item[0]))), None)
+        return {"tool": "shop_data.shipping_performance_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "order_count": len(rows), "late_order_count": len(late), "cancelled_order_count": len(cancelled), "average_processing_hours": average_hours, "top_cancellation_reason": top_reason[0] if top_reason else None, "limitation": "Giao trễ và lý do hủy chỉ là dữ liệu đã ghi; cần đối chiếu trạng thái thực tế và bằng chứng giao nhận trước khi quy trách nhiệm."}
+
+    def settlement_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [row for row in self._read_csv("settlements.csv") if period is None or row["settlement_date"].startswith(period)]
+        payable = sum((as_decimal(row["shopee_payable_vnd"]) for row in rows), Decimal("0"))
+        fees = sum((as_decimal(row["actual_fee_vnd"]) for row in rows), Decimal("0"))
+        received = sum((as_decimal(row["received_amount_vnd"]) for row in rows), Decimal("0"))
+        expected = payable - fees
+        pending = [row for row in rows if normalize_header(row["status"]) not in {"da_nhan", "received", "completed", "hoan_tat"}]
+        return {"tool": "shop_data.settlement_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "settlement_count": len(rows), "shopee_payable_vnd": as_number(payable), "actual_fee_vnd": as_number(fees), "expected_received_vnd": as_number(expected), "received_amount_vnd": as_number(received), "difference_vnd": as_number(received - expected), "pending_count": len(pending), "limitation": "Đối soát chỉ so sánh các dòng bạn đã nhập; không thay thế sao kê, hóa đơn hoặc quyết toán thuế."}
+
+    def competitor_catalog_summary(self, period: str | None = None) -> dict[str, Any]:
+        rows = [row for row in self._read_csv("competitor_catalog.csv") if period is None or row["observed_date"].startswith(period)]
+        entries = [{"reference_sku": row["reference_sku"], "competitor_shop": row["competitor_shop"], "product_name": row["product_name"], "price_vnd": as_number(as_decimal(row["price_vnd"])), "rating": float(row["rating"]), "review_count": int(row["review_count"]), "estimated_monthly_units": int(row["estimated_monthly_units"])} for row in rows]
+        entries.sort(key=lambda item: (-item["estimated_monthly_units"], -item["rating"], item["price_vnd"]))
+        prices = sorted(item["price_vnd"] for item in entries)
+        median_price = prices[len(prices) // 2] if prices else None
+        return {"tool": "shop_data.competitor_catalog_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "listing_count": len(entries), "median_price_vnd": median_price, "leading_reference": entries[0] if entries else None, "listings": entries[:20], "limitation": "Dữ liệu đối thủ là quan sát hoặc ước tính do người dùng nhập, không phải dữ liệu trực tiếp từ Shopee và không đủ để khẳng định doanh số hay chiến lược của đối thủ."}
 
     def returns_summary(self, period: str | None = None) -> dict[str, Any]:
         rows = [
