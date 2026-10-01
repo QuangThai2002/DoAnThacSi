@@ -94,17 +94,16 @@ st.markdown(
         user-select: none !important;
         -webkit-user-select: none !important;
       }
-      /* Recent-chat triggers deliberately have one compact, stable footprint.
-         The full title and data attachment are available in the popover. */
-      [class*="st-key-chat_preview_"] > div > button {
+      /* Recent-chat controls deliberately have one compact, stable footprint. */
+      [class*="st-key-open_"] > div > button {
         height: 56px !important; min-height: 56px !important; max-height: 56px !important;
         padding: .55rem .65rem !important; overflow: hidden !important;
       }
-      [class*="st-key-chat_preview_"] > div > button p {
+      [class*="st-key-open_"] > div > button p {
         display: block !important; overflow: hidden !important; text-overflow: ellipsis !important;
         white-space: nowrap !important;
       }
-      [class*="st-key-chat_preview_"] > div > button * {
+      [class*="st-key-open_"] > div > button * {
         user-select: none !important; -webkit-user-select: none !important;
       }
       [data-testid="stSidebar"] [data-testid="stRadio"] label { padding: .45rem .55rem; border-radius: 8px; }
@@ -191,14 +190,12 @@ st.markdown(
         background: #fff0ea !important; border-color: #ee4d2d !important; color: #b5371e !important;
       }
       /* Highlight the currently open chat like a focused Codex conversation. */
-      [class*="st-key-chat_preview_"] > div > button[kind="primary"],
       [class*="st-key-open_"] button[kind="primary"],
       [class*="st-key-compact_open_"] button[kind="primary"] {
         background: #fff0ea !important; border: 1.5px solid #ee4d2d !important;
         color: #a8321d !important; font-weight: 750 !important;
         box-shadow: 0 4px 14px rgba(238, 77, 45, .16) !important;
       }
-      [class*="st-key-chat_preview_"] > div > button[kind="primary"]:hover,
       [class*="st-key-open_"] button[kind="primary"]:hover,
       [class*="st-key-compact_open_"] button[kind="primary"]:hover {
         background: #ffe4dc !important; border-color: #d83f20 !important; color: #8f2817 !important;
@@ -536,7 +533,6 @@ def render_color_mode_css() -> None:
           }
           /* These controls had light-mode key-specific rules with higher priority. */
           [class*="st-key-seller_suggestion"] button,
-          [class*="st-key-chat_preview_"] > div > button,
           [class*="st-key-open_"] button,
           [class*="st-key-collapse_sidebar"] button,
           [class*="st-key-expand_sidebar"] button,
@@ -545,7 +541,6 @@ def render_color_mode_css() -> None:
             box-shadow: none !important;
           }
           [class*="st-key-seller_suggestion"] button:hover,
-          [class*="st-key-chat_preview_"] > div > button:hover,
           [class*="st-key-open_"] button:hover,
           [class*="st-key-collapse_sidebar"] button:hover,
           [class*="st-key-expand_sidebar"] button:hover,
@@ -555,14 +550,12 @@ def render_color_mode_css() -> None:
           [class*="st-key-open_"] button:disabled, [data-testid="stPills"] button:disabled {
             background: #1b2638 !important; border-color: #334155 !important; color: #94a3b8 !important; opacity: 1 !important;
           }
-          [class*="st-key-chat_preview_"] > div > button[kind="primary"],
           [class*="st-key-open_"] button[kind="primary"],
           [class*="st-key-compact_open_"] button[kind="primary"] {
             background: #24385a !important; border: 1.5px solid #60a5fa !important;
             color: #ffffff !important; font-weight: 750 !important;
             box-shadow: 0 4px 14px rgba(96, 165, 250, .20) !important;
           }
-          [class*="st-key-chat_preview_"] > div > button[kind="primary"]:hover,
           [class*="st-key-open_"] button[kind="primary"]:hover,
           [class*="st-key-compact_open_"] button[kind="primary"]:hover {
             background: #2d4a73 !important; border-color: #93c5fd !important;
@@ -966,11 +959,10 @@ def human_title(question: str, limit: int = 44) -> str:
     return text[:limit] + ("…" if len(text) > limit else "")
 
 
-def sidebar_chat_label(conversation: dict[str, Any], is_active: bool) -> str:
-    """Keep a recent-chat card compact; its popover contains the full title."""
+def sidebar_chat_label(conversation: dict[str, Any]) -> str:
+    """Keep a recent-chat control compact without duplicating its active state."""
     chat_type = active_chat_type(str(conversation["mode"]))
-    active_marker = ui_text("Đang mở · ", "Open · ") if is_active else ""
-    return f"{active_marker}{chat_type['name']} · {human_title(str(conversation['title']), limit=26)}"
+    return f"{chat_type['name']} · {human_title(str(conversation['title']), limit=26)}"
 
 
 def data_note(source: str | None) -> str | None:
@@ -2713,7 +2705,7 @@ def render_assistant() -> None:
     st.caption(chat_type["description"])
     if conversation is not None:
         st.caption(
-            f":material/forum: Đang mở **{conversation['title']}** · "
+            f":material/forum: **{conversation['title']}** · "
             f":material/link: **{conversation_data_label(conversation)}** · "
             "Lịch sử, dữ liệu và Chiến lược gia AI được tách riêng cho cuộc trò chuyện này."
         )
@@ -2829,34 +2821,16 @@ with st.sidebar:
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = active_chat_type(conversation["mode"])
             is_active = conversation["id"] == st.session_state.get("seller_active_chat_id")
-            label = sidebar_chat_label(conversation, is_active)
-            detail_label = f"{chat_type['name']} · {conversation['title']}"
-            with st.popover(
-                label,
-                key=f"chat_preview_{conversation['id']}",
+            st.button(
+                sidebar_chat_label(conversation),
+                key=f"open_{conversation['id']}",
                 icon=chat_type["icon"],
                 type="primary" if is_active else "secondary",
                 width="stretch",
-                help=detail_label,
-            ):
-                st.markdown(f"**{detail_label}**")
-                st.caption(conversation_data_label(conversation))
-                message_count = len(conversation.get("messages", []))
-                st.caption(
-                    ui_text(
-                        f"{message_count} tin nhắn đã lưu trong cuộc trò chuyện này.",
-                        f"{message_count} messages saved in this conversation.",
-                    )
-                )
-                st.button(
-                    ui_text("Mở cuộc trò chuyện", "Open conversation"),
-                    key=f"open_{conversation['id']}",
-                    icon=":material/forum:",
-                    type="primary" if is_active else "secondary",
-                    width="stretch",
-                    on_click=open_conversation,
-                    args=(conversation["id"],),
-                )
+                help=conversation_data_label(conversation),
+                on_click=open_conversation,
+                args=(conversation["id"],),
+            )
     with st.expander(ui_text("Cài đặt", "Settings"), icon=":material/settings:"):
         st.selectbox(
             ui_text("Ngôn ngữ giao diện", "Interface language"),
