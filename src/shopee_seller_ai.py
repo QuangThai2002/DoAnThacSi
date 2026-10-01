@@ -244,7 +244,8 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       background: #ee4d2d;
       border: 2px solid #ffffff;
       border-radius: 999px;
-      bottom: 2.4rem;
+      /* Keep the navigation control above the pinned chat composer. */
+      bottom: 6.4rem;
       box-shadow: 0 8px 24px rgba(187, 61, 31, .28);
       color: #ffffff;
       cursor: pointer;
@@ -2893,9 +2894,9 @@ def render_assistant() -> None:
         if choice:
             prompt = SUGGESTIONS[mode][str(choice)]
 
-    # Nest the composer so Streamlit renders it inline below the conversation
-    # instead of pinning it over the page when a recent chat is opened.
-    with st.container():
+    # A conversation composer belongs to the app bottom. Rendering it inline
+    # made it appear between old messages after a saved chat was restored.
+    with st.bottom:
         typed_prompt = st.chat_input(
             ui_text("Nhập câu hỏi…", "Type a question…"),
             key="seller_chat_input",
