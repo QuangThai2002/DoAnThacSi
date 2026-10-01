@@ -227,6 +227,7 @@ def build_demo_rows(
     supplier_performance: list[dict[str, str]] = []
     customer_segments: list[dict[str, str]] = []
     product_funnel: list[dict[str, str]] = []
+    co_purchase: list[dict[str, str]] = []
     wanted_ids = set(selected_category_ids) if selected_category_ids is not None else None
     selected_categories = [
         category for category in DEMO_CATEGORY_SEEDS
@@ -348,6 +349,20 @@ def build_demo_rows(
                     "add_to_cart_count": str(carts), "order_count": str(funnel_orders),
                 })
 
+    # The demo has an explicit aggregate table for products that occurred in
+    # the same order.  It is intentionally separate from orders.csv so that
+    # real uploads do not imply a pair when one has not been observed.
+    for category_index, (_, _, _, _, _, _) in enumerate(selected_categories, start=1):
+        category_skus = [f"DEMO-{category_index:02d}-{index:02d}" for index in range(1, 6)]
+        for period in DEMO_PERIODS:
+            for pair_index in range(0, len(category_skus) - 1, 2):
+                co_purchase.append({
+                    "month": period,
+                    "sku": category_skus[pair_index],
+                    "paired_sku": category_skus[pair_index + 1],
+                    "joint_order_count": str(rng.randint(2, 12)),
+                })
+
     campaign_categories = [category[2] for category in selected_categories[:3]]
     for period in DEMO_PERIODS:
         for campaign_index, category in enumerate(campaign_categories, start=1):
@@ -437,6 +452,7 @@ def build_demo_rows(
         "supplier_performance.csv": supplier_performance,
         "customer_segments.csv": customer_segments,
         "product_funnel.csv": product_funnel,
+        "co_purchase.csv": co_purchase,
     }
 
 

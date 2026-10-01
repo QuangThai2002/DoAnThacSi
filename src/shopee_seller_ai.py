@@ -1147,6 +1147,11 @@ TABLE_SPECS = {
         "help": "Ghi lượt xem, thêm giỏ và đơn để xác định bước cần kiểm tra ở mỗi sản phẩm.",
         "columns": ["month", "sku", "views", "add_to_cart_count", "order_count"],
     },
+    "co_purchase.csv": {
+        "title": "Sản phẩm mua cùng (tùy chọn)",
+        "help": "Ghi số đơn đã mua cùng một cặp sản phẩm theo kỳ. AI chỉ dùng bảng này để chọn cặp đáng thử, không cam kết combo sẽ tăng doanh số.",
+        "columns": ["month", "sku", "paired_sku", "joint_order_count"],
+    },
 }
 COLUMN_LABELS = {
     "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
@@ -1170,6 +1175,7 @@ COLUMN_LABELS = {
     "supplier_id": "Mã nhà cung cấp", "supplier_name": "Tên nhà cung cấp", "on_time_delivery_rate_percent": "Giao đúng hẹn (%)", "defect_rate_percent": "Tỷ lệ lỗi (%)", "average_lead_time_days": "Số ngày giao trung bình",
     "segment_name": "Nhóm khách", "customer_count": "Số khách", "repeat_order_count": "Đơn mua lại", "gmv_vnd": "GMV (VND)",
     "views": "Lượt xem", "add_to_cart_count": "Lượt thêm giỏ", "order_count": "Số đơn",
+    "paired_sku": "Mã sản phẩm mua cùng", "joint_order_count": "Số đơn mua cùng",
 }
 
 # Các mẫu dùng tiếng Việt không dấu để người dùng có thể tự lập bảng trong
@@ -1197,6 +1203,7 @@ EXCEL_SHEET_NAMES = {
     "inventory_movements.csv": "Bien dong kho", "quality_checks.csv": "Kiem tra chat luong",
     "cash_flow.csv": "Dong tien", "supplier_performance.csv": "Nha cung cap",
     "customer_segments.csv": "Nhom khach hang", "product_funnel.csv": "Hieu qua san pham",
+    "co_purchase.csv": "San pham mua cung",
 }
 
 
@@ -2001,6 +2008,12 @@ def filter_dashboard_rows(
             row for row in rows.get("product_funnel.csv", [])
             if row["sku"] in selected_sku_values and row["month"] in selected_month_values
         ],
+        "co_purchase.csv": [
+            row for row in rows.get("co_purchase.csv", [])
+            if row["sku"] in selected_sku_values
+            and row["paired_sku"] in selected_sku_values
+            and row["month"] in selected_month_values
+        ],
     }
 
 
@@ -2517,6 +2530,7 @@ def render_data_upload(*, inline: bool = False) -> None:
             "supplier_performance.csv": "Hiệu quả nhà cung cấp",
             "customer_segments.csv": "Nhóm khách hàng",
             "product_funnel.csv": "Hiệu quả từng sản phẩm",
+            "co_purchase.csv": "Sản phẩm mua cùng",
         }
         for name in st.session_state.seller_uploaded_names:
             st.success(
@@ -2596,7 +2610,7 @@ def render_data_upload(*, inline: bool = False) -> None:
         show_optional = st.toggle(ui_text("Thêm bảng mở rộng", "Add optional tables"), key="seller_show_optional_uploads")
         ads = purchase_orders = returns = reviews = operating_costs = None
         inventory_movements = quality_checks = cash_flow = supplier_performance = None
-        customer_segments = product_funnel = None
+        customer_segments = product_funnel = co_purchase = None
         with st.form("seller_upload_form", border=False):
             orders = st.file_uploader(ui_text("Đơn hàng (bắt buộc)", "Orders (required)"), type=["csv", "xlsx"])
             products = st.file_uploader(ui_text("Sản phẩm và giá vốn (bắt buộc)", "Products and costs (required)"), type=["csv", "xlsx"])
@@ -2613,6 +2627,7 @@ def render_data_upload(*, inline: bool = False) -> None:
                 supplier_performance = st.file_uploader(ui_text("Hiệu quả nhà cung cấp", "Supplier performance"), type=["csv", "xlsx"])
                 customer_segments = st.file_uploader(ui_text("Nhóm khách hàng", "Customer segments"), type=["csv", "xlsx"])
                 product_funnel = st.file_uploader(ui_text("Hiệu quả từng sản phẩm", "Product funnel"), type=["csv", "xlsx"])
+                co_purchase = st.file_uploader(ui_text("Sản phẩm mua cùng", "Products purchased together"), type=["csv", "xlsx"])
             submitted = st.form_submit_button(ui_text("Thêm dữ liệu", "Add data"), icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
@@ -2631,6 +2646,7 @@ def render_data_upload(*, inline: bool = False) -> None:
         "supplier_performance.csv": supplier_performance,
         "customer_segments.csv": customer_segments,
         "product_funnel.csv": product_funnel,
+        "co_purchase.csv": co_purchase,
     }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:

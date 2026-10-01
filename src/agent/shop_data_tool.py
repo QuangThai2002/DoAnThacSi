@@ -7,6 +7,7 @@ import unicodedata
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from statistics import median
 from typing import Any, Mapping
 
 import pandas as pd
@@ -139,12 +140,19 @@ REQUIRED_UPLOAD_COLUMNS = {
         "add_to_cart_count",
         "order_count",
     },
+    "co_purchase.csv": {
+        "month",
+        "sku",
+        "paired_sku",
+        "joint_order_count",
+    },
 }
 REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
 OPTIONAL_UPLOAD_FILES = frozenset({
     "ads.csv", "purchase_orders.csv", "returns.csv", "reviews.csv",
     "operating_costs.csv", "inventory_movements.csv", "quality_checks.csv",
     "cash_flow.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv",
+    "co_purchase.csv",
 })
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
@@ -168,6 +176,7 @@ WORKBOOK_SHEET_FILE_NAMES = {
     "nhom_khach_hang": "customer_segments.csv",
     "hieu_qua_tung_san_pham": "product_funnel.csv",
     "hieu_qua_san_pham": "product_funnel.csv",
+    "san_pham_mua_cung": "co_purchase.csv",
 }
 
 
@@ -252,6 +261,11 @@ VIETNAMESE_COLUMN_ALIASES: dict[str, dict[str, tuple[str, ...]]] = {
     "product_funnel.csv": {
         "month": ("thang",), "sku": ("ma_sku", "ma_san_pham"), "views": ("luot_xem",),
         "add_to_cart_count": ("luot_them_gio",), "order_count": ("so_don",),
+    },
+    "co_purchase.csv": {
+        "month": ("thang",), "sku": ("ma_sku", "ma_san_pham"),
+        "paired_sku": ("ma_san_pham_mua_cung", "ma_sku_mua_cung"),
+        "joint_order_count": ("so_don_mua_cung",),
     },
 }
 
@@ -472,7 +486,7 @@ class ShopDataTool:
                     # report a consistent Vietnamese error with its row number.
                     pass
 
-        if name in {"ads.csv", "operating_costs.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv"}:
+        if name in {"ads.csv", "operating_costs.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv", "co_purchase.csv"}:
             for row in rows:
                 try:
                     row["month"] = normalize_month(row["month"])
@@ -674,6 +688,10 @@ class ShopDataTool:
                     orders = int(row["order_count"])
                     if views < 0 or carts < 0 or orders < 0 or carts > views or orders > carts:
                         raise ValueError("invalid funnel values")
+                elif name == "co_purchase.csv":
+                    date.fromisoformat(f"{row['month']}-01")
+                    if row["sku"] == row["paired_sku"] or int(row["joint_order_count"]) < 0:
+                        raise ValueError("invalid co-purchase values")
             except (InvalidOperation, ValueError) as exc:
                 raise ShopDataValidationError(
                     f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
@@ -1147,7 +1165,17 @@ class ShopDataTool:
                 "cart_to_order_rate_percent": round((orders / carts) * 100, 2) if carts else None,
             })
         weak_rows = [item for item in funnel_rows if item["views"] >= 20]
+        # Keep the old cart-to-order screening result for general funnel
+        # questions, but make a separate candidate for questions about the
+        # earlier view-to-cart step. "Many views" means at least the median
+        # observed view count, not merely a non-zero number of views.
+        high_view_threshold = median(item["views"] for item in funnel_rows) if funnel_rows else 0
+        high_view_rows = [item for item in funnel_rows if item["views"] >= high_view_threshold]
         weak_product = min(weak_rows, key=lambda item: (item["cart_to_order_rate_percent"] or 0, item["views"])) if weak_rows else None
+        weak_view_to_cart_product = min(
+            high_view_rows,
+            key=lambda item: (item["view_to_cart_rate_percent"] is None, item["view_to_cart_rate_percent"] or 0, -item["views"]),
+        ) if high_view_rows else None
         return {
             "tool": "shop_data.product_funnel_summary",
             "data_scope": self.data_scope,
@@ -1157,7 +1185,60 @@ class ShopDataTool:
             "total_add_to_cart_count": sum(item["add_to_cart_count"] for item in funnel_rows),
             "total_order_count": sum(item["order_count"] for item in funnel_rows),
             "weak_product": weak_product,
+            "high_view_threshold": high_view_threshold,
+            "weak_view_to_cart_product": weak_view_to_cart_product,
             "limitation": "Phễu chỉ nêu điểm cần kiểm tra; không chứng minh một thay đổi về ảnh, giá hay mô tả sẽ chắc chắn tăng đơn.",
+        }
+
+    def co_purchase_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Return transparent bundle candidates from an explicitly uploaded pair table.
+
+        A pair is only an observed joint purchase, never evidence that a discount
+        or bundle will improve sales.  Inventory is included to prevent a
+        suggestion that immediately creates a stock-out.
+        """
+        products = {row["sku"]: row for row in self._read_csv("products.csv")}
+        inventory = {
+            row["sku"]: int(row["on_hand"]) - int(row["reserved"])
+            for row in self._read_csv("inventory.csv")
+        }
+        rows = [
+            row for row in self._read_csv("co_purchase.csv")
+            if period is None or row["month"] == period
+        ]
+        candidates: list[dict[str, Any]] = []
+        for row in rows:
+            sku, paired_sku = row["sku"], row["paired_sku"]
+            first, second = products.get(sku), products.get(paired_sku)
+            if not first or not second:
+                continue
+            candidates.append({
+                "sku": sku,
+                "product_name": first["product_name"],
+                "paired_sku": paired_sku,
+                "paired_product_name": second["product_name"],
+                "joint_order_count": int(row["joint_order_count"]),
+                "available_units": inventory.get(sku),
+                "paired_available_units": inventory.get(paired_sku),
+                "combined_list_price_vnd": as_number(
+                    as_decimal(first["list_price_vnd"]) + as_decimal(second["list_price_vnd"])
+                ),
+            })
+        candidates.sort(
+            key=lambda item: (
+                item["available_units"] is None or item["paired_available_units"] is None,
+                min(item["available_units"] or 0, item["paired_available_units"] or 0) <= 0,
+                -item["joint_order_count"],
+            )
+        )
+        return {
+            "tool": "shop_data.co_purchase_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "pair_count": len(candidates),
+            "best_pair": candidates[0] if candidates else None,
+            "pairs": candidates[:10],
+            "limitation": "Số đơn mua cùng chỉ là hành vi đã ghi nhận; cần kiểm tra lãi góp, tồn và hoàn hàng trước khi thử combo.",
         }
 
     def returns_summary(self, period: str | None = None) -> dict[str, Any]:
@@ -1185,9 +1266,19 @@ class ShopDataTool:
         ]
         rating_total = sum(int(row["rating"]) for row in rows)
         issues: dict[str, int] = {}
+        low_rating_issues: dict[str, int] = {}
+        unclassified_low_rating_count = 0
         for row in rows:
             issue = row["issue_type"].strip() or "Không nêu vấn đề"
             issues[issue] = issues.get(issue, 0) + 1
+            if int(row["rating"]) <= 3:
+                if row["issue_type"].strip():
+                    low_rating_issues[issue] = low_rating_issues.get(issue, 0) + 1
+                else:
+                    unclassified_low_rating_count += 1
+        sorted_low_rating_issues = dict(
+            sorted(low_rating_issues.items(), key=lambda item: (-item[1], item[0]))
+        )
         return {
             "tool": "shop_data.review_summary",
             "data_scope": self.data_scope,
@@ -1196,6 +1287,153 @@ class ShopDataTool:
             "average_rating": round(rating_total / len(rows), 2) if rows else None,
             "low_rating_count": sum(int(row["rating"]) <= 3 for row in rows),
             "issues": dict(sorted(issues.items(), key=lambda item: (-item[1], item[0]))),
+            "low_rating_issues": sorted_low_rating_issues,
+            "priority_low_rating_issue": next(iter(sorted_low_rating_issues), None),
+            "unclassified_low_rating_count": unclassified_low_rating_count,
+        }
+
+    def product_decision_scorecard(self, period: str | None = None) -> dict[str, Any]:
+        """Join the recorded product signals without pretending they predict sales.
+
+        The scorecard is a transparent screening layer for strategy questions.
+        It keeps GMV, contribution, stock, reviews, quality, returns and funnel
+        evidence tied to the same SKU. Missing tables remain visible as missing
+        evidence instead of becoming a zero-risk signal.
+        """
+        products = {row["sku"]: row for row in self._read_csv("products.csv")}
+        orders = [
+            row for row in self._read_csv("orders.csv")
+            if row["status"].strip().lower() == COMPLETED_STATUS
+            and (period is None or row["order_date"].startswith(period))
+        ]
+        order_totals: dict[str, dict[str, Decimal | int]] = {}
+        for order in orders:
+            values = order_totals.setdefault(
+                order["sku"],
+                {"gmv": Decimal("0"), "seller_discount": Decimal("0"), "platform_fees": Decimal("0"), "units": 0},
+            )
+            values["gmv"] = Decimal(str(values["gmv"])) + as_decimal(order["gross_merchandise_value_vnd"])
+            values["seller_discount"] = Decimal(str(values["seller_discount"])) + as_decimal(order["seller_discount_vnd"])
+            values["platform_fees"] = Decimal(str(values["platform_fees"])) + as_decimal(order["estimated_transaction_fee_vnd"]) + as_decimal(order["estimated_service_fee_vnd"])
+            values["units"] = int(values["units"]) + int(order["quantity"])
+
+        inventory_by_sku = {
+            row["sku"]: {
+                "available_units": int(row["on_hand"]) - int(row["reserved"]),
+                "reorder_point": int(row["reorder_point"]),
+            }
+            for row in self._read_csv("inventory.csv")
+        }
+        low_reviews: dict[str, int] = {}
+        review_rows = [
+            row for row in self._read_csv("reviews.csv")
+            if period is None or row["review_date"].startswith(period)
+        ]
+        for row in review_rows:
+            if int(row["rating"]) <= 3:
+                low_reviews[row["sku"]] = low_reviews.get(row["sku"], 0) + 1
+        defects: dict[str, int] = {}
+        inspected: dict[str, int] = {}
+        quality_rows = [
+            row for row in self._read_csv("quality_checks.csv")
+            if period is None or row["check_date"].startswith(period)
+        ]
+        for row in quality_rows:
+            sku = row["sku"]
+            defects[sku] = defects.get(sku, 0) + int(row["defective_quantity"])
+            inspected[sku] = inspected.get(sku, 0) + int(row["inspected_quantity"])
+        returned: dict[str, int] = {}
+        return_rows = [
+            row for row in self._read_csv("returns.csv")
+            if period is None or row["request_date"].startswith(period)
+        ]
+        for row in return_rows:
+            returned[row["sku"]] = returned.get(row["sku"], 0) + int(row["quantity"])
+        funnel_by_sku = {
+            row["sku"]: {
+                "views": int(row["views"]),
+                "view_to_cart_rate_percent": round((int(row["add_to_cart_count"]) / int(row["views"])) * 100, 2) if int(row["views"]) else None,
+            }
+            for row in self._read_csv("product_funnel.csv")
+            if period is None or row["month"] == period
+        }
+
+        rows: list[dict[str, Any]] = []
+        contribution_values: dict[str, Decimal] = {}
+        for sku, product in products.items():
+            totals = order_totals.get(sku, {})
+            gmv = Decimal(str(totals.get("gmv", Decimal("0"))))
+            units = int(totals.get("units", 0))
+            contribution = (
+                gmv
+                - Decimal(str(totals.get("seller_discount", Decimal("0"))))
+                - Decimal(str(totals.get("platform_fees", Decimal("0"))))
+                - as_decimal(product["cost_per_unit_vnd"]) * units
+            )
+            contribution_values[sku] = contribution
+
+        lowest_contribution_sku = min(contribution_values, key=contribution_values.get) if contribution_values else None
+        for sku, product in products.items():
+            stock = inventory_by_sku.get(sku)
+            funnel = funnel_by_sku.get(sku)
+            contribution = contribution_values[sku]
+            signals: list[str] = []
+            if sku == lowest_contribution_sku and order_totals.get(sku):
+                signals.append("lãi góp thấp nhất trong các SKU đã bán")
+            if stock and stock["available_units"] <= stock["reorder_point"]:
+                signals.append("tồn khả dụng ở hoặc dưới ngưỡng nhập thêm")
+            if low_reviews.get(sku, 0):
+                signals.append(f"{low_reviews[sku]} đánh giá từ 1–3 sao")
+            if defects.get(sku, 0):
+                signals.append(f"{defects[sku]} sản phẩm lỗi trong lô đã kiểm")
+            if returned.get(sku, 0):
+                signals.append(f"{returned[sku]} sản phẩm đã có yêu cầu hoàn")
+            rows.append(
+                {
+                    "sku": sku,
+                    "product_name": product["product_name"],
+                    "category": product["category"],
+                    "list_price_vnd": as_number(as_decimal(product["list_price_vnd"])),
+                    "gmv_vnd": as_number(Decimal(str(order_totals.get(sku, {}).get("gmv", Decimal("0"))))),
+                    "estimated_contribution_vnd": as_number(contribution),
+                    "available_units": stock["available_units"] if stock else None,
+                    "reorder_point": stock["reorder_point"] if stock else None,
+                    "low_rating_count": low_reviews.get(sku, 0),
+                    "defect_rate_percent": round(defects.get(sku, 0) / inspected[sku] * 100, 2) if inspected.get(sku) else None,
+                    "return_unit_count": returned.get(sku, 0),
+                    "views": funnel.get("views") if funnel else None,
+                    "view_to_cart_rate_percent": funnel.get("view_to_cart_rate_percent") if funnel else None,
+                    "risk_signals": signals,
+                }
+            )
+
+        eligible = [
+            row for row in rows
+            if row["gmv_vnd"] > 0
+            and row["estimated_contribution_vnd"] > 0
+            and (row["available_units"] is None or row["available_units"] > row["reorder_point"])
+            and not any(
+                marker in signal
+                for signal in row["risk_signals"]
+                for marker in ("lãi góp thấp", "tồn khả dụng", "đánh giá từ", "sản phẩm lỗi")
+            )
+        ]
+        recommended = max(eligible, key=lambda row: (row["gmv_vnd"], row["estimated_contribution_vnd"])) if eligible else None
+        risk_rows = sorted(rows, key=lambda row: (-len(row["risk_signals"]), row["estimated_contribution_vnd"], -row["gmv_vnd"]))
+        return {
+            "tool": "shop_data.product_decision_scorecard",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "products": rows,
+            "recommended_candidate": recommended,
+            "risk_products": [row for row in risk_rows if row["risk_signals"]][:3],
+            "coverage": {
+                "reviews": bool(review_rows),
+                "quality_checks": bool(quality_rows),
+                "returns": bool(return_rows),
+                "product_funnel": bool(funnel_by_sku),
+            },
+            "limitation": "Đây là sàng lọc từ dữ liệu đã ghi theo SKU, không phải dự báo doanh số hoặc kết luận một phương án sẽ thành công.",
         }
 
     def procurement_summary(self, period: str | None = None) -> dict[str, Any]:

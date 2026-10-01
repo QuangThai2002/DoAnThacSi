@@ -15,6 +15,7 @@ from agent.agent_runner import AgentRunner
 from agent.calculator_tool import CalculatorTool
 from agent.planner import Planner
 from agent.rag_tool import RAGTool
+from agent.shop_data_library import build_demo_rows
 from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
 
 
@@ -180,6 +181,17 @@ class ShopDataToolTests(unittest.TestCase):
         )
         self.assertEqual(self.tool.customer_retention_summary("2026-08")["repeat_order_rate_percent"], 25.0)
         self.assertEqual(self.tool.product_funnel_summary("2026-08")["weak_product"]["sku"], "SKU-003")
+
+    def test_demo_co_purchase_table_produces_a_stock_checked_bundle_candidate(self) -> None:
+        demo_tool = ShopDataTool(uploaded_rows=build_demo_rows(seed=7))
+
+        bundle = demo_tool.co_purchase_summary("2026-08")["best_pair"]
+
+        self.assertIsNotNone(bundle)
+        self.assertNotEqual(bundle["sku"], bundle["paired_sku"])
+        self.assertGreater(bundle["joint_order_count"], 0)
+        self.assertIsNotNone(bundle["available_units"])
+        self.assertIsNotNone(bundle["paired_available_units"])
 
 
 class CalculatorAndRunnerTests(unittest.TestCase):
@@ -416,10 +428,10 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             "Làm sao tăng khách quay lại?": "không có biện pháp nào bảo đảm",
             "Nếu lượt xem cao nhưng ít thêm giỏ thì nên kiểm tra gì?": "mỗi lần chỉ đổi một yếu tố",
             "Nếu nhiều người thêm giỏ nhưng ít đặt mua thì sao?": "giá cuối",
-            "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?": "ứng viên ưu tiên",
-            "Tôi có nên tạo combo không?": "quy mô nhỏ",
-            "Tôi đang có nguy cơ lỗ ở đâu?": "bốn nhóm",
-            "Tôi cần làm gì trước trong tuần này?": "tối đa ba việc",
+            "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới?": "thử nhỏ trước",
+            "Tôi có nên tạo combo không?": "Sản phẩm mua cùng",
+            "Tôi đang có nguy cơ lỗ ở đâu?": "không phải kết luận lỗ ròng",
+            "Tôi cần làm gì trước trong tuần này?": "Ba việc tuần này",
             "AI có cam kết giảm giá sẽ giúp tôi bán tốt hơn không?": "Không. Eslabong không cam kết",
             "AI này đã kết nối trực tiếp với Shopee chưa?": "Chưa. Eslabong hiện chỉ dùng",
             "Nếu tôi không tải bảng quảng cáo thì AI có tự đoán ROAS không?": "không tự đoán ROAS",
@@ -430,6 +442,41 @@ class CalculatorAndRunnerTests(unittest.TestCase):
                 result = runner.run(question)
                 self.assertIn(expected_text, result["answer"])
                 self.assertNotIn("Tôi chưa có đủ nội dung đã kiểm chứng", result["answer"])
+
+    def test_extended_strategy_questions_use_the_metric_and_next_data_action_requested(self) -> None:
+        runner = AgentRunner()
+        checks = {
+            "Tôi có nên tăng ngân sách quảng cáo không? Trước khi tăng cần kiểm tra trang sản phẩm và tồn kho thế nào?": [
+                "5 điểm", "tồn khả dụng chạm ngưỡng nhập thêm",
+            ],
+            "Dựa trên các đánh giá 1–3 sao, shop nên xử lý vấn đề nào trước và đo lại thế nào?": [
+                "đánh giá 1–3 sao", "tỷ lệ đánh giá thấp",
+            ],
+            "Sản phẩm nào có nhiều lượt xem nhưng tỷ lệ từ xem sang thêm giỏ thấp nhất? Tôi nên thử cải thiện gì trước?": [
+                "tỷ lệ từ xem sang thêm giỏ", "mỗi lần chỉ đổi một yếu tố",
+            ],
+            "Tôi nên ưu tiên sản phẩm nào trong 30 ngày tới nếu xét GMV, lãi góp, tồn kho, đánh giá, tỷ lệ lỗi và phễu?": [
+                "thử nhỏ trước", "không phải dự báo chắc chắn",
+            ],
+            "Tôi có nên tạo combo nào? Hãy nêu điều kiện chọn hai sản phẩm, giá thử và chỉ số dừng thử nghiệm.": [
+                "Sản phẩm mua cùng", "dừng thử",
+            ],
+            "Tôi đang có nguy cơ lỗ ở đâu nếu xét lãi góp, chi phí vận hành, hàng hoàn, hàng lỗi và tồn chậm?": [
+                "Các điểm có nguy cơ", "Biến động kho",
+            ],
+            "Dựa trên dữ liệu hiện có, ba việc nào tôi cần làm trước trong tuần này? Mỗi việc đo bằng chỉ số nào?": [
+                "Ba việc tuần này", "chứng từ hợp lệ",
+            ],
+            "Giao dịch điện tử có thể có giá trị pháp lý khi đáp ứng điều kiện nào? Tôi cần lưu chứng từ gì?": [
+                "có thể truy cập", "chứng từ giao nhận",
+            ],
+        }
+        for question, expected_phrases in checks.items():
+            with self.subTest(question=question):
+                answer = runner.run(question)["answer"]
+                for expected_phrase in expected_phrases:
+                    self.assertIn(expected_phrase, answer)
+                self.assertNotIn("Tôi chưa có đủ nội dung đã kiểm chứng", answer)
 
 
 if __name__ == "__main__":

@@ -51,6 +51,8 @@ class AgentRunner:
         product_funnel: dict[str, Any] | None = None
         product_gmv_ranking: dict[str, Any] | None = None
         product_contribution_ranking: dict[str, Any] | None = None
+        product_scorecard: dict[str, Any] | None = None
+        co_purchase: dict[str, Any] | None = None
         sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
@@ -147,6 +149,11 @@ class AgentRunner:
                     if profitability is None:
                         profitability = self.shop_data_tool.profitability_summary(plan.period)
                         trace.append({"tool": "shop_data", "status": "ok", "result": profitability})
+                    product_scorecard = self.shop_data_tool.product_decision_scorecard(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": product_scorecard})
+                    if "combo_strategy" in analysis_tags:
+                        co_purchase = self.shop_data_tool.co_purchase_summary(plan.period)
+                        trace.append({"tool": "shop_data", "status": "ok", "result": co_purchase})
             except Exception as exc:  # Keep an inspectable failure in the agent trace.
                 trace.append({"tool": "shop_data", "status": "error", "error": str(exc)})
 
@@ -197,6 +204,8 @@ class AgentRunner:
             product_funnel=product_funnel,
             product_gmv_ranking=product_gmv_ranking,
             product_contribution_ranking=product_contribution_ranking,
+            product_scorecard=product_scorecard,
+            co_purchase=co_purchase,
             sales_period_comparison=sales_period_comparison,
             ranking=ranking,
             citations=citations,
@@ -295,7 +304,10 @@ class AgentRunner:
             tags.add("returns")
         if any(term in normalized for term in ("danh gia", "review", "phan hoi khach")):
             tags.add("reviews")
-        if "danh gia xau" in normalized or "giam danh gia" in normalized:
+        if "danh gia xau" in normalized or "giam danh gia" in normalized or (
+            "danh gia" in normalized
+            and any(term in normalized for term in ("1-3 sao", "1 3 sao", "xu ly", "van de nao truoc"))
+        ):
             tags.add("review_action")
         if any(term in normalized for term in ("nhap hang", "don nhap")):
             tags.add("procurement")
@@ -325,7 +337,11 @@ class AgentRunner:
             tags.add("retention_action")
         if any(term in normalized for term in ("luot xem", "them gio", "hieu qua san pham", "phieu san pham", "kho chot don", "dat mua")):
             tags.add("product_funnel")
-        if "luot xem cao" in normalized and "it them gio" in normalized:
+        if (
+            "luot xem" in normalized
+            and "them gio" in normalized
+            and any(term in normalized for term in ("luot xem cao", "nhieu luot xem", "it them gio", "ty le tu xem sang them gio", "thap nhat"))
+        ):
             tags.add("funnel_view_action")
         if "them gio" in normalized and any(term in normalized for term in ("it dat mua", "it dat")):
             tags.add("funnel_cart_action")
@@ -337,6 +353,10 @@ class AgentRunner:
             tags.add("quality_rate")
         if any(term in normalized for term in ("30 ngay", "tao combo", "nguy co lo", "tuan nay")):
             tags.add("strategy")
+            tags.update({
+                "profitability", "operating_costs", "returns", "reviews", "inventory",
+                "slow_inventory", "inventory_movements", "quality", "product_funnel",
+            })
         if "tao combo" in normalized:
             tags.add("combo_strategy")
         if "nguy co lo" in normalized:
@@ -365,6 +385,8 @@ class AgentRunner:
         product_funnel: dict[str, Any] | None,
         product_gmv_ranking: dict[str, Any] | None,
         product_contribution_ranking: dict[str, Any] | None,
+        product_scorecard: dict[str, Any] | None,
+        co_purchase: dict[str, Any] | None,
         sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
@@ -401,10 +423,16 @@ class AgentRunner:
             cash_flow=cash_flow,
             product_contribution_ranking=product_contribution_ranking,
             inventory_movements=inventory_movements,
+            returns=returns,
+            slow_inventory=slow_inventory,
+            product_scorecard=product_scorecard,
+            co_purchase=co_purchase,
         )
         # Put the direct answer or bounded next step first; supporting metrics follow.
         if action_answer and not knowledge_answer:
             sections.append(action_answer)
+        if action_answer and "strategy" in (analysis_tags or set()):
+            return action_answer
         if product_gmv_ranking:
             top_product = product_gmv_ranking["top_product"]
             if top_product is None:
@@ -531,11 +559,11 @@ class AgentRunner:
         if reviews:
             if reviews["review_count"]:
                 sections.append(
-                    "Có {count} đánh giá, điểm trung bình {rating:.2f}/5 và {low} đánh giá từ 3 sao trở xuống. Vấn đề cần xem trước: {issue}.".format(
+                    "Có {count} đánh giá, điểm trung bình {rating:.2f}/5 và {low} đánh giá từ 3 sao trở xuống. Vấn đề cần xem trước trong nhóm đánh giá thấp: {issue}.".format(
                         count=reviews["review_count"],
                         rating=float(reviews["average_rating"]),
                         low=reviews["low_rating_count"],
-                        issue=next(iter(reviews["issues"]), "chưa phân loại"),
+                        issue=reviews.get("priority_low_rating_issue") or "chưa có trường vấn đề để phân loại",
                     )
                 )
             else:
@@ -603,15 +631,31 @@ class AgentRunner:
                 )
             )
         if product_funnel:
-            weak = product_funnel["weak_product"]
+            is_view_to_cart_question = "funnel_view_action" in (analysis_tags or set())
+            weak = (
+                product_funnel["weak_view_to_cart_product"]
+                if is_view_to_cart_question
+                else product_funnel["weak_product"]
+            )
             if weak:
-                sections.append(
-                    "Có {products} sản phẩm trong phễu. Sản phẩm cần kiểm tra trước là {name}: {views} lượt xem, {carts} lượt thêm giỏ và tỷ lệ từ giỏ sang đơn {rate:.2f}%. {limitation}".format(
-                        products=product_funnel["product_count"], name=weak["product_name"], views=weak["views"],
-                        carts=weak["add_to_cart_count"], rate=weak["cart_to_order_rate_percent"] or 0,
-                        limitation=str(product_funnel["limitation"]),
+                if is_view_to_cart_question:
+                    sections.append(
+                        "Trong nhóm có ít nhất {threshold:.0f} lượt xem, {name} cần kiểm tra trước: {views} lượt xem, "
+                        "{carts} lượt thêm giỏ và tỷ lệ từ xem sang thêm giỏ {rate:.2f}%. {limitation}".format(
+                            threshold=float(product_funnel["high_view_threshold"]), name=weak["product_name"],
+                            views=weak["views"], carts=weak["add_to_cart_count"],
+                            rate=weak["view_to_cart_rate_percent"] or 0,
+                            limitation=str(product_funnel["limitation"]),
+                        )
                     )
-                )
+                else:
+                    sections.append(
+                        "Có {products} sản phẩm trong phễu. Sản phẩm cần kiểm tra trước là {name}: {views} lượt xem, {carts} lượt thêm giỏ và tỷ lệ từ giỏ sang đơn {rate:.2f}%. {limitation}".format(
+                            products=product_funnel["product_count"], name=weak["product_name"], views=weak["views"],
+                            carts=weak["add_to_cart_count"], rate=weak["cart_to_order_rate_percent"] or 0,
+                            limitation=str(product_funnel["limitation"]),
+                        )
+                    )
             else:
                 sections.append("Chưa có đủ lượt xem để đánh giá phễu sản phẩm trong kỳ được hỏi.")
         if ranking and ranking["cost_ranking"]:
@@ -679,6 +723,10 @@ class AgentRunner:
         cash_flow: dict[str, Any] | None,
         product_contribution_ranking: dict[str, Any] | None,
         inventory_movements: dict[str, Any] | None,
+        returns: dict[str, Any] | None,
+        slow_inventory: dict[str, Any] | None,
+        product_scorecard: dict[str, Any] | None,
+        co_purchase: dict[str, Any] | None,
     ) -> str:
         """Give a bounded next step for recommendation questions.
 
@@ -714,17 +762,35 @@ class AgentRunner:
             if advertising is None:
                 return AgentRunner._data_request_guidance(normalized)
             roas = float(advertising.get("roas") or 0)
+            stock_check = (
+                "Hiện có SKU chạm ngưỡng nhập thêm: "
+                + ", ".join(item["product_name"] for item in inventory.get("alerts", [])[:3])
+                + ". Không nên đẩy quảng cáo cho các SKU này trước khi xác nhận hàng sẵn có. "
+                if inventory and inventory.get("alert_count")
+                else "Không có SKU nào chạm ngưỡng nhập thêm trong bảng tồn kho hiện tại. "
+            )
             return (
                 f"ROAS hiện ghi nhận là {roas:.2f}, nhưng ROAS cao chưa đủ để kết luận nên tăng ngân sách "
-                "vì còn giá vốn, phí và tồn kho. Nếu vẫn muốn thử, chỉ tăng từng bước nhỏ trong một nhóm quảng cáo, "
-                "đặt giới hạn chi và so sánh lãi góp sau quảng cáo trước khi mở rộng."
+                "vì còn giá vốn, phí và tồn kho. "
+                f"{stock_check}"
+                "Trước khi tăng, kiểm tra trang sản phẩm theo 5 điểm: ảnh đầu, giá cuối sau ưu đãi, biến thể còn hàng, đánh giá 1–3 sao và thời gian giao. "
+                "Nếu vẫn muốn thử, chỉ tăng từng bước nhỏ trong một nhóm quảng cáo, đặt giới hạn chi và dừng nếu lãi góp sau quảng cáo giảm hoặc tồn khả dụng chạm ngưỡng nhập thêm."
             )
         if "review_action" in analysis_tags:
-            issue = next(iter(reviews.get("issues", {})), "nguyên nhân đánh giá thấp") if reviews else "nguyên nhân đánh giá thấp"
+            if reviews is None or not reviews.get("review_count"):
+                return AgentRunner._data_request_guidance(normalized)
+            issue = reviews.get("priority_low_rating_issue")
+            if issue is None:
+                return (
+                    "Chưa thể ưu tiên nguyên nhân vì các đánh giá 1–3 sao chưa có trường vấn đề để phân loại. "
+                    "Bạn hãy tạo hoặc tải bảng **Đánh giá khách hàng** có các cột: mã đánh giá, ngày đánh giá, SKU, số sao, vấn đề và nhận xét. "
+                    "Sau đó AI sẽ xếp hạng nguyên nhân theo số đánh giá thấp thay vì đoán từ điểm trung bình."
+                )
+            issue_count = int(reviews.get("low_rating_issues", {}).get(issue, 0))
             return (
-                "Đừng cố xử lý đánh giá xấu bằng một câu trả lời chung. Hãy phản hồi lịch sự trong thời gian ngắn, "
-                f"gom các đánh giá theo vấn đề chính ({issue}), rồi sửa một nguyên nhân có thể kiểm soát như đóng gói, mô tả hoặc kiểm hàng. "
-                "Theo dõi số đánh giá 1–3 sao trong kỳ sau; cách này chỉ là thử cải thiện, không bảo đảm điểm đánh giá sẽ tăng."
+                f"Ưu tiên xử lý **{issue}** trước vì đây là nhóm xuất hiện nhiều nhất trong các đánh giá 1–3 sao đã phân loại ({issue_count} đánh giá). "
+                "Hãy phản hồi các đánh giá liên quan, sửa một nguyên nhân có thể kiểm soát và theo dõi lại hai chỉ số trong kỳ sau: số đánh giá 1–3 sao theo nhóm vấn đề và tỷ lệ đánh giá thấp trên tổng đánh giá. "
+                "Nếu còn đánh giá thấp không có vấn đề, hãy bổ sung cột vấn đề thay vì để AI tự đoán nguyên nhân; cách làm này không bảo đảm điểm đánh giá sẽ tăng."
             )
         if "supplier_action" in analysis_tags:
             defective = int(quality.get("defective_unit_count", 0)) if quality else 0
@@ -778,7 +844,7 @@ class AgentRunner:
             return "Tỷ lệ lỗi trong các lô đã kiểm là **{}%** ({} lỗi trên {} sản phẩm kiểm). Chỉ số này không đại diện cho những lô chưa kiểm.".format(
                 "—" if rate is None else f"{float(rate):.2f}", quality.get("defective_unit_count", 0), quality.get("inspected_unit_count", 0)
             )
-        if "slow_inventory" in analysis_tags:
+        if "slow_inventory" in analysis_tags and "strategy" not in analysis_tags:
             return (
                 "Hàng tồn lâu và bán chậm chưa nên giảm giá ngay. Hãy kiểm tra ảnh, mô tả, giá, đánh giá, nhu cầu và số ngày tồn; "
                 "nếu cần xả hàng, chỉ thử ưu đãi nhỏ hoặc combo trên một SKU trước. Muốn tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Biến động kho**."
@@ -790,31 +856,81 @@ class AgentRunner:
             )
         if "strategy" in analysis_tags:
             if "combo_strategy" in analysis_tags:
+                pair = co_purchase.get("best_pair") if co_purchase else None
+                if pair:
+                    stock_is_ready = (
+                        pair["available_units"] is not None
+                        and pair["paired_available_units"] is not None
+                        and pair["available_units"] > 0
+                        and pair["paired_available_units"] > 0
+                    )
+                    stock_text = (
+                        f"Cả hai hiện còn {pair['available_units']} và {pair['paired_available_units']} sản phẩm khả dụng."
+                        if stock_is_ready else "Cần kiểm tra lại tồn khả dụng của cả hai SKU trước khi thử."
+                    )
+                    return (
+                        f"Cặp có dữ liệu mua cùng nhiều nhất là **{pair['product_name']} + {pair['paired_product_name']}** "
+                        f"({pair['joint_order_count']} đơn trong kỳ). {stock_text} "
+                        f"Tổng giá niêm yết là {int(pair['combined_list_price_vnd']):,} VND; chỉ thử ưu đãi nhỏ sau khi kiểm tra tổng lãi góp vẫn dương. "
+                        "Dừng thử nếu lãi góp mỗi combo âm, tồn của một SKU chạm ngưỡng nhập thêm hoặc tỷ lệ hoàn tăng. Số đơn mua cùng là tín hiệu để thử, không phải bằng chứng combo sẽ thành công."
+                    )
                 return (
-                    "Có thể thử combo ở quy mô nhỏ nếu hai sản phẩm liên quan, còn tồn và biên lãi góp sau ưu đãi vẫn dương. "
-                    "Hãy đặt giá combo, giới hạn số lượng và so sánh số đơn, lãi góp với bán lẻ; không nên xem combo là giải pháp chắc chắn."
+                    "Chưa nên khẳng định một cặp combo cụ thể chỉ từ dữ liệu hiện có, vì đơn hàng chưa cho biết hai SKU nào thường được mua cùng nhau. "
+                    "Bạn hãy tạo hoặc tải bảng **Sản phẩm mua cùng** có SKU thứ nhất, SKU thứ hai, số đơn mua cùng và kỳ dữ liệu. "
+                    "Khi có bảng này, chỉ chọn cặp có liên quan, cả hai còn tồn trên ngưỡng nhập thêm và tổng lãi góp vẫn dương. Giá thử nên bắt đầu từ tổng giá niêm yết trừ một ưu đãi nhỏ đã được kiểm tra không làm lãi góp âm; dừng thử nếu lãi góp mỗi combo âm, tồn của một SKU chạm ngưỡng hoặc tỷ lệ hoàn tăng."
                 )
             if "risk_strategy" in analysis_tags:
+                risks = product_scorecard.get("risk_products", []) if product_scorecard else []
+                risk_lines = [
+                    f"**{row['product_name']}**: " + ", ".join(row["risk_signals"])
+                    for row in risks
+                ]
+                operating_text = (
+                    f"Chi phí vận hành đã ghi nhận là **{int(operating_costs['total_operating_cost_vnd']):,} VND**, "
+                    f"khoản lớn nhất là **{next(iter(operating_costs['by_category']), 'chưa phân loại')}**."
+                    if operating_costs else "Bạn hãy tạo hoặc tải bảng **Chi phí vận hành** có tháng, nhóm chi phí và số tiền."
+                )
+                returns_text = (
+                    f"Có **{returns['return_request_count']}** yêu cầu hoàn với **{int(returns['recorded_refund_amount_vnd']):,} VND** tiền hoàn đã ghi."
+                    if returns else "Bạn hãy tạo hoặc tải bảng **Hoàn hàng** có SKU, lý do, số lượng và tiền hoàn."
+                )
                 return (
-                    "Nguy cơ lỗ cần được kiểm tra theo bốn nhóm: lãi góp theo sản phẩm, chi phí vận hành, hàng lỗi/hoàn và tồn chậm. "
-                    "Dữ liệu hiện tại chỉ cho thấy tín hiệu cần kiểm tra; hãy dừng mở rộng ở SKU có lãi góp thấp hoặc tồn chậm cho đến khi đối soát đủ chi phí."
+                    "**Các điểm có nguy cơ làm giảm kết quả trước:** "
+                    + ("; ".join(risk_lines) if risk_lines else "chưa đủ dữ liệu theo SKU; hãy tạo hoặc tải các bảng Sản phẩm, Đơn hàng, Tồn kho, Hoàn hàng và Kiểm tra chất lượng.")
+                    + f". {operating_text} {returns_text} "
+                    "Đây là tín hiệu cần đối soát, không phải kết luận lỗ ròng. Tạm dừng mở rộng những SKU có nhiều tín hiệu rủi ro; để tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Biến động kho** có ngày, SKU, loại biến động và số lượng."
                 )
             if "weekly_strategy" in analysis_tags:
+                risks = product_scorecard.get("risk_products", []) if product_scorecard else []
+                first_risk = risks[0]["product_name"] if risks else "SKU có tín hiệu rủi ro cao nhất"
+                cost_name = next(iter(operating_costs.get("by_category", {})), "khoản chi lớn nhất") if operating_costs else "chi phí vận hành"
+                review_issue = reviews.get("priority_low_rating_issue") if reviews else None
                 return (
-                    "Trong tuần này, chỉ nên ưu tiên tối đa ba việc có thể đo: xử lý một SKU tồn chậm, đối soát một khoản chi lớn và kiểm tra một vấn đề chất lượng hoặc đánh giá thấp. "
-                    "Chốt chỉ số trước/sau cho từng việc rồi mới mở rộng; không nên chạy nhiều thay đổi cùng lúc."
+                    f"**Ba việc tuần này:** (1) đối soát **{first_risk}** theo tồn khả dụng, hoàn và lỗi; đo số lượng tồn, số hoàn và số lỗi. "
+                    f"(2) rà soát **{cost_name}**; đo số tiền chi đã ghi và chứng từ hợp lệ. "
+                    + (f"(3) xử lý nhóm đánh giá thấp **{review_issue}**; đo số đánh giá 1–3 sao theo vấn đề." if review_issue else "(3) Bạn hãy tạo hoặc tải bảng Đánh giá khách hàng có số sao và vấn đề; sau đó đo số đánh giá 1–3 sao theo vấn đề.")
+                    + " Mỗi việc chỉ thay đổi một yếu tố, chốt số trước/sau trong cùng kỳ và không coi kết quả một tuần là bằng chứng chắc chắn để mở rộng."
                 )
-            top = product_gmv_ranking.get("top_product") if product_gmv_ranking else None
-            if top:
+            candidate = product_scorecard.get("recommended_candidate") if product_scorecard else None
+            if candidate:
                 return (
-                    f"Trong 30 ngày tới, hãy xem **{top['product_name']}** là ứng viên ưu tiên để kiểm tra trước vì đang có GMV cao trong dữ liệu. "
-                    "Chỉ mở rộng sau khi đối chiếu lãi góp, tồn khả dụng, tỷ lệ lỗi, đánh giá và phễu; hãy thử quy mô nhỏ và đo kết quả thay vì coi đây là dự báo chắc chắn."
+                    f"Trong 30 ngày tới, hãy chọn **{candidate['product_name']}** làm ứng viên **thử nhỏ trước**, không phải SKU để mở rộng ngay: "
+                    f"GMV đã ghi là {int(candidate['gmv_vnd']):,} VND, lãi góp ước tính {int(candidate['estimated_contribution_vnd']):,} VND và tồn khả dụng {candidate['available_units']}. "
+                    "Ứng viên này không có cảnh báo tồn, đánh giá 1–3 sao hoặc lỗi lô trong bộ dữ liệu đã gắn. Trước khi mở rộng, kiểm tra thêm tỷ lệ hoàn và phễu; theo dõi GMV, lãi góp, tồn khả dụng, đánh giá thấp, tỷ lệ lỗi và tỷ lệ xem sang thêm giỏ theo SKU. "
+                    "Kết quả chỉ là sàng lọc từ dữ liệu hiện có, không phải dự báo chắc chắn."
                 )
+            return (
+                "Chưa có SKU nào đủ dữ liệu sạch để ưu tiên trong 30 ngày. Bạn hãy tạo hoặc tải các bảng **Đơn hàng**, **Sản phẩm và giá vốn**, **Tồn kho**, **Đánh giá khách hàng**, **Kiểm tra chất lượng** và **Hiệu quả sản phẩm** theo SKU; sau đó AI mới xếp hạng được mà không bỏ qua một tiêu chí quan trọng."
+            )
         return ""
 
     @staticmethod
     def _data_request_guidance(normalized: str) -> str:
         """Turn missing evidence into an explicit upload/create instruction."""
+        if "tao combo" in normalized or "combo" in normalized:
+            return "Để chọn combo bằng dữ liệu, hãy tạo hoặc tải bảng **Sản phẩm mua cùng** có SKU thứ nhất, SKU thứ hai, số đơn mua cùng và kỳ dữ liệu; đồng thời gắn **Sản phẩm và giá vốn**, **Tồn kho** và **Đơn hàng**."
+        if any(term in normalized for term in ("30 ngay", "tuan nay", "nguy co lo")):
+            return "Để lập ưu tiên vận hành, hãy tạo hoặc tải các bảng **Đơn hàng**, **Sản phẩm và giá vốn**, **Tồn kho**, **Hoàn hàng**, **Chi phí vận hành**, **Đánh giá khách hàng**, **Kiểm tra chất lượng** và **Hiệu quả sản phẩm** theo SKU."
         if any(term in normalized for term in ("quang cao", "roas", "ngan sach")):
             return "Để trả lời bằng số liệu, hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
         if any(term in normalized for term in ("danh gia", "review")):
@@ -917,9 +1033,10 @@ class AgentRunner:
             )
         if "giao dich dien tu" in normalized_question:
             return (
-                "Lịch sử giao dịch điện tử cần được lưu theo cách có thể kiểm tra. Giá trị pháp lý "
-                "của từng giao dịch phụ thuộc điều kiện luật định và tình huống cụ thể, nên Eslabong "
-                "không tự phán quyết hiệu lực hợp đồng."
+                "Giao dịch điện tử có thể được xem xét về giá trị pháp lý khi thông tin thể hiện được nội dung giao dịch, "
+                "có thể truy cập để tham chiếu khi cần và có căn cứ xác định/chứng minh sự chấp thuận của các bên theo tình huống áp dụng. "
+                "Bạn nên lưu: đề nghị hoặc hợp đồng, xác nhận đơn hàng, lịch sử trao đổi, thời điểm giao dịch, hóa đơn/chứng từ thanh toán, chứng từ giao nhận và tài liệu chứng minh thẩm quyền người xác nhận nếu có. "
+                "Giá trị pháp lý của từng giao dịch vẫn phụ thuộc điều kiện luật định và tình huống cụ thể; Eslabong không tự phán quyết hiệu lực hợp đồng. Với giao dịch giá trị cao hoặc tranh chấp, hãy nhờ chuyên gia pháp lý rà soát."
             )
         definitions = {
             "gmv": "GMV là tổng giá trị hàng hóa đã bán trong các đơn được tính, trước khi trừ giảm giá của shop, phí sàn, giá vốn và các chi phí khác. Ví dụ bán 2 sản phẩm giá 250.000 đ thì GMV là 500.000 đ. Vì còn các khoản phải trừ, GMV không phải lợi nhuận.",
