@@ -120,6 +120,12 @@ class Planner:
         "tao combo",
         "nguy co lo",
         "tuan nay",
+        "khuyen mai",
+        "ma giam gia",
+        "gia sau khuyen mai",
+        "quang cao theo sku",
+        "tuoi ton",
+        "lo hang ton",
     )
     # A metric word can be either a request for a definition or a request for
     # the seller's own numbers. Only the latter must have shop data attached.

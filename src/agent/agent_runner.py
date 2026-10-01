@@ -53,6 +53,9 @@ class AgentRunner:
         product_contribution_ranking: dict[str, Any] | None = None
         product_scorecard: dict[str, Any] | None = None
         co_purchase: dict[str, Any] | None = None
+        price_promotions: dict[str, Any] | None = None
+        ads_sku_daily: dict[str, Any] | None = None
+        inventory_batches: dict[str, Any] | None = None
         sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
@@ -97,6 +100,15 @@ class AgentRunner:
                 if "advertising" in analysis_tags:
                     advertising = self.shop_data_tool.advertising_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": advertising})
+                if "price_promotions" in analysis_tags:
+                    price_promotions = self.shop_data_tool.price_promotion_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": price_promotions})
+                if "ads_sku_daily" in analysis_tags:
+                    ads_sku_daily = self.shop_data_tool.ads_sku_daily_summary(plan.period)
+                    trace.append({"tool": "shop_data", "status": "ok", "result": ads_sku_daily})
+                if "inventory_batches" in analysis_tags:
+                    inventory_batches = self.shop_data_tool.inventory_batch_age_summary()
+                    trace.append({"tool": "shop_data", "status": "ok", "result": inventory_batches})
                 if asks_product_demand and product_gmv_ranking is None:
                     product_gmv_ranking = self.shop_data_tool.product_gmv_ranking(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": product_gmv_ranking})
@@ -206,6 +218,9 @@ class AgentRunner:
             product_contribution_ranking=product_contribution_ranking,
             product_scorecard=product_scorecard,
             co_purchase=co_purchase,
+            price_promotions=price_promotions,
+            ads_sku_daily=ads_sku_daily,
+            inventory_batches=inventory_batches,
             sales_period_comparison=sales_period_comparison,
             ranking=ranking,
             citations=citations,
@@ -283,14 +298,22 @@ class AgentRunner:
             tags.add("inventory")
         if any(term in normalized for term in ("ton lau", "it ban", "cham ban")):
             tags.add("slow_inventory")
+            tags.add("inventory_batches")
         if any(term in normalized for term in ("san pham ban tot", "san pham nao ban tot", "nhap nhieu hon")):
             tags.add("product_demand")
         if any(term in normalized for term in ("quang cao", "roas", "ads")):
             tags.add("advertising")
+        if any(term in normalized for term in ("khuyen mai", "ma giam gia", "gia sau khuyen mai", "gia cuoi")):
+            tags.add("price_promotions")
+        if any(term in normalized for term in ("quang cao theo sku", "quang cao tung san pham", "sku nao nen tang ngan sach")):
+            tags.add("ads_sku_daily")
+        if any(term in normalized for term in ("tuoi ton", "ton theo lo", "lo hang ton", "lo ton lau")):
+            tags.add("inventory_batches")
         if any(term in normalized for term in ("giam gia", "dieu chinh gia", "gia ban")) and any(
             term in normalized for term in ("nen", "co nen", "the nao", "toan bo")
         ):
             tags.add("price_strategy")
+            tags.add("price_promotions")
         if any(term in normalized for term in ("nhap bao nhieu", "nhap nhieu hon", "nhap them", "nhap hang")):
             tags.add("restock_strategy")
             tags.add("quality")
@@ -298,6 +321,7 @@ class AgentRunner:
             term in normalized for term in ("nen", "co nen", "hieu qua", "tang")
         ):
             tags.add("ad_strategy")
+            tags.add("ads_sku_daily")
         if any(term in normalized for term in ("loi nhuan", "lo von", "gia von", "lai sau chi phi van hanh", "nguy co lo")):
             tags.add("profitability")
         if any(term in normalized for term in ("hang hoan", "hoan hang", "ly do hoan")):
@@ -387,6 +411,9 @@ class AgentRunner:
         product_contribution_ranking: dict[str, Any] | None,
         product_scorecard: dict[str, Any] | None,
         co_purchase: dict[str, Any] | None,
+        price_promotions: dict[str, Any] | None,
+        ads_sku_daily: dict[str, Any] | None,
+        inventory_batches: dict[str, Any] | None,
         sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
         citations: list[dict[str, str]],
@@ -427,11 +454,19 @@ class AgentRunner:
             slow_inventory=slow_inventory,
             product_scorecard=product_scorecard,
             co_purchase=co_purchase,
+            price_promotions=price_promotions,
+            ads_sku_daily=ads_sku_daily,
+            inventory_batches=inventory_batches,
         )
         # Put the direct answer or bounded next step first; supporting metrics follow.
         if action_answer and not knowledge_answer:
             sections.append(action_answer)
-        if action_answer and "strategy" in (analysis_tags or set()):
+        if action_answer and (
+            "strategy" in (analysis_tags or set())
+            or "slow_inventory" in (analysis_tags or set())
+            or asks_price_strategy
+            or asks_ad_strategy
+        ):
             return action_answer
         if product_gmv_ranking:
             top_product = product_gmv_ranking["top_product"]
@@ -510,6 +545,41 @@ class AgentRunner:
                     roas=float(advertising["roas"]),
                 )
             )
+        if price_promotions:
+            product = price_promotions.get("largest_discount_product")
+            if product:
+                sections.append(
+                    "Giá–khuyến mãi đã ghi của **{name}** có mức giảm bình quân {rate:.2f}%: giá niêm yết bình quân {listed:,} VND, giá cuối bình quân {final:,} VND. {limitation}".format(
+                        name=product["product_name"], rate=product["average_discount_percent"] or 0,
+                        listed=int(product["average_list_price_vnd"]), final=int(product["average_final_price_vnd"]),
+                        limitation=str(price_promotions["limitation"]),
+                    )
+                )
+            else:
+                sections.append("Chưa có bản ghi giá và khuyến mãi trong kỳ được hỏi. Hãy tạo hoặc tải bảng **Giá và khuyến mãi theo SKU**.")
+        if ads_sku_daily:
+            product = ads_sku_daily.get("top_roas_product")
+            if product:
+                roas_text = "—" if product["roas"] is None else f"{product['roas']:.2f}"
+                sections.append(
+                    "Theo bảng quảng cáo theo SKU, **{name}** có ROAS đã ghi cao nhất là {roas_text}, chi {spend:,} VND và doanh thu quy gán {revenue:,} VND. {limitation}".format(
+                        name=product["product_name"], roas_text=roas_text, spend=int(product["spend_vnd"]),
+                        revenue=int(product["attributed_revenue_vnd"]), limitation=str(ads_sku_daily["limitation"]),
+                    )
+                )
+            else:
+                sections.append("Chưa có bản ghi quảng cáo theo SKU/ngày trong kỳ được hỏi. Hãy tạo hoặc tải bảng **Quảng cáo theo SKU/ngày**.")
+        if inventory_batches:
+            batch = inventory_batches.get("oldest_batch")
+            if batch:
+                sections.append(
+                    "Lô tồn lâu nhất đã ghi là **{batch_id}** của **{name}**, nhập ngày {received}, còn {units} sản phẩm và đã nằm {age} ngày. {limitation}".format(
+                        batch_id=batch["batch_id"], name=batch["product_name"], received=batch["received_date"],
+                        units=batch["available_units"], age=batch["age_days"], limitation=str(inventory_batches["limitation"]),
+                    )
+                )
+            else:
+                sections.append("Chưa có dữ liệu tuổi tồn theo lô. Hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**.")
         elif advertising:
             sections.append(
                 "Không tìm thấy bản ghi quảng cáo cho kỳ {period} trong ads.csv, "
@@ -727,6 +797,9 @@ class AgentRunner:
         slow_inventory: dict[str, Any] | None,
         product_scorecard: dict[str, Any] | None,
         co_purchase: dict[str, Any] | None,
+        price_promotions: dict[str, Any] | None,
+        ads_sku_daily: dict[str, Any] | None,
+        inventory_batches: dict[str, Any] | None,
     ) -> str:
         """Give a bounded next step for recommendation questions.
 
@@ -734,12 +807,19 @@ class AgentRunner:
         it names the evidence used and the smallest reversible test.
         """
         if asks_price_strategy:
-            if profitability is None:
+            if profitability is None or price_promotions is None:
                 return AgentRunner._data_request_guidance(normalized)
+            observed = price_promotions.get("largest_discount_product")
+            observation = (
+                f" Với **{observed['product_name']}**, mức giảm bình quân đã ghi là {observed['average_discount_percent'] or 0:.2f}% "
+                f"(giá cuối bình quân {int(observed['average_final_price_vnd']):,} VND)."
+                if observed else ""
+            )
             return (
                 "Chưa có cơ sở để giảm giá toàn bộ sản phẩm. Hãy chọn 1–2 SKU có lãi góp dương, "
                 "thử ưu đãi nhỏ trong thời gian ngắn, rồi so sánh số đơn, doanh thu sau phí và lãi góp "
                 "với kỳ trước; nếu biên lãi không chịu được thì dừng thử nghiệm."
+                + observation
             )
         if "cash_explanation" in analysis_tags:
             return (
@@ -759,7 +839,7 @@ class AgentRunner:
                 "Muốn tính số lượng cụ thể, hãy tạo hoặc tải thêm bảng **Đơn nhập hàng** có ngày dự kiến về và giá nhập."
             )
         if asks_ad_strategy:
-            if advertising is None:
+            if advertising is None or ads_sku_daily is None:
                 return AgentRunner._data_request_guidance(normalized)
             roas = float(advertising.get("roas") or 0)
             stock_check = (
@@ -845,9 +925,25 @@ class AgentRunner:
                 "—" if rate is None else f"{float(rate):.2f}", quality.get("defective_unit_count", 0), quality.get("inspected_unit_count", 0)
             )
         if "slow_inventory" in analysis_tags and "strategy" not in analysis_tags:
+            batch = inventory_batches.get("oldest_batch") if inventory_batches else None
+            batch_text = (
+                f" Lô nằm lâu nhất đã ghi là {batch['batch_id']} ({batch['product_name']}), còn {batch['available_units']} sản phẩm sau {batch['age_days']} ngày."
+                if batch else ""
+            )
+            slow_rows = slow_inventory.get("candidates", []) if slow_inventory else []
+            slow_text = (
+                " Theo số liệu bán–tồn, cần kiểm tra trước: "
+                + ", ".join(
+                    f"{row['product_name']} (đã bán {row['sold_units']}, còn {row['available_units']})"
+                    for row in slow_rows[:3]
+                )
+                + "."
+                if slow_rows else ""
+            )
             return (
                 "Hàng tồn lâu và bán chậm chưa nên giảm giá ngay. Hãy kiểm tra ảnh, mô tả, giá, đánh giá, nhu cầu và số ngày tồn; "
-                "nếu cần xả hàng, chỉ thử ưu đãi nhỏ hoặc combo trên một SKU trước. Muốn tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Biến động kho**."
+                "nếu cần xả hàng, chỉ thử ưu đãi nhỏ hoặc combo trên một SKU trước. Muốn tính chính xác số ngày tồn, hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**."
+                + slow_text + batch_text
             )
         if "inventory" in analysis_tags and "sap het" in normalized:
             return (
@@ -966,8 +1062,12 @@ class AgentRunner:
             return "Để chọn combo bằng dữ liệu, hãy tạo hoặc tải bảng **Sản phẩm mua cùng** có SKU thứ nhất, SKU thứ hai, số đơn mua cùng và kỳ dữ liệu; đồng thời gắn **Sản phẩm và giá vốn**, **Tồn kho** và **Đơn hàng**."
         if any(term in normalized for term in ("30 ngay", "tuan nay", "nguy co lo")):
             return "Để lập ưu tiên vận hành, hãy tạo hoặc tải các bảng **Đơn hàng**, **Sản phẩm và giá vốn**, **Tồn kho**, **Hoàn hàng**, **Chi phí vận hành**, **Đánh giá khách hàng**, **Kiểm tra chất lượng** và **Hiệu quả sản phẩm** theo SKU."
+        if any(term in normalized for term in ("quang cao theo sku", "quang cao tung san pham", "sku nao nen tang ngan sach")):
+            return "Để so sánh quảng cáo theo sản phẩm, hãy tạo hoặc tải bảng **Quảng cáo theo SKU/ngày** có ngày, mã chiến dịch, SKU, lượt hiển thị, lượt nhấp, chi quảng cáo, thêm giỏ, đơn và doanh thu quy gán."
         if any(term in normalized for term in ("quang cao", "roas", "ngan sach")):
-            return "Để trả lời bằng số liệu, hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
+            return "Để trả lời bằng số liệu, hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Quảng cáo theo SKU/ngày**, **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
+        if any(term in normalized for term in ("khuyen mai", "ma giam gia", "gia sau khuyen mai")):
+            return "Để đối chiếu giá đã áp dụng, hãy tạo hoặc tải bảng **Giá và khuyến mãi theo SKU** có ngày, SKU, giá niêm yết, giá sau khuyến mãi, giảm giá người bán và nguồn mã giảm giá."
         if any(term in normalized for term in ("danh gia", "review")):
             return "Để phân tích đánh giá, hãy tạo hoặc tải bảng **Đánh giá khách hàng**; nên có ngày đánh giá, số sao và vấn đề khách nêu."
         if any(term in normalized for term in ("lo hang", "ty le loi", "chat luong")):
@@ -976,8 +1076,10 @@ class AgentRunner:
             return "Để phân tích dòng tiền, hãy tạo hoặc tải bảng **Dòng tiền** và **Đơn nhập hàng** có ngày thu, ngày chi, nhóm chi và số tiền."
         if any(term in normalized for term in ("luot xem", "them gio", "dat mua", "chot don")):
             return "Để phân tích chuyển đổi, hãy tạo hoặc tải bảng **Hiệu quả sản phẩm** có lượt xem, lượt thêm giỏ và số đơn theo từng SKU."
+        if any(term in normalized for term in ("tuoi ton", "ton theo lo", "lo hang ton", "lo ton lau")):
+            return "Để tính tuổi tồn theo lô, hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô** có mã lô, SKU, ngày nhập kho, số lượng còn lại và giá vốn đơn vị."
         if any(term in normalized for term in ("ton kho", "sap het", "ton lau", "nhap hang", "nhap them")):
-            return "Để phân tích, hãy tạo hoặc tải bảng **Tồn kho**, **Sản phẩm** và **Đơn hàng**; nếu hỏi lượng nhập, thêm **Đơn nhập hàng** và thời gian giao dự kiến."
+            return "Để phân tích, hãy tạo hoặc tải bảng **Tồn kho**, **Sản phẩm** và **Đơn hàng**; nếu cần biết hàng nằm bao lâu, thêm **Tuổi tồn kho theo lô**; nếu hỏi lượng nhập, thêm **Đơn nhập hàng** và thời gian giao dự kiến."
         if any(term in normalized for term in ("giam gia", "gia ban", "lai", "loi nhuan")):
             return "Để đánh giá phương án, hãy tạo hoặc tải bảng **Sản phẩm và giá vốn**, **Đơn hàng** và **Tồn kho**."
         return "Để trả lời câu hỏi này bằng tình hình shop, hãy tạo hoặc tải bộ dữ liệu gồm **Đơn hàng**, **Sản phẩm** và **Tồn kho**."
@@ -1005,7 +1107,11 @@ class AgentRunner:
                 "Không. Khi chưa có bảng **Quảng cáo**, Eslabong không tự đoán ROAS hoặc chi phí quảng cáo. Hãy tạo hoặc tải bảng Quảng cáo có chi tiêu, doanh thu quy gán và số đơn quy gán; "
                 "nếu thiếu dữ liệu, AI chỉ nên nêu phần còn thiếu."
             )
-        if "sku" in normalized_question:
+        is_definition_question = any(
+            cue in normalized_question
+            for cue in ("la gi", "nghia la gi", "giai thich", "vi du", "khac gi", "co phai")
+        )
+        if "sku" in normalized_question and is_definition_question:
             if "vi du" in normalized_question:
                 return (
                     "**Ví dụ SKU:** một áo thun cùng mẫu nhưng khác màu và size cần mã khác nhau: "

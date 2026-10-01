@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
@@ -194,6 +195,46 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertIsNotNone(bundle["paired_available_units"])
         self.assertLess(bundle["trial_price_vnd"], bundle["combined_list_price_vnd"])
         self.assertGreater(bundle["trial_price_vnd"], bundle["combined_cost_vnd"])
+
+    def test_new_price_ads_and_inventory_age_tables_support_sku_level_analysis(self) -> None:
+        tool = ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001))
+
+        prices = tool.price_promotion_summary("2026-08")
+        ads = tool.ads_sku_daily_summary("2026-08")
+        batches = tool.inventory_batch_age_summary()
+
+        self.assertGreater(prices["product_count"], 0)
+        self.assertIsNotNone(prices["largest_discount_product"])
+        self.assertGreater(ads["product_count"], 0)
+        self.assertIsNotNone(ads["top_roas_product"])
+        self.assertGreater(batches["batch_count"], 0)
+        self.assertIsNotNone(batches["oldest_batch"])
+
+    def test_new_tables_accept_vietnamese_no_accent_headers(self) -> None:
+        files = {
+            name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
+            for name in ("orders.csv", "products.csv", "inventory.csv")
+        }
+        files.update({
+            "price_promotions.csv": (
+                "ngay,ma_san_pham,gia_niem_yet_vnd,gia_sau_khuyen_mai,giam_gia_nguoi_ban_vnd,nguon_ma_giam_gia,ten_chuong_trinh\n"
+                "2026-08-10,SKU-001,100000,90000,10000,Ma nguoi ban,Uu dai thu\n"
+            ).encode(),
+            "ads_sku_daily.csv": (
+                "ngay,ma_chien_dich,ma_san_pham,luot_hien_thi,luot_nhap,chi_quang_cao_vnd,luot_them_gio,so_don_quy_gan,doanh_thu_quy_gan_vnd\n"
+                "2026-08-10,ADS-1,SKU-001,100,10,10000,3,1,50000\n"
+            ).encode(),
+            "inventory_batches.csv": (
+                "ma_lo,ma_san_pham,ngay_nhap_kho,so_luong_con_lai,gia_von_don_vi_vnd\n"
+                "LO-1,SKU-001,2026-06-01,12,50000\n"
+            ).encode(),
+        })
+
+        tool = ShopDataTool.from_uploaded_files(files)
+
+        self.assertEqual(tool.price_promotion_summary("2026-08")["product_count"], 1)
+        self.assertEqual(tool.ads_sku_daily_summary("2026-08")["top_roas_product"]["roas"], 5.0)
+        self.assertEqual(tool.inventory_batch_age_summary(date.fromisoformat("2026-10-01"))["oldest_batch"]["age_days"], 122)
 
     def test_scorecard_keeps_missing_sku_evidence_visible(self) -> None:
         rows = build_demo_rows(seed=7)
@@ -421,7 +462,14 @@ class CalculatorAndRunnerTests(unittest.TestCase):
     def test_slow_inventory_answer_exposes_age_data_limit_and_next_upload(self) -> None:
         result = AgentRunner().run("Hàng nào tồn lâu mà ít bán?")
         self.assertIn("Giá đỡ điện thoại", result["answer"])
-        self.assertIn("Biến động kho", result["answer"])
+        self.assertIn("Tuổi tồn kho theo lô", result["answer"])
+
+    def test_sku_analysis_question_does_not_fall_back_to_sku_definition(self) -> None:
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
+        answer = runner.run("Giá khuyến mãi SKU nào đang giảm nhiều nhất?")["answer"]
+
+        self.assertIn("Giá–khuyến mãi đã ghi", answer)
+        self.assertNotIn("SKU là mã riêng", answer)
 
     def test_operational_question_bank_uses_topic_routing_and_bounded_advice(self) -> None:
         """Regression coverage for the shared question-bank failure patterns."""

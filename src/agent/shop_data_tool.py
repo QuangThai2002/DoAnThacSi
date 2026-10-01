@@ -146,13 +146,40 @@ REQUIRED_UPLOAD_COLUMNS = {
         "paired_sku",
         "joint_order_count",
     },
+    "price_promotions.csv": {
+        "date",
+        "sku",
+        "list_price_vnd",
+        "final_price_vnd",
+        "seller_discount_vnd",
+        "voucher_source",
+        "campaign_name",
+    },
+    "ads_sku_daily.csv": {
+        "date",
+        "campaign_id",
+        "sku",
+        "impressions",
+        "clicks",
+        "spend_vnd",
+        "add_to_cart_count",
+        "attributed_orders",
+        "attributed_revenue_vnd",
+    },
+    "inventory_batches.csv": {
+        "batch_id",
+        "sku",
+        "received_date",
+        "available_units",
+        "unit_cost_vnd",
+    },
 }
 REQUIRED_UPLOAD_FILES = frozenset({"orders.csv", "products.csv", "inventory.csv"})
 OPTIONAL_UPLOAD_FILES = frozenset({
     "ads.csv", "purchase_orders.csv", "returns.csv", "reviews.csv",
     "operating_costs.csv", "inventory_movements.csv", "quality_checks.csv",
     "cash_flow.csv", "supplier_performance.csv", "customer_segments.csv", "product_funnel.csv",
-    "co_purchase.csv",
+    "co_purchase.csv", "price_promotions.csv", "ads_sku_daily.csv", "inventory_batches.csv",
 })
 MAX_UPLOADED_CSV_BYTES = 10 * 1024 * 1024
 
@@ -177,6 +204,12 @@ WORKBOOK_SHEET_FILE_NAMES = {
     "hieu_qua_tung_san_pham": "product_funnel.csv",
     "hieu_qua_san_pham": "product_funnel.csv",
     "san_pham_mua_cung": "co_purchase.csv",
+    "gia_khuyen_mai": "price_promotions.csv",
+    "gia_va_khuyen_mai": "price_promotions.csv",
+    "quang_cao_theo_sku": "ads_sku_daily.csv",
+    "quang_cao_sku_ngay": "ads_sku_daily.csv",
+    "tuoi_ton_kho": "inventory_batches.csv",
+    "lo_hang_ton_kho": "inventory_batches.csv",
 }
 
 
@@ -266,6 +299,26 @@ VIETNAMESE_COLUMN_ALIASES: dict[str, dict[str, tuple[str, ...]]] = {
         "month": ("thang",), "sku": ("ma_sku", "ma_san_pham"),
         "paired_sku": ("ma_san_pham_mua_cung", "ma_sku_mua_cung"),
         "joint_order_count": ("so_don_mua_cung",),
+    },
+    "price_promotions.csv": {
+        "date": ("ngay", "ngay_ap_dung"), "sku": ("ma_sku", "ma_san_pham"),
+        "list_price_vnd": ("gia_niem_yet", "gia_niem_yet_vnd"),
+        "final_price_vnd": ("gia_sau_khuyen_mai", "gia_cuoi", "gia_thanh_toan"),
+        "seller_discount_vnd": ("giam_gia_nguoi_ban", "giam_gia_nguoi_ban_vnd"),
+        "voucher_source": ("nguon_ma_giam_gia", "nguon_voucher"),
+        "campaign_name": ("ten_chuong_trinh", "ten_chien_dich"),
+    },
+    "ads_sku_daily.csv": {
+        "date": ("ngay",), "campaign_id": ("ma_chien_dich",), "sku": ("ma_sku", "ma_san_pham"),
+        "impressions": ("luot_hien_thi",), "clicks": ("luot_nhap", "luot_click"),
+        "spend_vnd": ("chi_quang_cao", "chi_quang_cao_vnd"),
+        "add_to_cart_count": ("luot_them_gio",), "attributed_orders": ("so_don_quy_gan", "so_don_tu_quang_cao"),
+        "attributed_revenue_vnd": ("doanh_thu_quy_gan", "doanh_thu_quy_gan_vnd"),
+    },
+    "inventory_batches.csv": {
+        "batch_id": ("ma_lo", "ma_lo_hang"), "sku": ("ma_sku", "ma_san_pham"),
+        "received_date": ("ngay_nhap_kho", "ngay_nhan_hang"), "available_units": ("so_luong_con_lai", "ton_kha_dung"),
+        "unit_cost_vnd": ("gia_von_don_vi", "gia_von_don_vi_vnd"),
     },
 }
 
@@ -476,6 +529,9 @@ class ShopDataTool:
             "inventory_movements.csv": "movement_date",
             "quality_checks.csv": "check_date",
             "cash_flow.csv": "date",
+            "price_promotions.csv": "date",
+            "ads_sku_daily.csv": "date",
+            "inventory_batches.csv": "received_date",
         }.get(name)
         if date_column:
             for row in rows:
@@ -692,6 +748,24 @@ class ShopDataTool:
                     date.fromisoformat(f"{row['month']}-01")
                     if row["sku"] == row["paired_sku"] or int(row["joint_order_count"]) < 0:
                         raise ValueError("invalid co-purchase values")
+                elif name == "price_promotions.csv":
+                    date.fromisoformat(row["date"])
+                    list_price = as_decimal(row["list_price_vnd"])
+                    final_price = as_decimal(row["final_price_vnd"])
+                    discount = as_decimal(row["seller_discount_vnd"])
+                    if min(list_price, final_price, discount) < 0 or final_price > list_price:
+                        raise ValueError("invalid price or discount")
+                elif name == "ads_sku_daily.csv":
+                    date.fromisoformat(row["date"])
+                    values = [int(row[column]) for column in ("impressions", "clicks", "add_to_cart_count", "attributed_orders")]
+                    if any(value < 0 for value in values) or values[1] > values[0] or values[2] > values[1] or values[3] > values[2]:
+                        raise ValueError("invalid advertising funnel values")
+                    if as_decimal(row["spend_vnd"]) < 0 or as_decimal(row["attributed_revenue_vnd"]) < 0:
+                        raise ValueError("invalid advertising amounts")
+                elif name == "inventory_batches.csv":
+                    date.fromisoformat(row["received_date"])
+                    if int(row["available_units"]) < 0 or as_decimal(row["unit_cost_vnd"]) < 0:
+                        raise ValueError("invalid inventory batch values")
             except (InvalidOperation, ValueError) as exc:
                 raise ShopDataValidationError(
                     f"{name}, dòng {row_number} có ngày hoặc số không hợp lệ."
@@ -1248,6 +1322,103 @@ class ShopDataTool:
             "best_pair": candidates[0] if candidates else None,
             "pairs": candidates[:10],
             "limitation": "Số đơn mua cùng chỉ là hành vi đã ghi nhận; cần kiểm tra lãi góp, tồn và hoàn hàng trước khi thử combo.",
+        }
+
+    def price_promotion_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Show observed final prices without treating a discount as a causal result."""
+        products = {row["sku"]: row["product_name"] for row in self._read_csv("products.csv")}
+        rows = [
+            row for row in self._read_csv("price_promotions.csv")
+            if period is None or row["date"].startswith(period)
+        ]
+        grouped: dict[str, list[dict[str, str]]] = {}
+        for row in rows:
+            grouped.setdefault(row["sku"], []).append(row)
+        summaries = []
+        for sku, entries in grouped.items():
+            list_total = sum((as_decimal(row["list_price_vnd"]) for row in entries), Decimal("0"))
+            final_total = sum((as_decimal(row["final_price_vnd"]) for row in entries), Decimal("0"))
+            seller_discount = sum((as_decimal(row["seller_discount_vnd"]) for row in entries), Decimal("0"))
+            count = len(entries)
+            summaries.append({
+                "sku": sku,
+                "product_name": products.get(sku, sku),
+                "record_count": count,
+                "average_list_price_vnd": as_number(list_total / count),
+                "average_final_price_vnd": as_number(final_total / count),
+                "average_seller_discount_vnd": as_number(seller_discount / count),
+                "average_discount_percent": round(float((list_total - final_total) / list_total * 100), 2) if list_total else None,
+                "voucher_sources": sorted({row["voucher_source"] for row in entries}),
+            })
+        summaries.sort(key=lambda item: (-item["average_discount_percent"] if item["average_discount_percent"] is not None else 0, item["product_name"]))
+        return {
+            "tool": "shop_data.price_promotion_summary",
+            "data_scope": self.data_scope,
+            "period": period or "all_available_periods",
+            "product_count": len(summaries),
+            "products": summaries,
+            "largest_discount_product": summaries[0] if summaries else None,
+            "limitation": "Bảng ghi giá đã áp dụng; không tự chứng minh giảm giá là nguyên nhân làm tăng đơn hoặc lợi nhuận.",
+        }
+
+    def ads_sku_daily_summary(self, period: str | None = None) -> dict[str, Any]:
+        """Aggregate advertising by SKU so budget decisions are not based on campaign totals alone."""
+        products = {row["sku"]: row["product_name"] for row in self._read_csv("products.csv")}
+        rows = [
+            row for row in self._read_csv("ads_sku_daily.csv")
+            if period is None or row["date"].startswith(period)
+        ]
+        grouped: dict[str, dict[str, Decimal | int]] = {}
+        for row in rows:
+            values = grouped.setdefault(row["sku"], {"impressions": 0, "clicks": 0, "spend": Decimal("0"), "carts": 0, "orders": 0, "revenue": Decimal("0")})
+            values["impressions"] = int(values["impressions"]) + int(row["impressions"])
+            values["clicks"] = int(values["clicks"]) + int(row["clicks"])
+            values["spend"] = Decimal(str(values["spend"])) + as_decimal(row["spend_vnd"])
+            values["carts"] = int(values["carts"]) + int(row["add_to_cart_count"])
+            values["orders"] = int(values["orders"]) + int(row["attributed_orders"])
+            values["revenue"] = Decimal(str(values["revenue"])) + as_decimal(row["attributed_revenue_vnd"])
+        summaries = []
+        for sku, values in grouped.items():
+            impressions, clicks = int(values["impressions"]), int(values["clicks"])
+            carts, orders = int(values["carts"]), int(values["orders"])
+            spend, revenue = Decimal(str(values["spend"])), Decimal(str(values["revenue"]))
+            summaries.append({
+                "sku": sku, "product_name": products.get(sku, sku),
+                "impressions": impressions, "clicks": clicks, "add_to_cart_count": carts, "attributed_orders": orders,
+                "spend_vnd": as_number(spend), "attributed_revenue_vnd": as_number(revenue),
+                "ctr_percent": round((clicks / impressions) * 100, 2) if impressions else None,
+                "click_to_cart_rate_percent": round((carts / clicks) * 100, 2) if clicks else None,
+                "roas": round(float(revenue / spend), 2) if spend else None,
+            })
+        summaries.sort(key=lambda item: (item["roas"] is None, -(item["roas"] or 0), -item["attributed_revenue_vnd"]))
+        return {
+            "tool": "shop_data.ads_sku_daily_summary", "data_scope": self.data_scope,
+            "period": period or "all_available_periods", "product_count": len(summaries),
+            "products": summaries, "top_roas_product": summaries[0] if summaries else None,
+            "limitation": "ROAS theo SKU là doanh thu quy gán trên chi quảng cáo đã ghi; vẫn cần kiểm tra giá vốn, phí, hoàn hàng và tồn trước khi đổi ngân sách.",
+        }
+
+    def inventory_batch_age_summary(self, as_of: date | None = None) -> dict[str, Any]:
+        """Surface batches that have been held longest, using recorded receipt dates."""
+        reference_date = as_of or date.today()
+        products = {row["sku"]: row["product_name"] for row in self._read_csv("products.csv")}
+        batches = []
+        for row in self._read_csv("inventory_batches.csv"):
+            received = date.fromisoformat(row["received_date"])
+            units = int(row["available_units"])
+            batches.append({
+                "batch_id": row["batch_id"], "sku": row["sku"], "product_name": products.get(row["sku"], row["sku"]),
+                "received_date": row["received_date"], "available_units": units,
+                "unit_cost_vnd": as_number(as_decimal(row["unit_cost_vnd"])),
+                "age_days": max(0, (reference_date - received).days),
+            })
+        batches.sort(key=lambda item: (-item["age_days"], -item["available_units"], item["batch_id"]))
+        oldest = batches[0] if batches else None
+        return {
+            "tool": "shop_data.inventory_batch_age_summary", "data_scope": self.data_scope,
+            "as_of_date": reference_date.isoformat(), "batch_count": len(batches),
+            "batches": batches[:20], "oldest_batch": oldest,
+            "limitation": "Tuổi tồn được tính từ ngày nhập của các lô đã ghi và số lượng còn lại; chưa thay thế kiểm kê hoặc xác định nguyên nhân bán chậm.",
         }
 
     def returns_summary(self, period: str | None = None) -> dict[str, Any]:

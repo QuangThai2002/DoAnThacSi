@@ -228,6 +228,9 @@ def build_demo_rows(
     customer_segments: list[dict[str, str]] = []
     product_funnel: list[dict[str, str]] = []
     co_purchase: list[dict[str, str]] = []
+    price_promotions: list[dict[str, str]] = []
+    ads_sku_daily: list[dict[str, str]] = []
+    inventory_batches: list[dict[str, str]] = []
     wanted_ids = set(selected_category_ids) if selected_category_ids is not None else None
     selected_categories = [
         category for category in DEMO_CATEGORY_SEEDS
@@ -255,6 +258,11 @@ def build_demo_rows(
             inventory.append({
                 "sku": sku, "on_hand": str(max(available + reserved, 0)), "reserved": str(reserved),
                 "reorder_point": str(reorder_point), "last_updated": "2026-09-28",
+            })
+            inventory_batches.append({
+                "batch_id": f"LO-{category_index:02d}{product_index:02d}-A", "sku": sku,
+                "received_date": f"2026-{max(1, 9 - (product_index % 5)):02d}-{5 + product_index:02d}",
+                "available_units": str(max(1, available)), "unit_cost_vnd": str(cost),
             })
             purchase_orders.append({
                 "purchase_order_id": f"PO-{category_index:02d}{product_index:02d}",
@@ -347,6 +355,25 @@ def build_demo_rows(
                 product_funnel.append({
                     "month": period, "sku": sku, "views": str(views),
                     "add_to_cart_count": str(carts), "order_count": str(funnel_orders),
+                })
+                final_price = max(0, list_price - int(list_price * rng.choice((0, 0.03, 0.05, 0.08))))
+                price_promotions.append({
+                    "date": f"{period}-{rng.randint(1, 27):02d}", "sku": sku,
+                    "list_price_vnd": str(list_price), "final_price_vnd": str(final_price),
+                    "seller_discount_vnd": str(list_price - final_price),
+                    "voucher_source": "Mã người bán" if final_price < list_price else "Không áp dụng",
+                    "campaign_name": "Ưu đãi theo tháng" if final_price < list_price else "Giá thường",
+                })
+                impressions = rng.randint(120, 1800)
+                clicks = rng.randint(max(1, int(impressions * 0.015)), max(2, int(impressions * 0.09)))
+                ad_carts = rng.randint(0, max(1, int(clicks * 0.28)))
+                ad_orders = rng.randint(0, min(ad_carts, max(1, int(ad_carts * 0.5))))
+                spend = rng.randrange(15_000, 95_000, 1_000)
+                ads_sku_daily.append({
+                    "date": f"{period}-{rng.randint(1, 27):02d}", "campaign_id": f"ADS-SKU-{period.replace('-', '')}-{category_index:02d}",
+                    "sku": sku, "impressions": str(impressions), "clicks": str(clicks),
+                    "spend_vnd": str(spend), "add_to_cart_count": str(ad_carts), "attributed_orders": str(ad_orders),
+                    "attributed_revenue_vnd": str(int(spend * rng.uniform(1.4, 5.0))),
                 })
 
     # The demo has an explicit aggregate table for products that occurred in
@@ -453,6 +480,9 @@ def build_demo_rows(
         "customer_segments.csv": customer_segments,
         "product_funnel.csv": product_funnel,
         "co_purchase.csv": co_purchase,
+        "price_promotions.csv": price_promotions,
+        "ads_sku_daily.csv": ads_sku_daily,
+        "inventory_batches.csv": inventory_batches,
     }
 
 

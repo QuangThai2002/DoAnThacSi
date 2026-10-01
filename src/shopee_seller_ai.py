@@ -1245,6 +1245,21 @@ TABLE_SPECS = {
         "help": "Ghi số đơn đã mua cùng một cặp sản phẩm theo kỳ. AI chỉ dùng bảng này để chọn cặp đáng thử, không cam kết combo sẽ tăng doanh số.",
         "columns": ["month", "sku", "paired_sku", "joint_order_count"],
     },
+    "price_promotions.csv": {
+        "title": "Giá và khuyến mãi theo SKU (tùy chọn)",
+        "help": "Ghi giá niêm yết, giá cuối và nguồn mã giảm giá theo ngày để AI phân biệt số liệu đã xảy ra với khuyến nghị thử nghiệm.",
+        "columns": ["date", "sku", "list_price_vnd", "final_price_vnd", "seller_discount_vnd", "voucher_source", "campaign_name"],
+    },
+    "ads_sku_daily.csv": {
+        "title": "Quảng cáo theo SKU/ngày (tùy chọn)",
+        "help": "Ghi hiệu quả theo từng SKU thay vì chỉ tổng chiến dịch. Không nhập dữ liệu định danh khách hàng.",
+        "columns": ["date", "campaign_id", "sku", "impressions", "clicks", "spend_vnd", "add_to_cart_count", "attributed_orders", "attributed_revenue_vnd"],
+    },
+    "inventory_batches.csv": {
+        "title": "Tuổi tồn kho theo lô (tùy chọn)",
+        "help": "Ghi ngày nhập và số còn lại của từng lô để AI cảnh báo hàng nằm lâu; vẫn cần kiểm kê thực tế trước khi xử lý hàng.",
+        "columns": ["batch_id", "sku", "received_date", "available_units", "unit_cost_vnd"],
+    },
 }
 COLUMN_LABELS = {
     "order_id": "Mã đơn", "order_date": "Ngày đặt", "status": "Trạng thái", "sku": "Mã SKU",
@@ -1269,6 +1284,9 @@ COLUMN_LABELS = {
     "segment_name": "Nhóm khách", "customer_count": "Số khách", "repeat_order_count": "Đơn mua lại", "gmv_vnd": "GMV (VND)",
     "views": "Lượt xem", "add_to_cart_count": "Lượt thêm giỏ", "order_count": "Số đơn",
     "paired_sku": "Mã sản phẩm mua cùng", "joint_order_count": "Số đơn mua cùng",
+    "batch_id": "Mã lô", "received_date": "Ngày nhập kho", "available_units": "Số lượng còn lại",
+    "final_price_vnd": "Giá sau khuyến mãi (VND)", "voucher_source": "Nguồn mã giảm giá", "campaign_name": "Tên chương trình",
+    "impressions": "Lượt hiển thị", "clicks": "Lượt nhấp", "attributed_orders": "Số đơn quy gán",
 }
 
 # Các mẫu dùng tiếng Việt không dấu để người dùng có thể tự lập bảng trong
@@ -1297,6 +1315,8 @@ EXCEL_SHEET_NAMES = {
     "cash_flow.csv": "Dong tien", "supplier_performance.csv": "Nha cung cap",
     "customer_segments.csv": "Nhom khach hang", "product_funnel.csv": "Hieu qua san pham",
     "co_purchase.csv": "San pham mua cung",
+    "price_promotions.csv": "Gia khuyen mai", "ads_sku_daily.csv": "Quang cao SKU ngay",
+    "inventory_batches.csv": "Tuoi ton kho",
 }
 
 
@@ -2627,6 +2647,9 @@ def render_data_upload(*, inline: bool = False) -> None:
             "customer_segments.csv": "Nhóm khách hàng",
             "product_funnel.csv": "Hiệu quả từng sản phẩm",
             "co_purchase.csv": "Sản phẩm mua cùng",
+            "price_promotions.csv": "Giá và khuyến mãi theo SKU",
+            "ads_sku_daily.csv": "Quảng cáo theo SKU/ngày",
+            "inventory_batches.csv": "Tuổi tồn kho theo lô",
         }
         for name in st.session_state.seller_uploaded_names:
             st.success(
@@ -2662,8 +2685,8 @@ def render_data_upload(*, inline: bool = False) -> None:
     with st.container(border=True):
         st.markdown("#### " + ui_text("Dữ liệu thử tiếng Việt", "Vietnamese sample data"))
         st.caption(ui_text(
-            "Bộ thử gồm 14 sản phẩm thuộc hai ngành, đơn hàng trong 12 tháng và các bảng vận hành liên quan. Tất cả tiêu đề và trạng thái đều là tiếng Việt.",
-            "The sample has 14 products across two categories, 12 months of orders, and related operational tables. All headers and statuses are in Vietnamese.",
+            "Bộ thử gồm 14 sản phẩm thuộc hai ngành, đơn hàng trong 12 tháng, giá–khuyến mãi, quảng cáo theo SKU và tuổi tồn theo lô. Tất cả tiêu đề và trạng thái đều là tiếng Việt.",
+            "The sample has 14 products across two categories, 12 months of orders, price promotions, SKU-level ads, and batch inventory age. All headers and statuses are in Vietnamese.",
         ))
         st.download_button(
             ui_text("Tải dữ liệu thử (.xlsx)", "Download sample data (.xlsx)"),
@@ -2706,7 +2729,7 @@ def render_data_upload(*, inline: bool = False) -> None:
         show_optional = st.toggle(ui_text("Thêm bảng mở rộng", "Add optional tables"), key="seller_show_optional_uploads")
         ads = purchase_orders = returns = reviews = operating_costs = None
         inventory_movements = quality_checks = cash_flow = supplier_performance = None
-        customer_segments = product_funnel = co_purchase = None
+        customer_segments = product_funnel = co_purchase = price_promotions = ads_sku_daily = inventory_batches = None
         with st.form("seller_upload_form", border=False):
             orders = st.file_uploader(ui_text("Đơn hàng (bắt buộc)", "Orders (required)"), type=["csv", "xlsx"])
             products = st.file_uploader(ui_text("Sản phẩm và giá vốn (bắt buộc)", "Products and costs (required)"), type=["csv", "xlsx"])
@@ -2724,6 +2747,10 @@ def render_data_upload(*, inline: bool = False) -> None:
                 customer_segments = st.file_uploader(ui_text("Nhóm khách hàng", "Customer segments"), type=["csv", "xlsx"])
                 product_funnel = st.file_uploader(ui_text("Hiệu quả từng sản phẩm", "Product funnel"), type=["csv", "xlsx"])
                 co_purchase = st.file_uploader(ui_text("Sản phẩm mua cùng", "Products purchased together"), type=["csv", "xlsx"])
+                st.caption(ui_text("Bộ phân tích nâng cao", "Advanced analysis"))
+                price_promotions = st.file_uploader(ui_text("Giá và khuyến mãi theo SKU", "Price and promotions by SKU"), type=["csv", "xlsx"])
+                ads_sku_daily = st.file_uploader(ui_text("Quảng cáo theo SKU/ngày", "Advertising by SKU/day"), type=["csv", "xlsx"])
+                inventory_batches = st.file_uploader(ui_text("Tuổi tồn kho theo lô", "Inventory age by batch"), type=["csv", "xlsx"])
             submitted = st.form_submit_button(ui_text("Thêm dữ liệu", "Add data"), icon=":material/upload_file:", width="stretch")
     if not submitted:
         return
@@ -2743,6 +2770,9 @@ def render_data_upload(*, inline: bool = False) -> None:
         "customer_segments.csv": customer_segments,
         "product_funnel.csv": product_funnel,
         "co_purchase.csv": co_purchase,
+        "price_promotions.csv": price_promotions,
+        "ads_sku_daily.csv": ads_sku_daily,
+        "inventory_batches.csv": inventory_batches,
     }
     missing = [name for name in REQUIRED_FILES if files[name] is None]
     if missing:
