@@ -1,0 +1,5 @@
+order_id,order_date,status,is_late,cancellation_reason,processing_hours
+ORD-202608-001,2026-08-02,completed,Không,,5.5
+ORD-202608-002,2026-08-04,completed,Có,,18.0
+ORD-202608-003,2026-08-09,completed,Không,,7.0
+ORD-202608-004,2026-08-11,cancelled,Không,Khách đổi ý,3.0
