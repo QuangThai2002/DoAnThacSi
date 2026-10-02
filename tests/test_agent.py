@@ -592,6 +592,13 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             with self.subTest(question=question):
                 self.assertIn(expected, runner.run(question)["answer"])
 
+    def test_single_ambiguous_word_requests_the_missing_metric_instead_of_rag_fallback(self) -> None:
+        answer = AgentRunner().run("nhieuu")["answer"]
+
+        self.assertIn("chưa xác định được chỉ số", answer)
+        self.assertIn("nêu đầy đủ", answer)
+        self.assertNotIn("Chưa truy hồi được", answer)
+
     def test_operational_question_bank_uses_topic_routing_and_bounded_advice(self) -> None:
         """Regression coverage for the shared question-bank failure patterns."""
         checks = {

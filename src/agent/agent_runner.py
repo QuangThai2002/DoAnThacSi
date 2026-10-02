@@ -963,6 +963,11 @@ class AgentRunner:
                 sections.append("Chưa có đủ dữ liệu đơn hoàn tất và tồn kho để nhận diện hàng bán chậm.")
         if knowledge_answer and not sections:
             sections.append(knowledge_answer)
+        elif not sections and len(re.findall(r"\w+", question, flags=re.UNICODE)) <= 1:
+            sections.append(
+                "Mình chưa xác định được chỉ số bạn muốn hỏi; hãy nêu đầy đủ, ví dụ: "
+                "“Sản phẩm nào có nhiều lượt xem nhất?” hoặc “Từ khóa nào có nhiều lượt nhấp nhất?”."
+            )
         elif citations and not sections:
             sections.append(
                 "Tôi chưa có đủ nội dung đã kiểm chứng để trả lời trực tiếp. "
