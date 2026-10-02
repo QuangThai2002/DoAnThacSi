@@ -3079,7 +3079,7 @@ def render_assistant() -> None:
         # Fixed widths keep the two secondary actions compact and visually equal.
         with st.container(horizontal=True, gap="small"):
             st.button(
-                ui_text("Dùng bộ dữ liệu demo để thử phân tích", "Use demo data for analysis"),
+                ui_text("Dùng dữ liệu demo", "Use demo data"),
                 key="open_demo_library_from_chat",
                 icon=":material/auto_stories:",
                 on_click=open_data_library,
