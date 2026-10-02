@@ -26,6 +26,20 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertEqual(app.session_state["seller_chat_scroll_sequence"], 1)
         self.assertEqual(len(app.error), 0)
 
+    def test_new_seller_chat_includes_a_fifteen_question_bank(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+
+        bank = app.selectbox(key="learner_question_bank")
+        self.assertEqual(len(bank.options), 15)
+        self.assertTrue(app.button(key="send_learner_question").disabled)
+        selected_question = bank.options[0]
+        bank.select(selected_question).run()
+        app.button(key="send_learner_question").click().run()
+        self.assertEqual(app.session_state["seller_messages"][0]["content"], selected_question)
+        self.assertEqual(len(app.error), 0)
+
     def test_owner_chat_exposes_human_readable_uploads(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="new_chat_main").click().run()

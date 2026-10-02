@@ -353,6 +353,27 @@ SUGGESTIONS = {
         "Phí ảnh hưởng doanh thu": "Tháng này shop cần đối chiếu những khoản phí nào?",
     },
 }
+
+# A compact, guided starting point for first-time sellers. These are common
+# questions that can be answered without requiring the seller to upload shop
+# data, unlike the owner operating-data prompts.
+LEARNER_QUESTION_BANK: tuple[dict[str, str], ...] = (
+    {"group_vi": "Bắt đầu bán", "question_vi": "Người mới cần chuẩn bị gì trước khi mở shop trên Shopee?", "group_en": "Getting started", "question_en": "What should a new seller prepare before opening a Shopee shop?"},
+    {"group_vi": "Bắt đầu bán", "question_vi": "Ai có thể đăng ký mở shop trên Shopee?", "group_en": "Getting started", "question_en": "Who can register to open a Shopee shop?"},
+    {"group_vi": "Bắt đầu bán", "question_vi": "Cách đăng ký mở shop trên Shopee như thế nào?", "group_en": "Getting started", "question_en": "How do I register to open a Shopee shop?"},
+    {"group_vi": "Bắt đầu bán", "question_vi": "Tôi cần chuẩn bị gì để đăng sản phẩm đầu tiên?", "group_en": "Getting started", "question_en": "What do I need to prepare to list my first product?"},
+    {"group_vi": "Sản phẩm và giá", "question_vi": "SKU là gì và vì sao mỗi biến thể nên có SKU riêng?", "group_en": "Products and pricing", "question_en": "What is an SKU and why should each variant have its own SKU?"},
+    {"group_vi": "Sản phẩm và giá", "question_vi": "Giá bán nên tính những khoản chi phí nào?", "group_en": "Products and pricing", "question_en": "Which costs should I include when setting a selling price?"},
+    {"group_vi": "Sản phẩm và giá", "question_vi": "Làm sao viết mô tả sản phẩm rõ ràng và đúng quy định?", "group_en": "Products and pricing", "question_en": "How can I write a clear, compliant product description?"},
+    {"group_vi": "Phí và chính sách", "question_vi": "Shopee đang áp dụng những loại phí nào?", "group_en": "Fees and policies", "question_en": "What types of fees does Shopee charge?"},
+    {"group_vi": "Phí và chính sách", "question_vi": "Phí cố định là gì?", "group_en": "Fees and policies", "question_en": "What is a fixed fee?"},
+    {"group_vi": "Phí và chính sách", "question_vi": "Khi nào người mua có thể yêu cầu trả hàng hoặc hoàn tiền?", "group_en": "Fees and policies", "question_en": "When can a buyer request a return or refund?"},
+    {"group_vi": "Đơn hàng", "question_vi": "Đơn bị hủy có được tính doanh thu không?", "group_en": "Orders", "question_en": "Does a cancelled order count as revenue?"},
+    {"group_vi": "Đơn hàng", "question_vi": "Khi có đơn hàng mới, tôi cần xử lý theo các bước nào?", "group_en": "Orders", "question_en": "What steps should I take when I receive a new order?"},
+    {"group_vi": "Đơn hàng", "question_vi": "Làm sao đóng gói hàng để giảm nguy cơ trả hàng?", "group_en": "Orders", "question_en": "How should I pack an order to reduce return risk?"},
+    {"group_vi": "Chăm sóc shop", "question_vi": "Làm thế nào để tránh đánh giá thấp từ người mua?", "group_en": "Shop care", "question_en": "How can I reduce low ratings from buyers?"},
+    {"group_vi": "Chăm sóc shop", "question_vi": "Khi nào người mới nên bắt đầu chạy quảng cáo?", "group_en": "Shop care", "question_en": "When should a new seller start running ads?"},
+)
 REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
 # Bump this key whenever the sample schema changes.  The exported workbook is
 # cached by Streamlit, so relying only on build_demo_rows() can otherwise keep
@@ -1039,6 +1060,41 @@ def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
     with st.container(border=True):
         st.markdown(f"**:material/help: {ui_text('Cách dùng nhanh', 'Quick guide')}** — {ui_text('Dùng phần này khi ', 'Use this area when ')}{when_to_use}")
         st.caption(" → ".join(f"{index + 1}. {step}" for index, step in enumerate(steps)))
+
+
+def render_learner_question_bank() -> None:
+    """Show a browsable bank of beginner questions and send one with one tap."""
+    language = str(st.session_state.get("seller_language", "vi"))
+    is_vietnamese = language == "vi"
+    group_key = "group_vi" if is_vietnamese else "group_en"
+    question_key = "question_vi" if is_vietnamese else "question_en"
+    group_label = ui_text("Nhóm", "Category")
+    question_label = ui_text("Câu hỏi", "Question")
+    rows = [
+        {group_label: item[group_key], question_label: item[question_key]}
+        for item in LEARNER_QUESTION_BANK
+    ]
+    questions = [item[question_key] for item in LEARNER_QUESTION_BANK]
+
+    with st.expander(ui_text("Bộ câu hỏi cho người mới (15)", "New seller question bank (15)"), icon=":material/menu_book:"):
+        st.caption(ui_text("Chọn một câu hỏi để đưa thẳng vào cuộc trò chuyện.", "Choose a question to send directly into this chat."))
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=360)
+        selected = st.selectbox(
+            ui_text("Chọn câu hỏi", "Choose a question"),
+            questions,
+            index=None,
+            placeholder=ui_text("Chọn một trong 15 câu hỏi", "Choose one of 15 questions"),
+            key="learner_question_bank",
+        )
+        if st.button(
+            ui_text("Hỏi câu đã chọn", "Ask selected question"),
+            key="send_learner_question",
+            icon=":material/send:",
+            disabled=selected is None,
+        ):
+            st.session_state.seller_pending_main_prompt = str(selected)
+            st.session_state.pop("learner_question_bank", None)
+            st.rerun()
 
 
 def open_chat_view() -> None:
@@ -2979,6 +3035,9 @@ def render_assistant() -> None:
             ["If you need figures, open Data library and attach data to this chat", "Type your question in the bottom field", "Open AI strategist at the top when you need to discuss Market or Strategy"],
         ),
     )
+
+    if mode == "learner":
+        render_learner_question_bank()
 
     if mode == "owner" and not is_uploaded():
         with st.container(border=True):
