@@ -266,6 +266,12 @@ class AgentRunner:
         return {
             "question": question,
             "plan": asdict(plan),
+            # This contract is shared by the Streamlit UI and automated
+            # evaluation: a response is either general guidance or depends on
+            # the seller's own operational records.  The UI can make a small
+            # exception for its curated new-seller learning prompts, but the
+            # runner never hides the planner's evidence requirement.
+            "data_requirement": plan.data_requirement,
             "answer": answer,
             "citations": citations,
             "data_source": (
@@ -802,10 +808,10 @@ class AgentRunner:
                     )
                 )
             else:
-                sections.append("Chưa có dữ liệu tuổi tồn theo lô. Hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**.")
+                sections.append(AgentRunner._data_request_guidance(normalized_question))
         if search_performance:
             if not search_performance.get("term_count"):
-                sections.append("Chưa có dữ liệu hiệu quả tìm kiếm. Hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm**.")
+                sections.append(AgentRunner._data_request_guidance(normalized_question))
             elif "vi tri" in normalized_question:
                 top = search_performance["best_position_term"]
                 sections.append(f"Từ khóa có vị trí tìm kiếm trung bình tốt nhất là **{top['search_term']}**: vị trí {top['average_position']} (càng nhỏ càng tốt), {top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị.")
@@ -820,7 +826,7 @@ class AgentRunner:
                 sections.append(f"Từ khóa có nhiều lượt nhấp nhất là **{top['search_term']}**: {top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị, vị trí trung bình {top['average_position']}.")
         if shipping_performance:
             if not shipping_performance["order_count"]:
-                sections.append("Chưa có dữ liệu vận chuyển. Hãy tạo hoặc tải bảng **Vận chuyển**.")
+                sections.append(AgentRunner._data_request_guidance(normalized_question))
             elif any(term in normalized_question for term in ("ly do huy", "do huy")):
                 reason = shipping_performance["top_cancellation_reason"]
                 if reason is None:
@@ -835,7 +841,11 @@ class AgentRunner:
             else:
                 sections.append("Có {late} đơn giao trễ, {cancelled} đơn hủy; thời gian xử lý trung bình {hours} giờ. Lý do hủy nhiều nhất: {reason}.".format(late=shipping_performance["late_order_count"], cancelled=shipping_performance["cancelled_order_count"], hours="—" if shipping_performance["average_processing_hours"] is None else shipping_performance["average_processing_hours"], reason=shipping_performance["top_cancellation_reason"] or "chưa ghi"))
         if settlements:
-            if any(term in normalized_question for term in ("khop", "chenh lech", "doi chieu")):
+            # An empty settlement export sums to zero, but zero rows are not a
+            # zero-value reconciliation.  Never label this situation “khớp”.
+            if not settlements.get("settlement_count"):
+                sections.append(AgentRunner._data_request_guidance(normalized_question))
+            elif any(term in normalized_question for term in ("khop", "chenh lech", "doi chieu")):
                 difference = int(settlements["difference_vnd"])
                 if difference == 0:
                     sections.append("Khoản đối soát **khớp**: dự kiến nhận {expected:,} VND và đã nhận {received:,} VND, chênh lệch 0 VND.".format(expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"])))
@@ -850,9 +860,14 @@ class AgentRunner:
                 difference = int(comparison["median_difference_vnd"])
                 direction = "cao hơn" if difference > 0 else "thấp hơn" if difference < 0 else "bằng"
                 sections.append("Giá trung vị của đối thủ **{direction}** giá niêm yết shop {amount:,} VND trên {count} quan sát ghép theo SKU: đối thủ {competitor:,} VND, shop {shop:,} VND. Đây là dữ liệu tham khảo.".format(direction=direction, amount=abs(difference), count=comparison["matched_listing_count"], competitor=int(comparison["median_competitor_price_vnd"]), shop=int(comparison["median_shop_list_price_vnd"])))
+            elif compares_price:
+                sections.append(
+                    "Chưa thể ghép giá đối thủ với sản phẩm của shop. "
+                    "Bạn hãy tạo hoặc tải bảng **Danh mục đối thủ** có **SKU tham chiếu** khớp với SKU trong bảng **Sản phẩm và giá vốn**."
+                )
             else:
                 top = competitor_catalog.get("leading_reference")
-                sections.append(f"Shop tham khảo có lượng bán ước tính cao nhất là **{top['competitor_shop']}**: giá {top['price_vnd']:,} VND, {top['rating']:.2f}/5 và {top['estimated_monthly_units']} lượt bán ước tính/tháng. Đây chỉ là dữ liệu tham khảo do bạn nhập." if top else "Chưa có danh mục đối thủ. Hãy tạo hoặc tải bảng **Danh mục đối thủ**.")
+                sections.append(f"Shop tham khảo có lượng bán ước tính cao nhất là **{top['competitor_shop']}**: giá {top['price_vnd']:,} VND, {top['rating']:.2f}/5 và {top['estimated_monthly_units']} lượt bán ước tính/tháng. Đây chỉ là dữ liệu tham khảo do bạn nhập." if top else AgentRunner._data_request_guidance(normalized_question))
         if profitability:
             contribution = int(profitability["estimated_contribution_vnd"])
             label = "lãi góp ước tính" if contribution >= 0 else "lỗ góp ước tính"
@@ -1369,38 +1384,38 @@ class AgentRunner:
     def _data_request_guidance(normalized: str) -> str:
         """Turn missing evidence into an explicit upload/create instruction."""
         if any(term in normalized for term in ("tu khoa", "tim kiem", "vi tri tim kiem", "hien thi tim kiem")):
-            return "Để phân tích tìm kiếm, hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm** có ngày, SKU, từ khóa, lượt hiển thị, lượt nhấp và vị trí trung bình."
+            return "Bạn hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm** có ngày, SKU, từ khóa, lượt hiển thị, lượt nhấp và vị trí trung bình."
         if any(term in normalized for term in ("giao tre", "van chuyen", "thoi gian xu ly", "ly do huy don")):
-            return "Để phân tích vận chuyển, hãy tạo hoặc tải bảng **Vận chuyển** có mã đơn, ngày đặt, trạng thái, giao trễ, lý do hủy và số giờ xử lý."
+            return "Bạn hãy tạo hoặc tải bảng **Vận chuyển** có mã đơn, ngày đặt, trạng thái, giao trễ, lý do hủy và số giờ xử lý."
         if any(term in normalized for term in ("doi soat", "tien shopee phai tra", "phi thuc te", "ngay nhan tien")):
-            return "Để đối soát thanh toán, hãy tạo hoặc tải bảng **Đối soát thanh toán** có mã đối soát, ngày đối soát, ngày nhận tiền, tiền Shopee phải trả, phí thực tế và tiền đã nhận."
+            return "Bạn hãy tạo hoặc tải bảng **Đối soát thanh toán** có mã đối soát, ngày đối soát, ngày nhận tiền, tiền Shopee phải trả, phí thực tế và tiền đã nhận."
         if any(term in normalized for term in ("doi thu", "shop tham khao", "gia doi thu", "danh muc doi thu")):
-            return "Để so sánh đối thủ, hãy tạo hoặc tải bảng **Danh mục đối thủ** có ngày quan sát, SKU tham chiếu, tên shop, sản phẩm, giá, điểm đánh giá, số đánh giá và lượng bán ước tính."
+            return "Bạn hãy tạo hoặc tải bảng **Danh mục đối thủ** có ngày quan sát, SKU tham chiếu, tên shop, sản phẩm, giá, điểm đánh giá, số đánh giá và lượng bán ước tính."
         if "tao combo" in normalized or "combo" in normalized:
-            return "Để chọn combo bằng dữ liệu, hãy tạo hoặc tải bảng **Sản phẩm mua cùng** có SKU thứ nhất, SKU thứ hai, số đơn mua cùng và kỳ dữ liệu; đồng thời gắn **Sản phẩm và giá vốn**, **Tồn kho** và **Đơn hàng**."
+            return "Bạn hãy tạo hoặc tải bảng **Sản phẩm mua cùng** có SKU thứ nhất, SKU thứ hai, số đơn mua cùng và kỳ dữ liệu; đồng thời gắn **Sản phẩm và giá vốn**, **Tồn kho** và **Đơn hàng**."
         if any(term in normalized for term in ("30 ngay", "tuan nay", "nguy co lo")):
-            return "Để lập ưu tiên vận hành, hãy tạo hoặc tải các bảng **Đơn hàng**, **Sản phẩm và giá vốn**, **Tồn kho**, **Hoàn hàng**, **Chi phí vận hành**, **Đánh giá khách hàng**, **Kiểm tra chất lượng** và **Hiệu quả sản phẩm** theo SKU."
+            return "Bạn hãy tạo hoặc tải các bảng **Đơn hàng**, **Sản phẩm và giá vốn**, **Tồn kho**, **Hoàn hàng**, **Chi phí vận hành**, **Đánh giá khách hàng**, **Kiểm tra chất lượng** và **Hiệu quả sản phẩm** theo SKU."
         if any(term in normalized for term in ("quang cao theo sku", "quang cao tung san pham", "sku nao nen tang ngan sach")):
-            return "Để so sánh quảng cáo theo sản phẩm, hãy tạo hoặc tải bảng **Quảng cáo theo SKU/ngày** có ngày, mã chiến dịch, SKU, lượt hiển thị, lượt nhấp, chi quảng cáo, thêm giỏ, đơn và doanh thu quy gán."
+            return "Bạn hãy tạo hoặc tải bảng **Quảng cáo theo SKU/ngày** có ngày, mã chiến dịch, SKU, lượt hiển thị, lượt nhấp, chi quảng cáo, thêm giỏ, đơn và doanh thu quy gán."
         if any(term in normalized for term in ("quang cao", "roas", "ngan sach")):
-            return "Để trả lời bằng số liệu, hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Quảng cáo theo SKU/ngày**, **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
+            return "Bạn hãy tạo hoặc tải bảng **Quảng cáo**; nên có thêm **Quảng cáo theo SKU/ngày**, **Sản phẩm** và **Đơn hàng** để kiểm tra lãi sau quảng cáo."
         if any(term in normalized for term in ("khuyen mai", "ma giam gia", "gia sau khuyen mai")):
-            return "Để đối chiếu giá đã áp dụng, hãy tạo hoặc tải bảng **Giá và khuyến mãi theo SKU** có ngày, SKU, giá niêm yết, giá sau khuyến mãi, giảm giá người bán và nguồn mã giảm giá."
+            return "Bạn hãy tạo hoặc tải bảng **Giá và khuyến mãi theo SKU** có ngày, SKU, giá niêm yết, giá sau khuyến mãi, giảm giá người bán và nguồn mã giảm giá."
         if any(term in normalized for term in ("danh gia", "review")):
-            return "Để phân tích đánh giá, hãy tạo hoặc tải bảng **Đánh giá khách hàng**; nên có ngày đánh giá, số sao và vấn đề khách nêu."
+            return "Bạn hãy tạo hoặc tải bảng **Đánh giá khách hàng**; nên có ngày đánh giá, số sao và vấn đề khách nêu."
         if any(term in normalized for term in ("lo hang", "ty le loi", "chat luong")):
-            return "Để kiểm tra chất lượng, hãy tạo hoặc tải bảng **Kiểm tra chất lượng**; nên có ngày kiểm, mã lô, số lượng kiểm, số lỗi và dạng lỗi."
+            return "Bạn hãy tạo hoặc tải bảng **Kiểm tra chất lượng**; nên có ngày kiểm, mã lô, số lượng kiểm, số lỗi và dạng lỗi."
         if any(term in normalized for term in ("dong tien", "tien chi", "thieu tien")):
-            return "Để phân tích dòng tiền, hãy tạo hoặc tải bảng **Dòng tiền** và **Đơn nhập hàng** có ngày thu, ngày chi, nhóm chi và số tiền."
+            return "Bạn hãy tạo hoặc tải bảng **Dòng tiền** và **Đơn nhập hàng** có ngày thu, ngày chi, nhóm chi và số tiền."
         if any(term in normalized for term in ("luot xem", "them gio", "dat mua", "chot don")):
-            return "Để phân tích chuyển đổi, hãy tạo hoặc tải bảng **Hiệu quả sản phẩm** có lượt xem, lượt thêm giỏ và số đơn theo từng SKU."
+            return "Bạn hãy tạo hoặc tải bảng **Hiệu quả sản phẩm** có lượt xem, lượt thêm giỏ và số đơn theo từng SKU."
         if any(term in normalized for term in ("tuoi ton", "ton theo lo", "lo hang ton", "lo ton lau")):
-            return "Để tính tuổi tồn theo lô, hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô** có mã lô, SKU, ngày nhập kho, số lượng còn lại và giá vốn đơn vị."
+            return "Bạn hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô** có mã lô, SKU, ngày nhập kho, số lượng còn lại và giá vốn đơn vị."
         if any(term in normalized for term in ("ton kho", "sap het", "ton lau", "nhap hang", "nhap them")):
-            return "Để phân tích, hãy tạo hoặc tải bảng **Tồn kho**, **Sản phẩm** và **Đơn hàng**; nếu cần biết hàng nằm bao lâu, thêm **Tuổi tồn kho theo lô**; nếu hỏi lượng nhập, thêm **Đơn nhập hàng** và thời gian giao dự kiến."
+            return "Bạn hãy tạo hoặc tải bảng **Tồn kho**, **Sản phẩm** và **Đơn hàng**; nếu cần biết hàng nằm bao lâu, thêm **Tuổi tồn kho theo lô**; nếu hỏi lượng nhập, thêm **Đơn nhập hàng** và thời gian giao dự kiến."
         if any(term in normalized for term in ("giam gia", "gia ban", "lai", "loi nhuan")):
-            return "Để đánh giá phương án, hãy tạo hoặc tải bảng **Sản phẩm và giá vốn**, **Đơn hàng** và **Tồn kho**."
-        return "Để trả lời câu hỏi này bằng tình hình shop, hãy tạo hoặc tải bộ dữ liệu gồm **Đơn hàng**, **Sản phẩm** và **Tồn kho**."
+            return "Bạn hãy tạo hoặc tải bảng **Sản phẩm và giá vốn**, **Đơn hàng** và **Tồn kho**."
+        return "Bạn hãy tạo hoặc tải bộ dữ liệu **Đơn hàng**, **Sản phẩm** và **Tồn kho** để trả lời theo tình hình shop."
 
     @staticmethod
     def _knowledge_answer(question: str) -> str:

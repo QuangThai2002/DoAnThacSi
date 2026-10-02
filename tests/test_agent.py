@@ -438,6 +438,13 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("doanh thu", capability["answer"])
         self.assertIn("Bạn muốn xem phần nào?", capability["answer"])
 
+    def test_every_runner_result_exposes_its_data_requirement(self) -> None:
+        guidance = AgentRunner().run("SKU là gì?")
+        metric = AgentRunner().run("Shop có bao nhiêu đơn giao trễ?")
+
+        self.assertEqual(guidance["data_requirement"], "no_shop_data_required")
+        self.assertEqual(metric["data_requirement"], "shop_data_required")
+
     def test_default_demo_includes_the_core_sku_and_inventory_answers(self) -> None:
         """The out-of-box demo must cover the questions used in a defense."""
         runner = AgentRunner()
@@ -656,6 +663,27 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertIn("Chưa thể nêu", answer)
         self.assertIn("Bạn hãy tạo hoặc tải", answer)
         self.assertIn("Tuổi tồn kho theo lô", answer)
+
+    def test_empty_operational_tables_never_become_zero_value_findings(self) -> None:
+        """No rows is missing evidence, not a valid zero or a successful match."""
+        demo_rows = build_demo_rows(seed=20261001)
+        core_rows = {
+            name: demo_rows[name]
+            for name in ("orders.csv", "products.csv", "inventory.csv")
+        }
+        runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=core_rows))
+        checks = {
+            "Từ khóa nào có lượt nhấp cao nhất?": "Hiệu quả tìm kiếm",
+            "Shop có bao nhiêu đơn giao trễ?": "Vận chuyển",
+            "Tiền Shopee phải trả có khớp không?": "Đối soát thanh toán",
+            "Đối thủ nào bán ước tính cao nhất?": "Danh mục đối thủ",
+        }
+        for question, table_name in checks.items():
+            with self.subTest(question=question):
+                answer = runner.run(question)["answer"]
+                self.assertIn("Bạn hãy tạo hoặc tải", answer)
+                self.assertIn(table_name, answer)
+                self.assertNotIn("khớp**: dự kiến nhận 0 VND", answer)
 
     def test_new_operational_data_routes_directly_to_its_own_table(self) -> None:
         runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
