@@ -232,6 +232,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Stable destination for the floating navigation control. It is deliberately
+# placed before every page view so the same button works in chat and on mobile.
+st.markdown('<span id="seller-page-top" aria-hidden="true"></span>', unsafe_allow_html=True)
+
 
 _SCROLL_NAVIGATION = st.components.v2.component(
     "seller_scroll_navigation",
@@ -246,8 +250,8 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       background: #ee4d2d;
       border: 2px solid #ffffff;
       border-radius: 999px;
-      /* Keep the navigation control above the pinned chat composer. */
-      bottom: 6.4rem;
+      /* Keep it in the upper-right corner, below the Streamlit header. */
+      top: 4.25rem;
       box-shadow: 0 8px 24px rgba(187, 61, 31, .28);
       color: #ffffff;
       cursor: pointer;
@@ -259,14 +263,20 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       line-height: 1;
       padding: 0;
       position: fixed;
-      right: 2rem;
+      right: 1.25rem;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-8px);
       transition: background .16s ease, opacity .16s ease, transform .16s ease;
       width: 52px;
-      z-index: 1000;
+      z-index: 1001;
     }
     #scroll-to-top:hover { background: #d83f20; transform: translateY(-2px); }
-    #scroll-to-top.is-at-top { opacity: .42; pointer-events: none; transform: none; }
+    #scroll-to-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
     #scroll-to-top:focus-visible { outline: 3px solid rgba(238, 77, 45, .32); outline-offset: 3px; }
+    @media (max-width: 640px) {
+      #scroll-to-top { top: 3.6rem; right: .75rem; width: 44px; height: 44px; font-size: 1.25rem; }
+    }
     """,
     js="""
     export default function(component) {
@@ -274,10 +284,10 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       const button = parentElement.querySelector("#scroll-to-top");
       if (!button) return;
 
-      // Components run in an iframe. The page that actually scrolls is the
-      // Streamlit parent, not this component's own window.
-      const hostWindow = window.parent && window.parent !== window ? window.parent : window;
-      const hostDocument = hostWindow.document;
+      // CCv2 runs in the app document, so use its real scroll containers.
+      // This also works on mobile where the scrolling element can differ.
+      const hostWindow = window;
+      const hostDocument = document;
       const main = hostDocument.querySelector('[data-testid="stMain"]');
       const scrollContainers = [
         main,
@@ -287,6 +297,8 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       ].filter((item, index, items) => item && items.indexOf(item) === index);
 
       const scrollToTop = () => {
+        const start = hostDocument.querySelector("#seller-page-top");
+        if (start) start.scrollIntoView({ block: "start", behavior: "smooth" });
         hostWindow.scrollTo({ top: 0, behavior: "smooth" });
         scrollContainers.forEach((container) => {
           if (typeof container.scrollTo === "function") {
@@ -299,12 +311,13 @@ _SCROLL_NAVIGATION = st.components.v2.component(
           hostWindow.scrollY || 0,
           ...scrollContainers.map((container) => container.scrollTop || 0),
         );
-        button.classList.toggle("is-at-top", top < 24);
+        button.classList.toggle("is-visible", top >= (data?.show_after || 180));
       };
       button.setAttribute("aria-label", data?.top_label || "Scroll to top");
       button.onclick = scrollToTop;
       updateButtonState();
       hostWindow.addEventListener("scroll", updateButtonState, { passive: true });
+      hostDocument.addEventListener("scroll", updateButtonState, { capture: true, passive: true });
       scrollContainers.forEach((container) => container.addEventListener("scroll", updateButtonState, { passive: true }));
 
       const token = data?.scroll_token;
@@ -319,10 +332,12 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       }
       return () => {
         hostWindow.removeEventListener("scroll", updateButtonState);
+        hostDocument.removeEventListener("scroll", updateButtonState, { capture: true });
         scrollContainers.forEach((container) => container.removeEventListener("scroll", updateButtonState));
       };
     }
     """,
+    isolate_styles=False,
 )
 
 
@@ -1051,6 +1066,7 @@ def render_scroll_navigation() -> None:
             "scroll_to_latest": bool(token),
             "scroll_token": token,
             "top_label": ui_text("Lên đầu trang", "Back to top"),
+            "show_after": 180,
         },
         height=0,
     )
