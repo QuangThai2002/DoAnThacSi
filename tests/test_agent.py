@@ -61,6 +61,12 @@ class PlannerTests(unittest.TestCase):
         plan = Planner().plan("GMV là gì? GMV có phải lợi nhuận không?")
         self.assertEqual(plan.tools, ("rag",))
         self.assertFalse(plan.needs_private_shop_data)
+        self.assertEqual(plan.data_requirement, "no_shop_data_required")
+
+    def test_shop_metric_is_classified_as_requiring_shop_data(self) -> None:
+        plan = Planner().plan("Shop có bao nhiêu đơn giao trễ?")
+        self.assertTrue(plan.needs_private_shop_data)
+        self.assertEqual(plan.data_requirement, "shop_data_required")
 
     def test_cancelled_order_rule_does_not_request_private_shop_data(self) -> None:
         plan = Planner().plan("Nếu đơn bị hủy thì có được tính doanh thu không?")

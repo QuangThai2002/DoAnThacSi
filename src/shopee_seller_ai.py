@@ -1173,6 +1173,26 @@ def data_note(source: str | None) -> str | None:
     return None
 
 
+def data_requirement_note(requirement: str | None) -> str | None:
+    """Make the answer's evidence contract visible to the seller.
+
+    There are deliberately only two classes in the UI.  Tool names and
+    internal planner intents are implementation details and should not make a
+    user guess whether they need to upload a report.
+    """
+    if requirement == "shop_data_required":
+        return ui_text(
+            "Loại câu hỏi: cần dữ liệu shop để trả lời theo tình hình thực tế.",
+            "Question type: shop data is required for a situation-specific answer.",
+        )
+    if requirement == "no_shop_data_required":
+        return ui_text(
+            "Loại câu hỏi: không cần dữ liệu shop.",
+            "Question type: no shop data is required.",
+        )
+    return None
+
+
 def result_from_trace(result: dict[str, Any], suffix: str) -> dict[str, Any] | None:
     for event in result.get("trace", []):
         payload = event.get("result", {})
@@ -1215,6 +1235,9 @@ def render_answer(message: dict[str, Any]) -> None:
     with st.chat_message("assistant", avatar=":material/smart_toy:"):
         st.markdown(str(message["answer"]))
         render_metrics(message)
+        requirement = data_requirement_note(message.get("data_requirement"))
+        if requirement:
+            st.caption(":material/fact_check: " + requirement)
         note = data_note(message.get("data_source"))
         if note:
             st.caption(":material/table_chart: " + note)
@@ -1224,12 +1247,15 @@ def render_answer(message: dict[str, Any]) -> None:
         render_sources(message.get("citations", []))
 
 
-def missing_data_response() -> dict[str, Any]:
+def missing_data_response(question: str) -> dict[str, Any]:
+    """Return the exact table requirement instead of a generic data warning."""
+    guidance = AgentRunner._data_request_guidance(normalize(question))
     return {
-        "answer": "Mình cần dữ liệu bán hàng của shop để trả lời câu hỏi này chính xác.",
+        "answer": "**Bạn hãy tạo hoặc tải dữ liệu cần thiết trước khi hỏi số liệu của shop.**\n\n" + guidance,
         "citations": [],
         "data_source": None,
         "confidence": "Chưa đủ dữ liệu",
+        "data_requirement": "shop_data_required",
     }
 
 
@@ -1266,10 +1292,18 @@ def answer_question(question: str) -> dict[str, Any]:
         st.session_state.get("seller_chat_mode") == "learner"
         and bool(AgentRunner._learner_guidance_answer(effective_question))
     )
-    if plan.needs_private_shop_data and not is_uploaded() and not is_basic_learner_guidance:
-        return missing_data_response()
+    requires_shop_data = plan.needs_private_shop_data and not is_basic_learner_guidance
+    if requires_shop_data and not is_uploaded():
+        return missing_data_response(effective_question)
     result = active_runner().run(effective_question)
     result["question"] = question
+    # Outside Eslabong's scope is deliberately not presented as either class:
+    # “không cần dữ liệu” must never imply that the bot can answer weather,
+    # health, or other unrelated questions.
+    result["data_requirement"] = (
+        None if plan.intent == "out_of_scope"
+        else "shop_data_required" if requires_shop_data else "no_shop_data_required"
+    )
     result["confidence"] = (
         "Cao" if result.get("citations") or result.get("data_source") else "Trung bình"
     )
@@ -3110,6 +3144,9 @@ def render_assistant() -> None:
                 status.update(label="Chưa thể hoàn thành", state="error", expanded=False)
         st.markdown(str(result["answer"]))
         render_metrics(result)
+        requirement = data_requirement_note(result.get("data_requirement"))
+        if requirement:
+            st.caption(":material/fact_check: " + requirement)
         note = data_note(result.get("data_source"))
         if note:
             st.caption(":material/table_chart: " + note)

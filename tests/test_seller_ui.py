@@ -52,6 +52,24 @@ class SellerFacingUiTests(unittest.TestCase):
         answer = app.session_state["seller_messages"][1]["answer"]
         self.assertIn("Khi có đơn mới", answer)
         self.assertNotIn("cần dữ liệu bán hàng", answer)
+        self.assertEqual(
+            app.session_state["seller_messages"][1]["data_requirement"],
+            "no_shop_data_required",
+        )
+
+    def test_missing_shop_data_names_the_required_table_and_question_type(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=20).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_owner").click().run()
+
+        app.chat_input(key="seller_chat_input").set_value("Shop có bao nhiêu đơn giao trễ?").run()
+
+        result = app.session_state["seller_messages"][1]
+        self.assertEqual(result["data_requirement"], "shop_data_required")
+        self.assertIn("Bạn hãy tạo hoặc tải dữ liệu cần thiết", result["answer"])
+        self.assertIn("bảng **Vận chuyển**", result["answer"])
+        self.assertTrue(any("cần dữ liệu shop" in item.value for item in app.caption))
+        self.assertEqual(len(app.error), 0)
 
     def test_owner_chat_exposes_human_readable_uploads(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()

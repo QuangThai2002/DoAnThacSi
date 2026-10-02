@@ -101,6 +101,16 @@ class AgentPlan:
     needs_private_shop_data: bool
     rationale: tuple[str, ...]
 
+    @property
+    def data_requirement(self) -> str:
+        """Expose the two seller-facing question classes.
+
+        The planner may still distinguish policy, calculation, and small-talk
+        internally, but a seller only needs one reliable decision: whether the
+        answer depends on that seller's own operational data.
+        """
+        return "shop_data_required" if self.needs_private_shop_data else "no_shop_data_required"
+
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
 
