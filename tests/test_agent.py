@@ -416,6 +416,18 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         self.assertEqual(result["data_source"], "mock_shop_data")
         self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
 
+    def test_default_demo_includes_the_core_sku_and_inventory_answers(self) -> None:
+        """The out-of-box demo must cover the questions used in a defense."""
+        runner = AgentRunner()
+        checks = {
+            "SKU nào có ROAS quảng cáo tốt nhất?": "ROAS đã ghi cao nhất",
+            "SKU nào đang được giảm giá nhiều nhất?": "SKU giảm giá nhiều nhất",
+            "2 lô tồn lâu nhất": "Hai lô tồn lâu nhất đã ghi nhận",
+        }
+        for question, expected in checks.items():
+            with self.subTest(question=question):
+                self.assertIn(expected, runner.run(question)["answer"])
+
     def test_runner_labels_uploaded_csv_data(self) -> None:
         upload_files = {
             name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
