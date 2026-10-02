@@ -342,11 +342,6 @@ _SCROLL_NAVIGATION = st.components.v2.component(
 
 
 SUGGESTIONS = {
-    "learner": {
-        "Các loại phí Shopee": "Shopee đang áp dụng những loại phí nào?",
-        "Chính sách hoàn tiền": "Người mua có thể yêu cầu hoàn tiền trong trường hợp nào?",
-        "Cách bắt đầu bán": "Người mới cần chuẩn bị gì để bắt đầu bán hàng trên Shopee?",
-    },
     "owner": {
         "Doanh thu tháng này": "Doanh thu tháng này của shop thế nào?",
         "Hàng sắp hết": "Sản phẩm nào đang sắp hết hàng?",
@@ -494,6 +489,7 @@ CONVERSATION_CONTEXT_KEYS = (
     "strategy_category_id",
     "strategy_inventory_category",
     "strategy_target_stock_months",
+    "seller_learner_question_bank_open",
 )
 CONVERSATION_WIDGET_KEYS = {
     "seller_market_category_id",
@@ -526,6 +522,7 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_advisor_messages", [])
     st.session_state.setdefault("seller_advisor_handoffs", [])
     st.session_state.setdefault("seller_pending_main_prompt", None)
+    st.session_state.setdefault("seller_learner_question_bank_open", False)
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
@@ -748,6 +745,7 @@ def new_conversation_context(mode: str) -> dict[str, Any]:
         "strategy_category_id": "appliance",
         "strategy_inventory_category": "appliance",
         "strategy_target_stock_months": 2.0,
+        "seller_learner_question_bank_open": False,
     }
 
 
@@ -1063,38 +1061,46 @@ def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
 
 
 def render_learner_question_bank() -> None:
-    """Show a browsable bank of beginner questions and send one with one tap."""
+    """Show a focused, one-tap question board for first-time sellers."""
     language = str(st.session_state.get("seller_language", "vi"))
     is_vietnamese = language == "vi"
     group_key = "group_vi" if is_vietnamese else "group_en"
     question_key = "question_vi" if is_vietnamese else "question_en"
-    group_label = ui_text("Nhóm", "Category")
-    question_label = ui_text("Câu hỏi", "Question")
-    rows = [
-        {group_label: item[group_key], question_label: item[question_key]}
-        for item in LEARNER_QUESTION_BANK
-    ]
-    questions = [item[question_key] for item in LEARNER_QUESTION_BANK]
-
-    with st.expander(ui_text("Bộ câu hỏi cho người mới (15)", "New seller question bank (15)"), icon=":material/menu_book:"):
-        st.caption(ui_text("Chọn một câu hỏi để đưa thẳng vào cuộc trò chuyện.", "Choose a question to send directly into this chat."))
-        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch", height=360)
-        selected = st.selectbox(
-            ui_text("Chọn câu hỏi", "Choose a question"),
-            questions,
-            index=None,
-            placeholder=ui_text("Chọn một trong 15 câu hỏi", "Choose one of 15 questions"),
-            key="learner_question_bank",
-        )
-        if st.button(
-            ui_text("Hỏi câu đã chọn", "Ask selected question"),
-            key="send_learner_question",
-            icon=":material/send:",
-            disabled=selected is None,
-        ):
-            st.session_state.seller_pending_main_prompt = str(selected)
-            st.session_state.pop("learner_question_bank", None)
-            st.rerun()
+    left, right = st.columns([3, 2], vertical_alignment="top")
+    with left:
+        with st.container(border=True, height=520):
+            st.markdown("#### " + ui_text("15 câu hỏi cho người mới", "15 questions for new sellers"))
+            st.caption(ui_text("Bấm một câu để hỏi ngay trong chat.", "Tap a question to ask it in this chat immediately."))
+            last_group = ""
+            for index, item in enumerate(LEARNER_QUESTION_BANK):
+                group = item[group_key]
+                if group != last_group:
+                    st.markdown(f"**{group}**")
+                    last_group = group
+                if st.button(
+                    item[question_key],
+                    key=f"learner_question_{index}",
+                    icon=":material/help:",
+                    width="stretch",
+                ):
+                    st.session_state.seller_pending_main_prompt = item[question_key]
+                    st.session_state.seller_learner_question_bank_open = False
+                    st.rerun()
+    with right:
+        with st.container(border=True):
+            st.markdown("#### " + ui_text("Bạn muốn biết gì?", "What would you like to learn?"))
+            st.write(ui_text(
+                "Nếu bạn muốn biết cần chuẩn bị gì, đăng sản phẩm thế nào, tính giá ra sao, xử lý đơn hay tránh đánh giá thấp, hãy chọn câu tương ứng ở bên trái.",
+                "To learn what to prepare, how to list a product, set a price, process an order, or avoid low ratings, choose the matching question on the left.",
+            ))
+            st.caption(ui_text(
+                "Các câu này là hướng dẫn cơ bản, không cần tải dữ liệu shop. Khi muốn phân tích doanh thu, tồn kho hoặc quảng cáo của chính shop, hãy dùng bộ dữ liệu demo hoặc dữ liệu của bạn.",
+                "These are basic guidance questions and do not need shop data. For revenue, inventory, or advertising analysis of a specific shop, use demo data or your own data.",
+            ))
+            st.markdown(ui_text(
+                "**Cách dùng:** bấm một câu → Eslabong tự gửi câu hỏi vào chat và trả lời ngay.",
+                "**How it works:** tap a question → Eslabong sends it to chat and answers it immediately.",
+            ))
 
 
 def open_chat_view() -> None:
@@ -3079,9 +3085,6 @@ def render_assistant() -> None:
         ),
     )
 
-    if mode == "learner":
-        render_learner_question_bank()
-
     if mode == "owner" and not is_uploaded():
         with st.container(border=True):
             st.markdown("**Chưa có dữ liệu vận hành cho chat này**")
@@ -3093,7 +3096,26 @@ def render_assistant() -> None:
         with st.expander(ui_text("Dữ liệu đang gắn với chat", "Data attached to this chat"), icon=":material/table_chart:"):
             render_data_upload(inline=True)
     elif mode == "learner" and not is_uploaded():
-        st.button("Dùng bộ dữ liệu demo để thử phân tích", key="open_demo_library_from_chat", icon=":material/auto_stories:", on_click=open_data_library)
+        with st.container(horizontal=True):
+            st.button(
+                ui_text("Dùng bộ dữ liệu demo để thử phân tích", "Use demo data for analysis"),
+                key="open_demo_library_from_chat",
+                icon=":material/auto_stories:",
+                on_click=open_data_library,
+            )
+            if st.button(
+                ui_text("Bộ câu hỏi người mới", "New seller questions"),
+                key="toggle_learner_question_bank",
+                icon=":material/menu_book:",
+                type="primary" if st.session_state.get("seller_learner_question_bank_open") else "secondary",
+            ):
+                st.session_state.seller_learner_question_bank_open = not bool(
+                    st.session_state.seller_learner_question_bank_open
+                )
+                st.rerun()
+
+    if mode == "learner" and st.session_state.get("seller_learner_question_bank_open"):
+        render_learner_question_bank()
 
     render_advisor_handoff()
 
@@ -3107,7 +3129,7 @@ def render_assistant() -> None:
     render_advisor_launcher("chat")
 
     prompt: str | None = st.session_state.pop("seller_pending_main_prompt", None)
-    if not st.session_state.seller_messages:
+    if not st.session_state.seller_messages and mode == "owner":
         choice = st.pills("Câu hỏi gợi ý", list(SUGGESTIONS[mode]), selection_mode="single", label_visibility="collapsed", key="seller_suggestion")
         if choice:
             prompt = SUGGESTIONS[mode][str(choice)]

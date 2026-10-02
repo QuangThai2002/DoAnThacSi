@@ -31,13 +31,18 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
 
-        bank = app.selectbox(key="learner_question_bank")
-        self.assertEqual(len(bank.options), 15)
-        self.assertTrue(app.button(key="send_learner_question").disabled)
-        selected_question = bank.options[0]
-        bank.select(selected_question).run()
-        app.button(key="send_learner_question").click().run()
-        self.assertEqual(app.session_state["seller_messages"][0]["content"], selected_question)
+        self.assertIn("Bộ câu hỏi người mới", [button.label for button in app.button])
+        self.assertFalse(app.session_state["seller_learner_question_bank_open"])
+        app.button(key="toggle_learner_question_bank").click().run()
+
+        question_buttons = [button for button in app.button if button.key and button.key.startswith("learner_question_")]
+        self.assertEqual(len(question_buttons), 15)
+        self.assertTrue(any("Bạn muốn biết gì?" in item.value for item in app.markdown))
+        app.button(key="learner_question_0").click().run()
+        self.assertEqual(
+            app.session_state["seller_messages"][0]["content"],
+            "Người mới cần chuẩn bị gì trước khi mở shop trên Shopee?",
+        )
         self.assertEqual(len(app.error), 0)
 
     def test_new_seller_guidance_about_order_processing_is_not_blocked_for_missing_shop_data(self) -> None:
@@ -45,9 +50,8 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
 
-        question = "Khi có đơn hàng mới, tôi cần xử lý theo các bước nào?"
-        app.selectbox(key="learner_question_bank").select(question).run()
-        app.button(key="send_learner_question").click().run()
+        app.button(key="toggle_learner_question_bank").click().run()
+        app.button(key="learner_question_11").click().run()
 
         answer = app.session_state["seller_messages"][1]["answer"]
         self.assertIn("Khi có đơn mới", answer)
