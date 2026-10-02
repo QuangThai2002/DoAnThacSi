@@ -274,29 +274,53 @@ _SCROLL_NAVIGATION = st.components.v2.component(
       const button = parentElement.querySelector("#scroll-to-top");
       if (!button) return;
 
+      // Components run in an iframe. The page that actually scrolls is the
+      // Streamlit parent, not this component's own window.
+      const hostWindow = window.parent && window.parent !== window ? window.parent : window;
+      const hostDocument = hostWindow.document;
+      const main = hostDocument.querySelector('[data-testid="stMain"]');
+      const scrollContainers = [
+        main,
+        hostDocument.scrollingElement,
+        hostDocument.documentElement,
+        hostDocument.body,
+      ].filter((item, index, items) => item && items.indexOf(item) === index);
+
       const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        const main = document.querySelector('[data-testid="stMain"]');
-        if (main && typeof main.scrollTo === "function") {
-          main.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        hostWindow.scrollTo({ top: 0, behavior: "smooth" });
+        scrollContainers.forEach((container) => {
+          if (typeof container.scrollTo === "function") {
+            container.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        });
       };
       const updateButtonState = () => {
-        button.classList.toggle("is-at-top", window.scrollY < 24);
+        const top = Math.max(
+          hostWindow.scrollY || 0,
+          ...scrollContainers.map((container) => container.scrollTop || 0),
+        );
+        button.classList.toggle("is-at-top", top < 24);
       };
       button.setAttribute("aria-label", data?.top_label || "Scroll to top");
       button.onclick = scrollToTop;
       updateButtonState();
-      window.addEventListener("scroll", updateButtonState, { passive: true });
+      hostWindow.addEventListener("scroll", updateButtonState, { passive: true });
+      scrollContainers.forEach((container) => container.addEventListener("scroll", updateButtonState, { passive: true }));
 
       const token = data?.scroll_token;
       if (data?.scroll_to_latest && token && parentElement.dataset.scrollToken !== token) {
         parentElement.dataset.scrollToken = token;
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => parentElement.scrollIntoView({ block: "end", behavior: "auto" }));
+          requestAnimationFrame(() => {
+            const target = hostDocument.querySelector('[data-testid="stChatInput"]') || main;
+            if (target) target.scrollIntoView({ block: "end", behavior: "auto" });
+          });
         });
       }
-      return () => window.removeEventListener("scroll", updateButtonState);
+      return () => {
+        hostWindow.removeEventListener("scroll", updateButtonState);
+        scrollContainers.forEach((container) => container.removeEventListener("scroll", updateButtonState));
+      };
     }
     """,
 )
