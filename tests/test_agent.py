@@ -475,6 +475,32 @@ class CalculatorAndRunnerTests(unittest.TestCase):
                 self.assertIn(expected, answer)
                 self.assertNotIn("Tôi chưa có đủ nội dung", answer)
 
+    def test_curated_new_seller_questions_do_not_fall_back_or_use_demo_metrics(self) -> None:
+        questions = (
+            "Người mới cần chuẩn bị gì trước khi mở shop trên Shopee?",
+            "Ai có thể đăng ký mở shop trên Shopee?",
+            "Cách đăng ký mở shop trên Shopee như thế nào?",
+            "Tôi cần chuẩn bị gì để đăng sản phẩm đầu tiên?",
+            "SKU là gì và vì sao mỗi biến thể nên có SKU riêng?",
+            "Giá bán nên tính những khoản chi phí nào?",
+            "Làm sao viết mô tả sản phẩm rõ ràng và đúng quy định?",
+            "Shopee đang áp dụng những loại phí nào?",
+            "Phí cố định là gì?",
+            "Khi nào người mua có thể yêu cầu trả hàng hoặc hoàn tiền?",
+            "Đơn bị hủy có được tính doanh thu không?",
+            "Khi có đơn hàng mới, tôi cần xử lý theo các bước nào?",
+            "Làm sao đóng gói hàng để giảm nguy cơ trả hàng?",
+            "Làm thế nào để tránh đánh giá thấp từ người mua?",
+            "Khi nào người mới nên bắt đầu chạy quảng cáo?",
+        )
+        runner = AgentRunner()
+        for question in questions:
+            with self.subTest(question=question):
+                answer = runner.run(question)["answer"]
+                self.assertTrue(answer)
+                self.assertNotIn("Tôi chưa có đủ nội dung", answer)
+                self.assertNotIn("Chưa truy hồi được", answer)
+
     def test_runner_labels_uploaded_csv_data(self) -> None:
         upload_files = {
             name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()

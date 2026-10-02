@@ -527,6 +527,39 @@ class AgentRunner:
         )
 
     @staticmethod
+    def _learner_guidance_answer(question: str) -> str:
+        """Answer the curated new-seller bank without depending on shop data.
+
+        These are intentionally bounded operating checklists, not live policy
+        claims.  Questions about a seller's own revenue, fees, or account are
+        still routed through the normal evidence and data rules.
+        """
+        normalized = normalize(question)
+        if any(phrase in normalized for phrase in ("nguoi moi can chuan bi", "new seller prepare before opening")):
+            return "Trước khi mở shop, hãy chuẩn bị: nhóm hàng muốn bán, nguồn hàng và giá vốn, ảnh/mô tả sản phẩm, cách đóng gói–giao hàng, cùng một vài SKU có thể tự quản lý. Nên bắt đầu nhỏ để kiểm tra nhu cầu và quy trình trước."
+        if any(phrase in normalized for phrase in ("ai co the dang ky mo shop", "who can register to open")):
+            return "Người muốn mở shop cần có tài khoản, thông tin xác thực và hàng hóa phù hợp quy định của Shopee. Điều kiện xác minh có thể thay đổi theo loại tài khoản và ngành hàng, nên hãy kiểm tra mục đăng ký trong Kênh Người Bán trước khi hoàn tất."
+        if any(phrase in normalized for phrase in ("cach dang ky mo shop", "how do i register to open")):
+            return "Bạn vào Kênh Người Bán, đăng nhập/đăng ký tài khoản, điền thông tin shop và thông tin xác thực được yêu cầu, rồi thiết lập vận chuyển–thanh toán trước khi đăng sản phẩm. Kiểm tra lại tên shop, địa chỉ lấy hàng và số liên hệ trước khi lưu."
+        if any(phrase in normalized for phrase in ("dang san pham dau tien", "list my first product")):
+            return "Để đăng sản phẩm đầu tiên, hãy chuẩn bị tên rõ ràng, ảnh thật, mô tả, ngành hàng, giá, tồn kho, SKU và thông tin vận chuyển. Đọc lại mô tả và giá trước khi đăng để tránh sai biến thể hoặc hứa sai về sản phẩm."
+        if any(phrase in normalized for phrase in ("gia ban nen tinh", "costs should i include when setting")):
+            return "Khi đặt giá, hãy tính tối thiểu: giá vốn, phí sàn dự kiến, đóng gói, vận chuyển phần shop chịu, khuyến mãi và quảng cáo nếu có. Sau đó chừa biên lợi nhuận; đừng chỉ so giá đối thủ rồi giảm giá ngay."
+        if any(phrase in normalized for phrase in ("viet mo ta san pham", "write a clear compliant product description")):
+            return "Mô tả nên nêu đúng sản phẩm nhận được: công dụng, chất liệu/thông số, kích thước, biến thể, hướng dẫn dùng và lưu ý. Không dùng thông tin phóng đại, hình ảnh gây nhầm lẫn hoặc cam kết không có căn cứ; hãy kiểm tra quy định ngành hàng trước khi đăng."
+        if any(phrase in normalized for phrase in ("shopee dang ap dung nhung loai phi", "types of fees does shopee charge")):
+            return "Các khoản thường cần kiểm tra gồm phí cố định/dịch vụ theo ngành hàng, phí xử lý giao dịch và các khoản phát sinh từ chương trình hoặc dịch vụ shop tham gia. Mức phí phụ thuộc ngành hàng và chương trình, nên xem biểu phí hiện hành trong Kênh Người Bán trước khi chốt giá."
+        if any(phrase in normalized for phrase in ("khi co don hang moi", "steps should i take when i receive a new order")):
+            return "Khi có đơn mới: xác nhận có hàng đúng biến thể, đóng gói đúng mô tả, in/dán nhãn theo hướng dẫn vận chuyển, bàn giao đúng hạn và lưu bằng chứng nếu cần. Sau khi giao, theo dõi trạng thái đơn và phản hồi khách khi có vấn đề."
+        if any(phrase in normalized for phrase in ("dong goi hang", "pack an order to reduce return risk")):
+            return "Hãy kiểm tra đúng SKU/biến thể, chụp hoặc kiểm tra tình trạng hàng trước khi đóng, bọc chống sốc phù hợp và niêm phong chắc chắn. Với hàng dễ nhầm, kèm nhãn biến thể; với hàng dễ vỡ, dùng vật liệu chèn để hàng không di chuyển trong hộp."
+        if any(phrase in normalized for phrase in ("tranh danh gia thap", "reduce low ratings from buyers")):
+            return "Để giảm đánh giá thấp, ưu tiên ảnh và mô tả đúng thực tế, giao đúng biến thể, đóng gói cẩn thận và phản hồi sớm khi có sự cố. Đừng xin hoặc mua đánh giá; hãy phân loại lý do đánh giá thấp để sửa nguyên nhân lặp lại."
+        if any(phrase in normalized for phrase in ("khi nao nguoi moi nen bat dau chay quang cao", "when should a new seller start running ads")):
+            return "Nên thử quảng cáo khi sản phẩm đã có ảnh, giá, tồn kho và trang mô tả ổn định; đồng thời bạn xác định được mức chi thử nghiệm nhỏ. Chạy 1–2 SKU trong thời gian ngắn, theo dõi chi phí, lượt nhấp, đơn và lãi góp rồi mới quyết định tăng ngân sách."
+        return ""
+
+    @staticmethod
     def _compose_answer(
         question: str,
         plan: AgentPlan,
@@ -572,6 +605,9 @@ class AgentRunner:
                 "Câu hỏi này nằm ngoài phạm vi Agent hiện tại. Agent chỉ hỗ trợ "
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
+        learner_guidance = AgentRunner._learner_guidance_answer(question)
+        if learner_guidance:
+            return learner_guidance
         sections: list[str] = []
         normalized_question = normalize(question)
         knowledge_answer = AgentRunner._knowledge_answer(question)
