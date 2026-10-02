@@ -17,7 +17,13 @@ from agent.calculator_tool import CalculatorTool
 from agent.planner import Planner
 from agent.rag_tool import RAGTool
 from agent.shop_data_library import build_demo_rows
-from agent.shop_data_tool import ShopDataTool, ShopDataValidationError
+from agent.shop_data_tool import (
+    OPTIONAL_UPLOAD_FILES,
+    REQUIRED_UPLOAD_COLUMNS,
+    WORKBOOK_SHEET_FILE_NAMES,
+    ShopDataTool,
+    ShopDataValidationError,
+)
 
 
 class PlannerTests(unittest.TestCase):
@@ -217,6 +223,48 @@ class ShopDataToolTests(unittest.TestCase):
         self.assertGreater(tool.shipping_performance_summary("2026-08")["order_count"], 0)
         self.assertGreater(tool.settlement_summary("2026-08")["settlement_count"], 0)
         self.assertIsNotNone(tool.competitor_catalog_summary("2026-08")["leading_reference"])
+
+    def test_complete_demo_workbook_reimports_every_test_table(self) -> None:
+        """The published test workbook must retain data, not just sheet tabs."""
+        import pandas as pd
+
+        rows = build_demo_rows(["phone-accessories", "appliance"], seed=20260930)
+        self.assertEqual(set(rows), set(REQUIRED_UPLOAD_COLUMNS))
+        self.assertTrue(all(rows[name] for name in REQUIRED_UPLOAD_COLUMNS))
+        sheet_names = {file_name: sheet_name for sheet_name, file_name in WORKBOOK_SHEET_FILE_NAMES.items()}
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            for name, table_rows in rows.items():
+                pd.DataFrame(table_rows).to_excel(writer, sheet_name=sheet_names[name], index=False)
+
+        imported = ShopDataTool.from_uploaded_workbook(output.getvalue())
+
+        self.assertEqual(set(imported.uploaded_rows or {}), set(REQUIRED_UPLOAD_COLUMNS))
+        self.assertIsNotNone(imported.search_performance_summary("2026-08")["top_term"])
+        self.assertGreater(imported.shipping_performance_summary("2026-08")["order_count"], 0)
+        self.assertGreater(imported.settlement_summary("2026-08")["settlement_count"], 0)
+        self.assertIsNotNone(imported.competitor_catalog_summary("2026-08")["leading_reference"])
+        self.assertIn(
+            "lượng bán ước tính cao nhất",
+            AgentRunner(shop_data_tool=imported).run("Đối thủ nào bán ước tính cao nhất?")["answer"],
+        )
+
+    def test_header_only_optional_workbook_sheets_are_ignored(self) -> None:
+        """A current-data export can include blank optional templates safely."""
+        import pandas as pd
+
+        rows = build_demo_rows(["phone-accessories"], seed=20260930)
+        sheet_names = {file_name: sheet_name for sheet_name, file_name in WORKBOOK_SHEET_FILE_NAMES.items()}
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            for name in REQUIRED_UPLOAD_COLUMNS:
+                table_rows = rows[name] if name not in OPTIONAL_UPLOAD_FILES else []
+                frame = pd.DataFrame(table_rows, columns=list(REQUIRED_UPLOAD_COLUMNS[name]))
+                frame.to_excel(writer, sheet_name=sheet_names[name], index=False)
+
+        imported = ShopDataTool.from_uploaded_workbook(output.getvalue())
+
+        self.assertEqual(set(imported.uploaded_rows or {}), {"orders.csv", "products.csv", "inventory.csv"})
 
     def test_new_tables_accept_vietnamese_no_accent_headers(self) -> None:
         files = {

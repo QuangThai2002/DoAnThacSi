@@ -30,6 +30,8 @@ from agent.market_intelligence import (
 )
 from agent.planner import Planner, normalize
 from agent.shop_data_tool import (
+    OPTIONAL_UPLOAD_FILES,
+    REQUIRED_UPLOAD_COLUMNS,
     VIETNAMESE_COLUMN_ALIASES,
     ShopDataTool,
     ShopDataValidationError,
@@ -313,6 +315,10 @@ SUGGESTIONS = {
     },
 }
 REQUIRED_FILES = ("orders.csv", "products.csv", "inventory.csv")
+# Bump this key whenever the sample schema changes.  The exported workbook is
+# cached by Streamlit, so relying only on build_demo_rows() can otherwise keep
+# serving an older file after new sheets are added.
+DEMO_WORKBOOK_VERSION = "2026.10.02-full-data-v3"
 CHAT_TYPES = {
     "learner": {
         "name": "Người mới",
@@ -1340,15 +1346,29 @@ def vietnamese_excel_template(columns: tuple[str, ...]) -> bytes:
 
 
 @st.cache_data(show_spinner=False)
-def vietnamese_excel_export(rows_by_name: dict[str, list[dict[str, str]]]) -> bytes:
-    """Export the currently attached data as a user-editable Vietnamese Excel workbook."""
+def vietnamese_excel_export(
+    rows_by_name: dict[str, list[dict[str, str]]],
+    include_empty_sheets: bool = True,
+) -> bytes:
+    """Export an editable workbook with every supported Eslabong sheet.
+
+    A header-only optional sheet is intentional: it lets a shop add that
+    report later without having to create a correctly named tab.  The importer
+    ignores those blank optional sheets, rather than treating them as data.
+    """
     status_labels = {
         "completed": "Hoàn thành", "cancelled": "Đã hủy", "received": "Đã nhận",
         "confirmed": "Đã xác nhận", "under_review": "Đang xem xét",
     }
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        for name, rows in rows_by_name.items():
+        export_names = (
+            REQUIRED_UPLOAD_COLUMNS
+            if include_empty_sheets
+            else {name: None for name in rows_by_name}
+        )
+        for name in export_names:
+            rows = rows_by_name.get(name, [])
             aliases = VIETNAMESE_COLUMN_ALIASES.get(name, {})
             rename_map = {
                 field: choices[0] if choices else field
@@ -1370,10 +1390,16 @@ def vietnamese_excel_export(rows_by_name: dict[str, list[dict[str, str]]]) -> by
 
 
 @st.cache_data(show_spinner=False)
-def vietnamese_sample_workbook() -> bytes:
-    """Provide a complete, Vietnamese, editable practice workbook for first use."""
+def vietnamese_sample_workbook(version: str) -> bytes:
+    """Provide a complete, populated, Vietnamese practice workbook.
+
+    ``version`` deliberately participates in the cache key so an older demo
+    file cannot survive a schema expansion.
+    """
+    del version
     return vietnamese_excel_export(
-        build_demo_rows(["phone-accessories", "appliance"], seed=20260930)
+        build_demo_rows(["phone-accessories", "appliance"], seed=20260930),
+        include_empty_sheets=True,
     )
 
 
@@ -2675,6 +2701,10 @@ def render_data_upload(*, inline: bool = False) -> None:
             "price_promotions.csv": "Giá và khuyến mãi theo SKU",
             "ads_sku_daily.csv": "Quảng cáo theo SKU/ngày",
             "inventory_batches.csv": "Tuổi tồn kho theo lô",
+            "search_performance.csv": "Hiệu quả tìm kiếm",
+            "shipping_performance.csv": "Vận chuyển",
+            "settlements.csv": "Đối soát thanh toán",
+            "competitor_catalog.csv": "Danh mục đối thủ",
         }
         for name in st.session_state.seller_uploaded_names:
             st.success(
@@ -2690,7 +2720,10 @@ def render_data_upload(*, inline: bool = False) -> None:
             width="stretch",
             help=ui_text("Tải toàn bộ bảng đang gắn với chat này về máy. Bạn có thể sửa rồi tải lại; tên cột trong tệp là tiếng Việt không dấu.", "Download every table attached to this chat. Edit it, then upload it again; headers are Vietnamese without accents."),
         )
-        st.caption(ui_text("Tệp xuất gồm các trang Đơn hàng, Sản phẩm, Tồn kho và các bảng tùy chọn bạn đã thêm. Sau khi sửa, bấm Thay dữ liệu shop rồi chọn lại chính workbook này để AI dùng dữ liệu mới.", "The workbook contains Orders, Products, Inventory, and optional tables you added. After editing, choose Replace shop data and select this workbook again so the AI uses the updated data."))
+        st.caption(ui_text(
+            "Tệp xuất luôn có đủ 22 trang dữ liệu. Trang chỉ có hàng tiêu đề là bảng chưa có dữ liệu; khi nạp lại, hệ thống sẽ bỏ qua trang tùy chọn đó thay vì coi là dữ liệu. Muốn kiểm thử đủ chức năng, hãy dùng Bộ kiểm thử đầy đủ bên dưới.",
+            "The export always contains all 22 data sheets. A sheet with headers only has no data; on re-import, optional blank sheets are ignored. For a full functional test, use the complete test package below.",
+        ))
         if st.button(ui_text("Thay dữ liệu shop", "Replace shop data"), icon=":material/upload_file:"):
             st.session_state.seller_uploaded_rows = None
             st.session_state.seller_uploaded_names = ()
@@ -2710,21 +2743,21 @@ def render_data_upload(*, inline: bool = False) -> None:
     with st.container(border=True):
         st.markdown("#### " + ui_text("Dữ liệu thử tiếng Việt", "Vietnamese sample data"))
         st.caption(ui_text(
-            "Bộ thử gồm 14 sản phẩm thuộc hai ngành, đơn hàng trong 12 tháng, giá–khuyến mãi, quảng cáo theo SKU và tuổi tồn theo lô. Tất cả tiêu đề và trạng thái đều là tiếng Việt.",
-            "The sample has 14 products across two categories, 12 months of orders, price promotions, SKU-level ads, and batch inventory age. All headers and statuses are in Vietnamese.",
+            "Bộ kiểm thử có dữ liệu hợp lệ ở cả 22 bảng: đơn hàng, tồn kho, giá–khuyến mãi, quảng cáo, tìm kiếm, vận chuyển, đối soát và danh mục đối thủ. Không phải file mẫu chỉ có tiêu đề trang.",
+            "The test package has valid rows in all 22 tables: orders, inventory, promotions, ads, search, shipping, settlements, and competitor catalogue. It is not a header-only template.",
         ))
         st.download_button(
-            ui_text("Tải dữ liệu thử (.xlsx)", "Download sample data (.xlsx)"),
-            data=vietnamese_sample_workbook(),
-            file_name="du_lieu_thu_eslabong_tieng_viet.xlsx",
+            ui_text("Tải bộ kiểm thử đầy đủ (.xlsx)", "Download complete test data (.xlsx)"),
+            data=vietnamese_sample_workbook(DEMO_WORKBOOK_VERSION),
+            file_name="du_lieu_thu_eslabong_day_du_20261002.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             icon=":material/download:",
         )
 
     st.markdown("#### " + ui_text("Nạp một file Excel", "Upload one Excel workbook"))
     st.caption(ui_text(
-        "Chọn file Eslabong vừa tải hoặc file đã xuất từ chat. Hệ thống tự đọc các trang Đơn hàng, Sản phẩm và Tồn kho.",
-        "Choose an Eslabong sample or a workbook exported from chat. The app reads the Orders, Products, and Inventory sheets automatically.",
+        "Chọn bộ kiểm thử vừa tải hoặc file đã xuất từ chat. Hệ thống tự đọc các trang có dữ liệu; ba trang Đơn hàng, Sản phẩm và Tồn kho là bắt buộc.",
+        "Choose the downloaded test package or a workbook exported from chat. The app reads sheets that contain data; Orders, Products, and Inventory are required.",
     ))
     exported_workbook = st.file_uploader(
         ui_text("Chọn file Excel (.xlsx)", "Choose an Excel file (.xlsx)"),
@@ -2746,7 +2779,17 @@ def render_data_upload(*, inline: bool = False) -> None:
             start_conversation("owner")
         clear_active_conversation()
         save_active_conversation()
-        st.session_state.seller_upload_message = ui_text("Đã nạp dữ liệu Excel thành công.", "Excel data loaded successfully.")
+        missing_optional = sorted(OPTIONAL_UPLOAD_FILES - set(tool.uploaded_rows or {}))
+        if missing_optional:
+            st.session_state.seller_upload_message = ui_text(
+                f"Đã nạp dữ liệu Excel. Có {len(missing_optional)} bảng mở rộng chưa có dòng dữ liệu; AI sẽ nói rõ bảng cần tạo khi bạn hỏi về chúng.",
+                f"Excel data loaded. {len(missing_optional)} optional tables have no rows; the AI will name the table to create when you ask about one.",
+            )
+        else:
+            st.session_state.seller_upload_message = ui_text(
+                "Đã nạp bộ dữ liệu Excel đầy đủ: 22 bảng đều có dữ liệu.",
+                "Complete Excel test data loaded: all 22 tables contain data.",
+            )
         st.rerun()
 
     with st.expander(ui_text("Nhập từng bảng riêng (nâng cao)", "Upload separate tables (advanced)"), icon=":material/tune:"):
@@ -3030,7 +3073,7 @@ with st.sidebar:
             key="seller_dark_mode",
         )
         st.caption(ui_text("Cài đặt chỉ áp dụng cho tab đang mở.", "Settings apply only to this browser tab."))
-        st.caption("Bản dữ liệu: 2026.10.02-search-shipping")
+        st.caption("Bản dữ liệu: 2026.10.02-full-export")
 
 if st.session_state.seller_show_chat_picker:
     choose_chat_type()

@@ -380,7 +380,7 @@ def build_demo_rows(
                     "attributed_revenue_vnd": str(int(spend * rng.uniform(1.4, 5.0))),
                 })
                 search_performance.append({"date": f"{period}-{rng.randint(1, 27):02d}", "sku": sku, "search_term": product_name.split(" ")[0].lower() + " " + category.lower(), "impressions": str(impressions), "clicks": str(clicks), "average_position": f"{rng.uniform(3.0, 18.0):.1f}"})
-                shipping_performance.append({"order_id": f"SHIP-{period.replace('-', '')}-{category_index:02d}{product_index:02d}", "order_date": f"{period}-{rng.randint(1, 27):02d}", "status": "cancelled" if status == "cancelled" else "completed", "is_late": "Có" if rng.random() < 0.16 else "Không", "cancellation_reason": "Khách đổi ý" if status == "cancelled" else "", "processing_hours": f"{rng.uniform(2, 30):.1f}"})
+                shipping_performance.append({"order_id": f"SHIP-{period.replace('-', '')}-{category_index:02d}{product_index:02d}", "order_date": f"{period}-{rng.randint(1, 27):02d}", "status": "cancelled" if status == "cancelled" else "completed", "is_late": "Có" if rng.random() < 0.16 else "Không", "cancellation_reason": "Khách đổi ý" if status == "cancelled" else "Không hủy", "processing_hours": f"{rng.uniform(2, 30):.1f}"})
                 competitor_catalog.append({"observed_date": f"{period}-{rng.randint(1, 27):02d}", "reference_sku": sku, "competitor_shop": f"Shop tham khảo {rng.randint(1, 9)}", "product_name": product_name, "price_vnd": str(int(list_price * rng.uniform(0.78, 1.20))), "rating": f"{rng.uniform(3.8, 4.9):.2f}", "review_count": str(rng.randint(8, 1900)), "estimated_monthly_units": str(rng.randint(6, 350))})
 
     # The demo has an explicit aggregate table for products that occurred in
@@ -439,7 +439,8 @@ def build_demo_rows(
                 "note": "Thanh toán nhập hàng mô phỏng.",
             },
         ))
-        settlements.append({"settlement_id": f"SET-{period.replace('-', '')}", "settlement_date": f"{period}-27", "payout_date": f"{period}-28", "shopee_payable_vnd": str(completed_gmv), "actual_fee_vnd": str(int(completed_gmv * 0.14)), "received_amount_vnd": str(int(completed_gmv * 0.86)), "status": "Đã nhận"})
+        settlement_fee = int(completed_gmv * 0.14)
+        settlements.append({"settlement_id": f"SET-{period.replace('-', '')}", "settlement_date": f"{period}-27", "payout_date": f"{period}-28", "shopee_payable_vnd": str(completed_gmv), "actual_fee_vnd": str(settlement_fee), "received_amount_vnd": str(completed_gmv - settlement_fee), "status": "Đã nhận"})
         total_orders = max(3, len([row for row in orders if row["order_date"].startswith(period)]))
         returning = max(1, int(total_orders * rng.uniform(0.18, 0.38)))
         customer_segments.extend((

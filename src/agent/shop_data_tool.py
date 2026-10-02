@@ -511,6 +511,15 @@ class ShopDataTool:
                 raise ShopDataValidationError(
                     f"Không đọc được trang Excel: {sheet_name}."
                 ) from exc
+            # Workbooks exported by Eslabong include every known sheet so the
+            # user can add a report later.  A header-only *optional* sheet is
+            # a template, not malformed data, and must not make re-import fail.
+            if frame.empty:
+                if file_name in OPTIONAL_UPLOAD_FILES:
+                    continue
+                raise ShopDataValidationError(
+                    f"Trang bắt buộc {sheet_name} chưa có dòng dữ liệu."
+                )
             files[file_name] = frame.to_csv(index=False).encode("utf-8")
 
         if unknown_sheets:

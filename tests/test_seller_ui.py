@@ -41,7 +41,7 @@ class SellerFacingUiTests(unittest.TestCase):
                 "Tồn kho (bắt buộc)",
             ],
         )
-        self.assertIn("Tải dữ liệu thử (.xlsx)", [item.label for item in app.download_button])
+        self.assertIn("Tải bộ kiểm thử đầy đủ (.xlsx)", [item.label for item in app.download_button])
         self.assertEqual(len(app.error), 0)
 
     def test_settings_switch_interface_language_and_dark_mode_without_losing_state(self) -> None:
