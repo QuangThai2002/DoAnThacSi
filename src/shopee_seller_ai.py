@@ -1411,6 +1411,20 @@ def activate_library_data(scope: str) -> None:
     if rows is None:
         st.session_state.seller_upload_error = "Hãy lưu đủ bảng dữ liệu trước khi dùng trong chat."
         return
+    # Older demo shelves predate the four operational tables added later.  A
+    # saved chat must not silently fall back to RAG just because its local demo
+    # payload was created before those tables existed.
+    if scope == "demo":
+        new_tables = {
+            "search_performance.csv", "shipping_performance.csv",
+            "settlements.csv", "competitor_catalog.csv",
+        }
+        missing_tables = new_tables - set(rows)
+        if missing_tables:
+            selected_ids = list(st.session_state.get("seller_demo_selected_ids", []))
+            current_demo = build_demo_rows(selected_ids or None, seed=20260930)
+            rows.update({name: current_demo[name] for name in missing_tables})
+            rows = library_repository().save("demo", rows)
     expected_mode = "learner" if scope == "demo" else "owner"
     selected_demo_ids = list(st.session_state.get("seller_demo_selected_ids", []))
     active_mode = st.session_state.get("seller_chat_mode")
@@ -3016,6 +3030,7 @@ with st.sidebar:
             key="seller_dark_mode",
         )
         st.caption(ui_text("Cài đặt chỉ áp dụng cho tab đang mở.", "Settings apply only to this browser tab."))
+        st.caption("Bản dữ liệu: 2026.10.02-search-shipping")
 
 if st.session_state.seller_show_chat_picker:
     choose_chat_type()
