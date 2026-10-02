@@ -1536,7 +1536,25 @@ class ShopDataTool:
         entries.sort(key=lambda item: (-item["estimated_monthly_units"], -item["rating"], item["price_vnd"]))
         prices = sorted(item["price_vnd"] for item in entries)
         median_price = prices[len(prices) // 2] if prices else None
-        return {"tool": "shop_data.competitor_catalog_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "listing_count": len(entries), "median_price_vnd": median_price, "leading_reference": entries[0] if entries else None, "listings": entries[:20], "limitation": "Dữ liệu đối thủ là quan sát hoặc ước tính do người dùng nhập, không phải dữ liệu trực tiếp từ Shopee và không đủ để khẳng định doanh số hay chiến lược của đối thủ."}
+        shop_list_prices = {
+            row["sku"]: as_number(as_decimal(row["list_price_vnd"]))
+            for row in self._read_csv("products.csv")
+        }
+        matched_prices = [
+            (int(entry["price_vnd"]), int(shop_list_prices[entry["reference_sku"]]))
+            for entry in entries
+            if entry["reference_sku"] in shop_list_prices
+        ]
+        comparison = None
+        if matched_prices:
+            competitor_prices, shop_prices = zip(*matched_prices)
+            comparison = {
+                "matched_listing_count": len(matched_prices),
+                "median_competitor_price_vnd": round(median(competitor_prices)),
+                "median_shop_list_price_vnd": round(median(shop_prices)),
+                "median_difference_vnd": round(median([competitor - shop for competitor, shop in matched_prices])),
+            }
+        return {"tool": "shop_data.competitor_catalog_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "listing_count": len(entries), "median_price_vnd": median_price, "leading_reference": entries[0] if entries else None, "listings": entries[:20], "shop_price_comparison": comparison, "limitation": "Dữ liệu đối thủ là quan sát hoặc ước tính do người dùng nhập, không phải dữ liệu trực tiếp từ Shopee và không đủ để khẳng định doanh số hay chiến lược của đối thủ."}
 
     def returns_summary(self, period: str | None = None) -> dict[str, Any]:
         rows = [

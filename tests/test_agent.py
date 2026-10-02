@@ -569,7 +569,10 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             "ý do hủy đơn phổ biến nhất là gì?": "Lý do hủy đơn phổ biến nhất",
             "Thời gian xử lý đơn trung bình là bao lâu?": "Thời gian xử lý đơn trung bình là",
             "Đối soát thanh toán tháng 8 thế nào?": "Shopee phải trả",
+            "Tiền Shopee phải trả, phí thực tế và tiền đã nhận có khớp không?": "Khoản đối soát **khớp**",
             "Đối thủ nào bán ước tính cao nhất?": "chỉ là dữ liệu tham khảo",
+            "Giá của đối thủ đang cao hay thấp hơn giá sản phẩm tương ứng của shop?": "Giá trung vị của đối thủ",
+            "SKU nào đang được giảm giá nhiều nhất?": "SKU giảm giá nhiều nhất",
         }
         for question, expected in checks.items():
             with self.subTest(question=question):

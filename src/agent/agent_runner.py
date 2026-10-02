@@ -327,7 +327,7 @@ class AgentRunner:
             tags.add("product_demand")
         if any(term in normalized for term in ("quang cao", "roas", "ads")):
             tags.add("advertising")
-        if any(term in normalized for term in ("khuyen mai", "ma giam gia", "gia sau khuyen mai", "gia cuoi")):
+        if any(term in normalized for term in ("giam gia", "khuyen mai", "ma giam gia", "gia sau khuyen mai", "gia cuoi")):
             tags.add("price_promotions")
         if any(term in normalized for term in ("quang cao theo sku", "quang cao tung san pham", "sku nao nen tang ngan sach")):
             tags.add("ads_sku_daily")
@@ -680,13 +680,21 @@ class AgentRunner:
         if price_promotions:
             product = price_promotions.get("largest_discount_product")
             if product:
-                sections.append(
-                    "Giá–khuyến mãi đã ghi của **{name}** có mức giảm bình quân {rate:.2f}%: giá niêm yết bình quân {listed:,} VND, giá cuối bình quân {final:,} VND. {limitation}".format(
-                        name=product["product_name"], rate=product["average_discount_percent"] or 0,
-                        listed=int(product["average_list_price_vnd"]), final=int(product["average_final_price_vnd"]),
-                        limitation=str(price_promotions["limitation"]),
+                if "giam gia" in normalize(question) and any(term in normalize(question) for term in ("sku nao", "san pham nao")):
+                    sections.append(
+                        "SKU giảm giá nhiều nhất là **{name}**: giảm bình quân {rate:.2f}%, từ {listed:,} VND xuống {final:,} VND.".format(
+                            name=product["product_name"], rate=product["average_discount_percent"] or 0,
+                            listed=int(product["average_list_price_vnd"]), final=int(product["average_final_price_vnd"]),
+                        )
                     )
-                )
+                else:
+                    sections.append(
+                        "Giá–khuyến mãi đã ghi của **{name}** có mức giảm bình quân {rate:.2f}%: giá niêm yết bình quân {listed:,} VND, giá cuối bình quân {final:,} VND. {limitation}".format(
+                            name=product["product_name"], rate=product["average_discount_percent"] or 0,
+                            listed=int(product["average_list_price_vnd"]), final=int(product["average_final_price_vnd"]),
+                            limitation=str(price_promotions["limitation"]),
+                        )
+                    )
             else:
                 sections.append("Chưa có bản ghi giá và khuyến mãi trong kỳ được hỏi. Hãy tạo hoặc tải bảng **Giá và khuyến mãi theo SKU**.")
         if ads_sku_daily:
@@ -745,10 +753,24 @@ class AgentRunner:
             else:
                 sections.append("Có {late} đơn giao trễ, {cancelled} đơn hủy; thời gian xử lý trung bình {hours} giờ. Lý do hủy nhiều nhất: {reason}.".format(late=shipping_performance["late_order_count"], cancelled=shipping_performance["cancelled_order_count"], hours="—" if shipping_performance["average_processing_hours"] is None else shipping_performance["average_processing_hours"], reason=shipping_performance["top_cancellation_reason"] or "chưa ghi"))
         if settlements:
-            sections.append("Đối soát đã ghi: Shopee phải trả {payable:,} VND, phí thực tế {fees:,} VND, dự kiến nhận {expected:,} VND và đã nhận {received:,} VND.".format(payable=int(settlements["shopee_payable_vnd"]), fees=int(settlements["actual_fee_vnd"]), expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"])))
+            if any(term in normalized_question for term in ("khop", "chenh lech", "doi chieu")):
+                difference = int(settlements["difference_vnd"])
+                if difference == 0:
+                    sections.append("Khoản đối soát **khớp**: dự kiến nhận {expected:,} VND và đã nhận {received:,} VND, chênh lệch 0 VND.".format(expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"])))
+                else:
+                    sections.append("Khoản đối soát **chưa khớp**: dự kiến nhận {expected:,} VND, đã nhận {received:,} VND, chênh lệch {difference:+,} VND.".format(expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"]), difference=difference))
+            else:
+                sections.append("Đối soát đã ghi: Shopee phải trả {payable:,} VND, phí thực tế {fees:,} VND, dự kiến nhận {expected:,} VND và đã nhận {received:,} VND.".format(payable=int(settlements["shopee_payable_vnd"]), fees=int(settlements["actual_fee_vnd"]), expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"])))
         if competitor_catalog:
-            top = competitor_catalog.get("leading_reference")
-            sections.append(f"Shop tham khảo có lượng bán ước tính cao nhất là **{top['competitor_shop']}**: giá {top['price_vnd']:,} VND, {top['rating']:.2f}/5 và {top['estimated_monthly_units']} lượt bán ước tính/tháng. Đây chỉ là dữ liệu tham khảo do bạn nhập." if top else "Chưa có danh mục đối thủ. Hãy tạo hoặc tải bảng **Danh mục đối thủ**.")
+            compares_price = "gia" in normalized_question and any(term in normalized_question for term in ("cao hon", "thap hon", "so sanh", "tuong ung"))
+            comparison = competitor_catalog.get("shop_price_comparison")
+            if compares_price and comparison:
+                difference = int(comparison["median_difference_vnd"])
+                direction = "cao hơn" if difference > 0 else "thấp hơn" if difference < 0 else "bằng"
+                sections.append("Giá trung vị của đối thủ **{direction}** giá niêm yết shop {amount:,} VND trên {count} quan sát ghép theo SKU: đối thủ {competitor:,} VND, shop {shop:,} VND. Đây là dữ liệu tham khảo.".format(direction=direction, amount=abs(difference), count=comparison["matched_listing_count"], competitor=int(comparison["median_competitor_price_vnd"]), shop=int(comparison["median_shop_list_price_vnd"])))
+            else:
+                top = competitor_catalog.get("leading_reference")
+                sections.append(f"Shop tham khảo có lượng bán ước tính cao nhất là **{top['competitor_shop']}**: giá {top['price_vnd']:,} VND, {top['rating']:.2f}/5 và {top['estimated_monthly_units']} lượt bán ước tính/tháng. Đây chỉ là dữ liệu tham khảo do bạn nhập." if top else "Chưa có danh mục đối thủ. Hãy tạo hoặc tải bảng **Danh mục đối thủ**.")
         if profitability:
             contribution = int(profitability["estimated_contribution_vnd"])
             label = "lãi góp ước tính" if contribution >= 0 else "lỗ góp ước tính"
