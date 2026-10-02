@@ -489,7 +489,6 @@ CONVERSATION_CONTEXT_KEYS = (
     "strategy_category_id",
     "strategy_inventory_category",
     "strategy_target_stock_months",
-    "seller_learner_question_bank_open",
 )
 CONVERSATION_WIDGET_KEYS = {
     "seller_market_category_id",
@@ -522,7 +521,6 @@ def initialise_state() -> None:
     st.session_state.setdefault("seller_market_advisor_messages", [])
     st.session_state.setdefault("seller_advisor_handoffs", [])
     st.session_state.setdefault("seller_pending_main_prompt", None)
-    st.session_state.setdefault("seller_learner_question_bank_open", False)
     st.session_state.setdefault("seller_market_advisor_open", False)
     st.session_state.setdefault("seller_advisor_surface", "market")
     st.session_state.setdefault("seller_strategy_last_simulation", None)
@@ -745,7 +743,6 @@ def new_conversation_context(mode: str) -> dict[str, Any]:
         "strategy_category_id": "appliance",
         "strategy_inventory_category": "appliance",
         "strategy_target_stock_months": 2.0,
-        "seller_learner_question_bank_open": False,
     }
 
 
@@ -1066,7 +1063,6 @@ def queue_selected_learner_question() -> None:
     if not selected:
         return
     st.session_state.seller_pending_main_prompt = str(selected)
-    st.session_state.seller_learner_question_bank_open = False
     # This callback runs before widgets render, so the picker can safely reset
     # and the same question remains selectable later.
     st.session_state.learner_question_picker = None
@@ -3087,19 +3083,11 @@ def render_assistant() -> None:
                 icon=":material/auto_stories:",
                 on_click=open_data_library,
             )
-            if st.button(
+            with st.popover(
                 ui_text("Bộ câu hỏi người mới", "New seller questions"),
-                key="toggle_learner_question_bank",
                 icon=":material/menu_book:",
-                type="primary" if st.session_state.get("seller_learner_question_bank_open") else "secondary",
             ):
-                st.session_state.seller_learner_question_bank_open = not bool(
-                    st.session_state.seller_learner_question_bank_open
-                )
-                st.rerun()
-
-    if mode == "learner" and st.session_state.get("seller_learner_question_bank_open"):
-        render_learner_question_bank()
+                render_learner_question_bank()
 
     render_advisor_handoff()
 

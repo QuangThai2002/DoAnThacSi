@@ -31,10 +31,6 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
 
-        self.assertIn("Bộ câu hỏi người mới", [button.label for button in app.button])
-        self.assertFalse(app.session_state["seller_learner_question_bank_open"])
-        app.button(key="toggle_learner_question_bank").click().run()
-
         picker = app.selectbox(key="learner_question_picker")
         self.assertEqual(len(picker.options), 15)
         self.assertFalse(any(button.key and button.key.startswith("learner_question_") for button in app.button))
@@ -50,7 +46,6 @@ class SellerFacingUiTests(unittest.TestCase):
         app.button(key="new_chat_main").click().run()
         app.button(key="choose_learner").click().run()
 
-        app.button(key="toggle_learner_question_bank").click().run()
         app.selectbox(key="learner_question_picker").select(
             "Khi có đơn hàng mới, tôi cần xử lý theo các bước nào?"
         ).run()
