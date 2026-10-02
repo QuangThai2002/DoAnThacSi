@@ -3076,20 +3076,19 @@ def render_assistant() -> None:
         with st.expander(ui_text("Dữ liệu đang gắn với chat", "Data attached to this chat"), icon=":material/table_chart:"):
             render_data_upload(inline=True)
     elif mode == "learner" and not is_uploaded():
-        demo_column, question_column = st.columns(2)
-        with demo_column:
+        # Fixed widths keep the two secondary actions compact and visually equal.
+        with st.container(horizontal=True, gap="small"):
             st.button(
                 ui_text("Dùng bộ dữ liệu demo để thử phân tích", "Use demo data for analysis"),
                 key="open_demo_library_from_chat",
                 icon=":material/auto_stories:",
                 on_click=open_data_library,
-                width="stretch",
+                width=280,
             )
-        with question_column:
             with st.popover(
                 ui_text("Bộ câu hỏi người mới", "New seller questions"),
                 icon=":material/menu_book:",
-                width="stretch",
+                width=280,
             ):
                 render_learner_question_bank()
 
