@@ -129,6 +129,13 @@ st.markdown(
         background: #fff4f0 !important; border-color: #ee4d2d !important;
         box-shadow: 0 5px 14px rgba(202, 72, 38, .12) !important; transform: translateY(-1px);
       }
+      /* Button and popover have different Streamlit defaults. These paired
+         learner controls are intentionally the same compact footprint. */
+      .st-key-open_demo_library_from_chat button,
+      .st-key-learner_question_bank_popover button {
+        height: 42px !important; min-height: 42px !important; max-height: 42px !important;
+        padding-top: .55rem !important; padding-bottom: .55rem !important;
+      }
       [data-testid="stMain"] .stButton > button:focus-visible,
       [data-testid="stSidebar"] .stButton > button:focus-visible {
         outline: 3px solid rgba(238, 77, 45, .22) !important; outline-offset: 2px !important;
@@ -3089,6 +3096,7 @@ def render_assistant() -> None:
                 ui_text("Bộ câu hỏi người mới", "New seller questions"),
                 icon=":material/menu_book:",
                 width=280,
+                key="learner_question_bank_popover",
             ):
                 render_learner_question_bank()
 
