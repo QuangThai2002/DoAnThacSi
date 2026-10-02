@@ -338,7 +338,7 @@ class AgentRunner:
             tags.add("inventory_batches")
         if any(term in normalized for term in ("tu khoa", "tim kiem", "vi tri tim kiem", "hien thi tim kiem")):
             tags.add("search_performance")
-        if any(term in normalized for term in ("giao tre", "van chuyen", "thoi gian xu ly", "ly do huy don")):
+        if any(term in normalized for term in ("giao tre", "van chuyen", "thoi gian xu ly", "ly do huy don", "huy don", "do huy")):
             tags.add("shipping_performance")
         if any(term in normalized for term in ("doi soat", "tien shopee phai tra", "phi thuc te", "ngay nhan tien")):
             tags.add("settlements")
@@ -712,11 +712,38 @@ class AgentRunner:
                 )
             else:
                 sections.append("Chưa có dữ liệu tuổi tồn theo lô. Hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**.")
+        normalized_question = normalize(question)
         if search_performance:
-            top = search_performance.get("top_term")
-            sections.append(f"Từ khóa có nhiều lượt nhấp nhất là **{top['search_term']}**: {top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị, vị trí trung bình {top['average_position']}." if top else "Chưa có dữ liệu hiệu quả tìm kiếm. Hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm**.")
+            if not search_performance.get("term_count"):
+                sections.append("Chưa có dữ liệu hiệu quả tìm kiếm. Hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm**.")
+            elif "vi tri" in normalized_question:
+                top = search_performance["best_position_term"]
+                sections.append(f"Từ khóa có vị trí tìm kiếm trung bình tốt nhất là **{top['search_term']}**: vị trí {top['average_position']} (càng nhỏ càng tốt), {top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị.")
+            elif "hien thi" in normalized_question:
+                top = search_performance["top_impressions_term"]
+                sections.append(f"Từ khóa có nhiều lượt hiển thị nhất là **{top['search_term']}**: {top['impressions']} lượt hiển thị, {top['clicks']} lượt nhấp và vị trí trung bình {top['average_position']}.")
+            elif any(term in normalized_question for term in ("ty le nhap", "ctr")):
+                top = search_performance["top_ctr_term"]
+                sections.append(f"Từ khóa có tỷ lệ nhấp cao nhất là **{top['search_term']}**: CTR {top['ctr_percent']}% ({top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị).")
+            else:
+                top = search_performance["top_term"]
+                sections.append(f"Từ khóa có nhiều lượt nhấp nhất là **{top['search_term']}**: {top['clicks']} lượt nhấp từ {top['impressions']} lượt hiển thị, vị trí trung bình {top['average_position']}.")
         if shipping_performance:
-            sections.append("Có {late} đơn giao trễ, {cancelled} đơn hủy; thời gian xử lý trung bình {hours} giờ. Lý do hủy nhiều nhất: {reason}.".format(late=shipping_performance["late_order_count"], cancelled=shipping_performance["cancelled_order_count"], hours="—" if shipping_performance["average_processing_hours"] is None else shipping_performance["average_processing_hours"], reason=shipping_performance["top_cancellation_reason"] or "chưa ghi"))
+            if not shipping_performance["order_count"]:
+                sections.append("Chưa có dữ liệu vận chuyển. Hãy tạo hoặc tải bảng **Vận chuyển**.")
+            elif any(term in normalized_question for term in ("ly do huy", "do huy")):
+                reason = shipping_performance["top_cancellation_reason"]
+                if reason is None:
+                    sections.append("Không có đơn hủy trong kỳ được hỏi nên chưa có lý do hủy để xếp hạng.")
+                else:
+                    sections.append("Lý do hủy đơn phổ biến nhất là **{reason}**: {count}/{cancelled} đơn hủy đã ghi.".format(reason=reason, count=shipping_performance["top_cancellation_reason_count"], cancelled=shipping_performance["cancelled_order_count"]))
+            elif "thoi gian xu ly" in normalized_question:
+                hours = shipping_performance["average_processing_hours"]
+                sections.append("Thời gian xử lý đơn trung bình là **{hours} giờ** trên {orders} đơn đã ghi.".format(hours="chưa tính được" if hours is None else hours, orders=shipping_performance["order_count"]))
+            elif "giao tre" in normalized_question:
+                sections.append("Có **{late} đơn giao trễ** trên {orders} đơn đã ghi.".format(late=shipping_performance["late_order_count"], orders=shipping_performance["order_count"]))
+            else:
+                sections.append("Có {late} đơn giao trễ, {cancelled} đơn hủy; thời gian xử lý trung bình {hours} giờ. Lý do hủy nhiều nhất: {reason}.".format(late=shipping_performance["late_order_count"], cancelled=shipping_performance["cancelled_order_count"], hours="—" if shipping_performance["average_processing_hours"] is None else shipping_performance["average_processing_hours"], reason=shipping_performance["top_cancellation_reason"] or "chưa ghi"))
         if settlements:
             sections.append("Đối soát đã ghi: Shopee phải trả {payable:,} VND, phí thực tế {fees:,} VND, dự kiến nhận {expected:,} VND và đã nhận {received:,} VND.".format(payable=int(settlements["shopee_payable_vnd"]), fees=int(settlements["actual_fee_vnd"]), expected=int(settlements["expected_received_vnd"]), received=int(settlements["received_amount_vnd"])))
         if competitor_catalog:

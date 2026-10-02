@@ -1496,7 +1496,14 @@ class ShopDataTool:
             entry["positions"].append(float(row["average_position"])); entry["skus"].add(row["sku"])
         terms = [{"search_term": term, "impressions": value["impressions"], "clicks": value["clicks"], "average_position": round(sum(value["positions"]) / len(value["positions"]), 2), "ctr_percent": round(value["clicks"] / value["impressions"] * 100, 2) if value["impressions"] else None, "sku_count": len(value["skus"])} for term, value in grouped.items()]
         terms.sort(key=lambda item: (-item["clicks"], item["average_position"], item["search_term"]))
-        return {"tool": "shop_data.search_performance_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "term_count": len(terms), "terms": terms[:20], "top_term": terms[0] if terms else None, "limitation": "Dữ liệu tìm kiếm chỉ phản ánh các lượt hiển thị và nhấp đã ghi; không chứng minh một từ khóa tự làm tăng đơn."}
+        best_position = min(terms, key=lambda item: (item["average_position"], -item["clicks"], item["search_term"]), default=None)
+        top_impressions = max(terms, key=lambda item: (item["impressions"], item["clicks"], item["search_term"]), default=None)
+        top_ctr = max(
+            (item for item in terms if item["ctr_percent"] is not None),
+            key=lambda item: (item["ctr_percent"], item["clicks"], -item["average_position"]),
+            default=None,
+        )
+        return {"tool": "shop_data.search_performance_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "term_count": len(terms), "terms": terms[:20], "top_term": terms[0] if terms else None, "best_position_term": best_position, "top_impressions_term": top_impressions, "top_ctr_term": top_ctr, "limitation": "Dữ liệu tìm kiếm chỉ phản ánh các lượt hiển thị và nhấp đã ghi; không chứng minh một từ khóa tự làm tăng đơn."}
 
     def shipping_performance_summary(self, period: str | None = None) -> dict[str, Any]:
         rows = [row for row in self._read_csv("shipping_performance.csv") if period is None or row["order_date"].startswith(period)]
@@ -1507,8 +1514,12 @@ class ShopDataTool:
             reason = row["cancellation_reason"].strip() or "Chưa ghi lý do"
             reasons[reason] = reasons.get(reason, 0) + 1
         average_hours = round(sum(float(row["processing_hours"]) for row in rows) / len(rows), 2) if rows else None
-        top_reason = next(iter(sorted(reasons.items(), key=lambda item: (-item[1], item[0]))), None)
-        return {"tool": "shop_data.shipping_performance_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "order_count": len(rows), "late_order_count": len(late), "cancelled_order_count": len(cancelled), "average_processing_hours": average_hours, "top_cancellation_reason": top_reason[0] if top_reason else None, "limitation": "Giao trễ và lý do hủy chỉ là dữ liệu đã ghi; cần đối chiếu trạng thái thực tế và bằng chứng giao nhận trước khi quy trách nhiệm."}
+        cancellation_reasons = [
+            {"reason": reason, "count": count}
+            for reason, count in sorted(reasons.items(), key=lambda item: (-item[1], item[0]))
+        ]
+        top_reason = cancellation_reasons[0] if cancellation_reasons else None
+        return {"tool": "shop_data.shipping_performance_summary", "data_scope": self.data_scope, "period": period or "all_available_periods", "order_count": len(rows), "late_order_count": len(late), "cancelled_order_count": len(cancelled), "average_processing_hours": average_hours, "cancellation_reasons": cancellation_reasons, "top_cancellation_reason": top_reason["reason"] if top_reason else None, "top_cancellation_reason_count": top_reason["count"] if top_reason else 0, "limitation": "Giao trễ và lý do hủy chỉ là dữ liệu đã ghi; cần đối chiếu trạng thái thực tế và bằng chứng giao nhận trước khi quy trách nhiệm."}
 
     def settlement_summary(self, period: str | None = None) -> dict[str, Any]:
         rows = [row for row in self._read_csv("settlements.csv") if period is None or row["settlement_date"].startswith(period)]

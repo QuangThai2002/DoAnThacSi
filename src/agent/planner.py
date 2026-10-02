@@ -133,6 +133,10 @@ class Planner:
         "van chuyen",
         "thoi gian xu ly",
         "ly do huy don",
+        # Accept ordinary shorthand and the common missing-initial-letter typo
+        # in "lý do hủy đơn".  These are still unambiguously shop metrics.
+        "huy don",
+        "do huy",
         "doi soat",
         "tien shopee phai tra",
         "phi thuc te",

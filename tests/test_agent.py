@@ -564,7 +564,10 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         runner = AgentRunner(shop_data_tool=ShopDataTool(uploaded_rows=build_demo_rows(seed=20261001)))
         checks = {
             "Từ khóa nào có lượt nhấp cao nhất?": "Từ khóa có nhiều lượt nhấp nhất",
+            "Từ khóa nào có vị trí tìm kiếm trung bình tốt nhất?": "càng nhỏ càng tốt",
             "Shop có bao nhiêu đơn giao trễ?": "đơn giao trễ",
+            "ý do hủy đơn phổ biến nhất là gì?": "Lý do hủy đơn phổ biến nhất",
+            "Thời gian xử lý đơn trung bình là bao lâu?": "Thời gian xử lý đơn trung bình là",
             "Đối soát thanh toán tháng 8 thế nào?": "Shopee phải trả",
             "Đối thủ nào bán ước tính cao nhất?": "chỉ là dữ liệu tham khảo",
         }
