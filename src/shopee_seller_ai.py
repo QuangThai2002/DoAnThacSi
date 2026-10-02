@@ -1060,30 +1060,31 @@ def render_quick_guide(when_to_use: str, steps: list[str]) -> None:
         st.caption(" → ".join(f"{index + 1}. {step}" for index, step in enumerate(steps)))
 
 
+def queue_selected_learner_question() -> None:
+    """Send a dropdown selection straight into the main chat on this rerun."""
+    selected = st.session_state.get("learner_question_picker")
+    if not selected:
+        return
+    st.session_state.seller_pending_main_prompt = str(selected)
+    st.session_state.seller_learner_question_bank_open = False
+    # This callback runs before widgets render, so the picker can safely reset
+    # and the same question remains selectable later.
+    st.session_state.learner_question_picker = None
+
+
 def render_learner_question_bank() -> None:
-    """Show a focused, one-tap question board for first-time sellers."""
+    """Keep beginner prompts compact: one picker, no long table."""
     language = str(st.session_state.get("seller_language", "vi"))
-    is_vietnamese = language == "vi"
-    group_key = "group_vi" if is_vietnamese else "group_en"
-    question_key = "question_vi" if is_vietnamese else "question_en"
-    with st.container(border=True, height=480):
-        st.markdown("#### " + ui_text("15 câu hỏi cho người mới", "15 questions for new sellers"))
-        st.caption(ui_text("Bấm một câu để hỏi ngay trong chat.", "Tap a question to ask it in this chat immediately."))
-        last_group = ""
-        for index, item in enumerate(LEARNER_QUESTION_BANK):
-            group = item[group_key]
-            if group != last_group:
-                st.markdown(f"**{group}**")
-                last_group = group
-            if st.button(
-                item[question_key],
-                key=f"learner_question_{index}",
-                icon=":material/help:",
-                width="stretch",
-            ):
-                st.session_state.seller_pending_main_prompt = item[question_key]
-                st.session_state.seller_learner_question_bank_open = False
-                st.rerun()
+    question_key = "question_vi" if language == "vi" else "question_en"
+    st.selectbox(
+        ui_text("Chọn câu hỏi cho người mới", "Choose a new seller question"),
+        [item[question_key] for item in LEARNER_QUESTION_BANK],
+        index=None,
+        placeholder=ui_text("Chọn câu hỏi muốn hỏi", "Choose a question to ask"),
+        label_visibility="collapsed",
+        key="learner_question_picker",
+        on_change=queue_selected_learner_question,
+    )
 
 
 def open_chat_view() -> None:
