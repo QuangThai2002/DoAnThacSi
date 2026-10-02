@@ -581,6 +581,7 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             "SKU nào đang được giảm giá nhiều nhất?": "SKU giảm giá nhiều nhất",
             "SKU nào có ROAS quagn cáo tốt nhất?": "ROAS đã ghi cao nhất",
             "Lô hàng nào tồn lâu nhất?": "2. **",
+            "2 lô tồn lâu nhất": "2. **",
             "Sản phẩm nào sắp hết hàng?": "Sản phẩm sắp hết hàng cần kiểm tra trước",
             "Tháng 8 shop có doanh thu sau phí ước tính là bao nhiêu?": "Doanh thu sau phí ước tính",
             "Đánh giá thấp đang tập trung ở vấn đề nào?": "Ưu tiên xử lý",

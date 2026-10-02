@@ -335,7 +335,8 @@ class AgentRunner:
             tags.add("ads_sku_daily")
         if any(term in normalized for term in ("tuoi ton", "ton theo lo", "lo hang ton", "lo ton lau")):
             tags.add("inventory_batches")
-        if "lo hang" in normalized and any(term in normalized for term in ("ton", "nam lau", "ton lau", "tuoi ton")):
+        batch_subject = any(term in normalized for term in ("lo hang", "lo ton", "lo nao", "2 lo"))
+        if batch_subject and any(term in normalized for term in ("ton", "nam lau", "ton lau", "tuoi ton")):
             tags.add("inventory_batch_question")
             tags.add("inventory_batches")
         if any(term in normalized for term in ("tu khoa", "tim kiem", "vi tri tim kiem", "hien thi tim kiem")):
