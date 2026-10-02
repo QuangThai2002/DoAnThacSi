@@ -444,6 +444,37 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             with self.subTest(question=question):
                 self.assertIn(expected, runner.run(question)["answer"])
 
+    def test_morning_twenty_question_bank_returns_direct_operational_answers(self) -> None:
+        """Keep the user's manual test bank from regressing to a generic fallback."""
+        checks = {
+            "Từ khóa nào có lượt nhấp cao nhất?": "Từ khóa có nhiều lượt nhấp nhất",
+            "Từ khóa nào có vị trí tìm kiếm trung bình tốt nhất?": "vị trí tìm kiếm trung bình tốt nhất",
+            "Shop có bao nhiêu đơn giao trễ?": "đơn giao trễ",
+            "Lý do hủy đơn phổ biến nhất là gì?": "Lý do hủy đơn phổ biến nhất",
+            "Thời gian xử lý đơn trung bình là bao lâu?": "Thời gian xử lý đơn trung bình",
+            "Đối soát thanh toán tháng 8 thế nào?": "Đối soát đã ghi",
+            "Tiền Shopee phải trả, phí thực tế và tiền đã nhận có khớp không?": "Khoản đối soát",
+            "Shop tham khảo nào có lượng bán ước tính cao nhất?": "lượng bán ước tính cao nhất",
+            "Giá của đối thủ đang cao hay thấp hơn giá sản phẩm tương ứng của shop?": "Giá trung vị của đối thủ",
+            "SKU nào đang được giảm giá nhiều nhất?": "SKU giảm giá nhiều nhất",
+            "SKU ROAS cao nhất": "ROAS đã ghi cao nhất",
+            "2 lô tồn lâu nhất": "Hai lô tồn lâu nhất đã ghi nhận",
+            "Sản phẩm nào sắp hết hàng?": "Sản phẩm sắp hết hàng cần kiểm tra trước",
+            "Sản phẩm nào có lãi góp thấp nhất?": "lãi góp thấp nhất",
+            "Tháng 8 shop có doanh thu sau phí ước tính là bao nhiêu?": "Doanh thu sau phí ước tính",
+            "Đánh giá thấp đang tập trung ở vấn đề nào?": "Ưu tiên xử lý",
+            "Khoản chi vận hành lớn nhất là gì?": "Khoản vận hành đã ghi nhận lớn nhất",
+            "Nhà cung cấp nào có tỷ lệ giao đúng hẹn thấp nhất?": "tỷ lệ giao đúng hẹn thấp nhất",
+            "Sản phẩm nào xem nhiều nhưng tỷ lệ thêm giỏ thấp?": "lượt xem nhưng tỷ lệ thêm giỏ thấp nhất",
+            "Tôi nên ưu tiên xử lý việc gì trước trong tuần này?": "Ba việc tuần này",
+        }
+        runner = AgentRunner()
+        for question, expected in checks.items():
+            with self.subTest(question=question):
+                answer = runner.run(question)["answer"]
+                self.assertIn(expected, answer)
+                self.assertNotIn("Tôi chưa có đủ nội dung", answer)
+
     def test_runner_labels_uploaded_csv_data(self) -> None:
         upload_files = {
             name: (SRC_DIR.parent / "data" / "shop_mock" / name).read_bytes()
