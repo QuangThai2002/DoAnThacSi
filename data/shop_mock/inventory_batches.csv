@@ -1,0 +1,4 @@
+batch_id,sku,received_date,available_units,unit_cost_vnd
+LO-001-A,SKU-001,2026-04-15,18,125000
+LO-002-A,SKU-002,2026-05-10,12,210000
+LO-003-A,SKU-003,2026-06-01,24,155000

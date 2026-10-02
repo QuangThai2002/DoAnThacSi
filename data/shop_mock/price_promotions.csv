@@ -1,0 +1,4 @@
+date,sku,list_price_vnd,final_price_vnd,seller_discount_vnd,voucher_source,campaign_name
+2026-08-05,SKU-001,290000,260000,30000,Shop,Voucher tháng 8
+2026-08-10,SKU-002,350000,300000,50000,Shop,Voucher tháng 8
+2026-08-15,SKU-003,240000,228000,12000,Shop,Giảm giá cuối tuần

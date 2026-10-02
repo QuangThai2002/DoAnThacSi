@@ -1,0 +1,4 @@
+date,campaign_id,sku,impressions,clicks,spend_vnd,add_to_cart_count,attributed_orders,attributed_revenue_vnd
+2026-08-05,ADS-001,SKU-001,12000,650,180000,42,18,4680000
+2026-08-08,ADS-002,SKU-002,9800,530,230000,35,16,5600000
+2026-08-12,ADS-003,SKU-003,11000,710,160000,54,21,4788000
