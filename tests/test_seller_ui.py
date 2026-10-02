@@ -40,6 +40,19 @@ class SellerFacingUiTests(unittest.TestCase):
         self.assertEqual(app.session_state["seller_messages"][0]["content"], selected_question)
         self.assertEqual(len(app.error), 0)
 
+    def test_new_seller_guidance_about_order_processing_is_not_blocked_for_missing_shop_data(self) -> None:
+        app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=20).run()
+        app.button(key="new_chat_main").click().run()
+        app.button(key="choose_learner").click().run()
+
+        question = "Khi có đơn hàng mới, tôi cần xử lý theo các bước nào?"
+        app.selectbox(key="learner_question_bank").select(question).run()
+        app.button(key="send_learner_question").click().run()
+
+        answer = app.session_state["seller_messages"][1]["answer"]
+        self.assertIn("Khi có đơn mới", answer)
+        self.assertNotIn("cần dữ liệu bán hàng", answer)
+
     def test_owner_chat_exposes_human_readable_uploads(self) -> None:
         app = AppTest.from_file(SRC_DIR / "shopee_seller_ai.py", default_timeout=15).run()
         app.button(key="new_chat_main").click().run()

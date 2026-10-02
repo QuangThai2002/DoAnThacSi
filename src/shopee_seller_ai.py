@@ -1257,7 +1257,16 @@ def question_with_chat_context(question: str) -> str:
 def answer_question(question: str) -> dict[str, Any]:
     effective_question = question_with_chat_context(question)
     plan = Planner().plan(effective_question)
-    if plan.needs_private_shop_data and not is_uploaded():
+    # In a New seller chat, the curated fundamentals are general guidance.
+    # They must not be blocked as if the user had asked for their own shop's
+    # metrics merely because they contain words such as "đơn hàng" or
+    # "quảng cáo". Owner questions and all data-specific questions still use
+    # the normal private-data guard.
+    is_basic_learner_guidance = (
+        st.session_state.get("seller_chat_mode") == "learner"
+        and bool(AgentRunner._learner_guidance_answer(effective_question))
+    )
+    if plan.needs_private_shop_data and not is_uploaded() and not is_basic_learner_guidance:
         return missing_data_response()
     result = active_runner().run(effective_question)
     result["question"] = question
