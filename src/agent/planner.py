@@ -7,11 +7,90 @@ from dataclasses import asdict, dataclass
 
 VALID_TOOLS = {"rag", "shop_data", "calculator"}
 
+# Map common seller phrasing to the operational vocabulary used by the planner.
+# The list is deliberately narrow: it corrects predictable variations without
+# silently changing product names, SKUs, or financial values supplied by users.
+QUERY_INTENT_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("chi phi van hanh khoan van hanh", ("khoan chi van hanh", "chi van hanh", "khoan van hanh")),
+    ("luot xem cao", ("xem nhieu", "nhieu nguoi xem", "xem cao")),
+    ("it them gio", ("ty le them gio thap", "them gio thap", "it vao gio")),
+    ("quang cao theo sku", ("roas quang cao sku", "roas theo sku", "quang cao sku")),
+    ("danh gia thap", ("danh gia xau", "danh gia kem", "danh gia 1 3 sao")),
+    ("ty le giao dung hen", ("giao dung hen", "giao on time", "ty le dung hen")),
+)
+TYPO_VOCABULARY = frozenset({
+    "quang", "cao", "ton", "kho", "van", "hanh", "danh", "gia", "doi", "soat",
+    "giao", "tre", "huy", "don", "luot", "xem", "them", "gio", "nha", "cung",
+    "cap", "doanh", "thu", "phi", "loi", "nhuan", "khuyen", "mai", "sku", "roas",
+    "chi", "nhieu",
+})
+# Short, ordinary Vietnamese question words must never be repaired into a
+# business keyword merely because their unaccented spelling is one edit away.
+# Intent recovery is deliberately conservative: preserve these words, then
+# correct only a likely typo of the small operational vocabulary above.
+PROTECTED_QUERY_TOKENS = frozenset({
+    "ai", "bao", "cua", "da", "de", "gi", "hay", "la", "lo", "nao", "nhat",
+    "neu", "sau", "san", "pham", "shop", "thang", "uoc", "tinh", "ve", "voi",
+})
+
+
+def _one_edit_away(left: str, right: str) -> bool:
+    """Return whether two operational words differ by one simple typo."""
+    if left == right or abs(len(left) - len(right)) > 1:
+        return left == right
+    if len(left) == len(right):
+        differences = [index for index, (a, b) in enumerate(zip(left, right)) if a != b]
+        if not differences:
+            return True
+        # A transposition (for example ``quagn`` instead of ``quang``) is a
+        # common keyboard slip and is as safe to repair as one substitution.
+        if len(differences) == 2 and differences[1] == differences[0] + 1:
+            first, second = differences
+            return left[first] == right[second] and left[second] == right[first]
+        return False
+    if len(left) > len(right):
+        left, right = right, left
+    left_index = right_index = edits = 0
+    while left_index < len(left) and right_index < len(right):
+        if left[left_index] == right[right_index]:
+            left_index += 1
+        else:
+            edits += 1
+        right_index += 1
+        if edits > 1:
+            return False
+    return True
+
 
 def normalize(text: str) -> str:
     text = unicodedata.normalize("NFD", text or "")
     text = "".join(char for char in text if unicodedata.category(char) != "Mn")
-    return re.sub(r"\s+", " ", text.replace("đ", "d").replace("Đ", "D")).lower().strip()
+    normalized = re.sub(r"[^a-z0-9]+", " ", text.replace("đ", "d").replace("Đ", "D").lower())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    # Correct only a compact, operational vocabulary. This makes intent
+    # routing tolerant of a missing/extra character or adjacent-key swap, but
+    # deliberately leaves product names, values, and unknown identifiers
+    # untouched. Replacing the token also preserves phrase order: "xem nhieuu"
+    # becomes "xem nhieu".
+    corrected_tokens: list[str] = []
+    for token in normalized.split():
+        if token in TYPO_VOCABULARY or token in PROTECTED_QUERY_TOKENS or len(token) < 3:
+            corrected_tokens.append(token)
+            continue
+        matches = sorted(candidate for candidate in TYPO_VOCABULARY if _one_edit_away(token, candidate))
+        corrected_tokens.append(matches[0] if len(matches) == 1 else token)
+    enriched = " ".join(corrected_tokens)
+    # Keep the untouched normalized text available to every existing routing
+    # rule. The repaired form is an additional interpretation, never a
+    # replacement that could hide a valid phrase such as "từ khóa".
+    semantic_text = normalized if enriched == normalized else f"{normalized} {enriched}"
+    canonical_terms = [
+        canonical
+        for canonical, variants in QUERY_INTENT_ALIASES
+        if any(variant in semantic_text for variant in variants)
+    ]
+    return re.sub(r"\s+", " ", " ".join([semantic_text, *canonical_terms])).strip()
 
 
 @dataclass(frozen=True)

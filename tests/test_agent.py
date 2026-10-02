@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from agent.agent_runner import AgentRunner
 from agent.calculator_tool import CalculatorTool
-from agent.planner import Planner
+from agent.planner import Planner, normalize
 from agent.rag_tool import RAGTool
 from agent.shop_data_library import build_demo_rows
 from agent.shop_data_tool import (
@@ -27,6 +27,12 @@ from agent.shop_data_tool import (
 
 
 class PlannerTests(unittest.TestCase):
+    def test_normalize_keeps_question_words_and_repairs_narrow_operational_typos(self) -> None:
+        self.assertEqual(normalize("Lô hàng nào tồn lâu nhất?"), "lo hang nao ton lau nhat")
+        self.assertIn("quang cao", normalize("SKU nào có ROAS quagn cáo tốt nhất?"))
+        self.assertIn("xem nhieu", normalize("Sản phẩm xem nhieuu nhưng thêm giỏ thấp?"))
+        self.assertIn("chi phi van hanh", normalize("Khoản chhi vận hnah lớn nhất?"))
+
     def test_multi_tool_plan_has_period(self) -> None:
         plan = Planner().plan(
             "Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu và theo chính sách Shopee phí nào cần đối chiếu?"
@@ -573,6 +579,14 @@ class CalculatorAndRunnerTests(unittest.TestCase):
             "Đối thủ nào bán ước tính cao nhất?": "chỉ là dữ liệu tham khảo",
             "Giá của đối thủ đang cao hay thấp hơn giá sản phẩm tương ứng của shop?": "Giá trung vị của đối thủ",
             "SKU nào đang được giảm giá nhiều nhất?": "SKU giảm giá nhiều nhất",
+            "SKU nào có ROAS quagn cáo tốt nhất?": "ROAS đã ghi cao nhất",
+            "Lô hàng nào tồn lâu nhất?": "2. **",
+            "Sản phẩm nào sắp hết hàng?": "Sản phẩm sắp hết hàng cần kiểm tra trước",
+            "Tháng 8 shop có doanh thu sau phí ước tính là bao nhiêu?": "Doanh thu sau phí ước tính",
+            "Đánh giá thấp đang tập trung ở vấn đề nào?": "Ưu tiên xử lý",
+            "Khoản chhi vận hnah lớn nhất là gì?": "Khoản vận hành đã ghi nhận lớn nhất",
+            "Nhà cung cấp nào có tỷ lệ giao đúng hẹn thấp nhất?": "tỷ lệ giao đúng hẹn thấp nhất",
+            "Sản phẩm nào xem nhieuu nhưng tỷ lệ thêm giỏ thấp?": "Sản phẩm có nhiều lượt xem nhưng tỷ lệ thêm giỏ thấp nhất",
         }
         for question, expected in checks.items():
             with self.subTest(question=question):

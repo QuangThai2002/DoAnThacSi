@@ -329,7 +329,9 @@ class AgentRunner:
             tags.add("advertising")
         if any(term in normalized for term in ("giam gia", "khuyen mai", "ma giam gia", "gia sau khuyen mai", "gia cuoi")):
             tags.add("price_promotions")
-        if any(term in normalized for term in ("quang cao theo sku", "quang cao tung san pham", "sku nao nen tang ngan sach")):
+        if any(term in normalized for term in ("quang cao theo sku", "quang cao tung san pham", "sku nao nen tang ngan sach")) or (
+            "sku" in normalized and "roas" in normalized
+        ):
             tags.add("ads_sku_daily")
         if any(term in normalized for term in ("tuoi ton", "ton theo lo", "lo hang ton", "lo ton lau")):
             tags.add("inventory_batches")
@@ -363,7 +365,7 @@ class AgentRunner:
             tags.add("returns")
         if any(term in normalized for term in ("danh gia", "review", "phan hoi khach")):
             tags.add("reviews")
-        if "danh gia xau" in normalized or "giam danh gia" in normalized or (
+        if "danh gia xau" in normalized or "danh gia thap" in normalized or "giam danh gia" in normalized or (
             "danh gia" in normalized
             and any(term in normalized for term in ("1-3 sao", "1 3 sao", "xu ly", "van de nao truoc"))
         ):
@@ -372,7 +374,7 @@ class AgentRunner:
             tags.add("procurement")
         if any(term in normalized for term in ("chi phi van hanh", "khoan van hanh", "dong goi", "nhan su", "kho bai", "van chuyen phat sinh")):
             tags.add("operating_costs")
-        if "khoan van hanh nao" in normalized or "khoan van hanh" in normalized and any(term in normalized for term in ("lon nhat", "cao nhat")):
+        if any(term in normalized for term in ("khoan van hanh nao", "khoan chi van hanh nao")) or "khoan van hanh" in normalized and any(term in normalized for term in ("lon nhat", "cao nhat")):
             tags.add("operating_rank")
         if any(term in normalized for term in ("bien dong kho", "that thoat", "hang hu", "hang loi", "hang loi/huy")):
             tags.add("inventory_movements")
@@ -386,6 +388,8 @@ class AgentRunner:
             tags.add("cash_explanation")
         if any(term in normalized for term in ("nha cung cap", "nguon hang", "giao hang dung hen")):
             tags.add("suppliers")
+        if "ty le giao dung hen" in normalized and any(term in normalized for term in ("thap nhat", "thap", "kem nhat")):
+            tags.update({"suppliers", "supplier_on_time_low"})
         if "phan hoi nha cung cap" in normalized:
             tags.update({"quality", "supplier_action"})
         if "nguon hang nao co ty le loi" in normalized:
@@ -436,6 +440,7 @@ class AgentRunner:
             "chi tiet", "cu the", "giai thich", "vi sao", "tai sao",
             "phan tich", "so sanh", "vi du", "lam the nao", "cach tinh",
             "tung buoc", "dieu kien", "neu ro", "ky hon", "the nao",
+            "kiem tra", "cai thien", "truoc khi",
         )
         return any(cue in normalized for cue in detail_cues)
 
@@ -449,7 +454,10 @@ class AgentRunner:
         first = blocks[0]
         # A ranked answer is only useful when its requested rows stay visible.
         if len(blocks) > 1 and re.match(r"(?:1\.|[-*•])\s", blocks[1]):
-            return f"{first}\n\n{blocks[1]}"
+            ranked_rows = [blocks[1]]
+            if "hai lô" in first.lower() and len(blocks) > 2 and re.match(r"2\.\s", blocks[2]):
+                ranked_rows.append(blocks[2])
+            return "\n\n".join([first, *ranked_rows])
 
         # Missing data must always say what the user needs to create or upload.
         sentences = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỵ])", first)
@@ -541,10 +549,11 @@ class AgentRunner:
                 "chính sách Shopee có nguồn và dữ liệu vận hành mô phỏng của shop."
             )
         sections: list[str] = []
+        normalized_question = normalize(question)
         knowledge_answer = AgentRunner._knowledge_answer(question)
         action_answer = AgentRunner._action_answer(
             question=question,
-            normalized=normalize(question),
+            normalized=normalized_question,
             inventory=inventory,
             product_gmv_ranking=product_gmv_ranking,
             profitability=profitability,
@@ -635,7 +644,11 @@ class AgentRunner:
                         limitation=str(sales_period_comparison["limitation"]),
                     )
                 )
-        if ranking and ranking["cost_ranking"]:
+        asks_net_revenue = any(
+            phrase in normalized_question
+            for phrase in ("doanh thu sau phi", "doanh thu sau cac khoan phi", "doanh thu thuc nhan")
+        )
+        if ranking and ranking["cost_ranking"] and not asks_net_revenue:
             highest = ranking["cost_ranking"][0]
             sections.append(
                 "Trong các khoản được xếp hạng, lớn nhất là {name} ({amount:,} VND, {share:.1%}).".format(
@@ -645,18 +658,28 @@ class AgentRunner:
                 )
             )
         if sales:
-            sections.append(
-                "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
-                    period=(
-                        "toàn bộ kỳ có trong dữ liệu"
-                        if sales["period"] == "all_available_periods"
-                        else sales["period"]
-                    ),
-                    orders=sales["completed_order_count"],
-                    gmv=int(sales["gross_merchandise_value_vnd"]),
-                    net=int(sales["net_revenue_after_estimated_fees_vnd"]),
+            if asks_net_revenue:
+                sections.append(
+                    "Doanh thu sau phí ước tính trong kỳ {period} là **{net:,} VND** từ {orders} đơn hoàn tất."
+                    .format(
+                        period=("toàn bộ kỳ có trong dữ liệu" if sales["period"] == "all_available_periods" else sales["period"]),
+                        net=int(sales["net_revenue_after_estimated_fees_vnd"]),
+                        orders=sales["completed_order_count"],
+                    )
                 )
-            )
+            else:
+                sections.append(
+                    "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
+                        period=(
+                            "toàn bộ kỳ có trong dữ liệu"
+                            if sales["period"] == "all_available_periods"
+                            else sales["period"]
+                        ),
+                        orders=sales["completed_order_count"],
+                        gmv=int(sales["gross_merchandise_value_vnd"]),
+                        net=int(sales["net_revenue_after_estimated_fees_vnd"]),
+                    )
+                )
         if advertising and advertising["campaign_count"] and not ads_sku_daily:
             sections.append(
                 "Quảng cáo trong kỳ chi {spend:,} VND, doanh thu quy gán {revenue:,} VND từ {orders} đơn quy gán, ROAS {roas:.2f}.".format(
@@ -720,7 +743,6 @@ class AgentRunner:
                 )
             else:
                 sections.append("Chưa có dữ liệu tuổi tồn theo lô. Hãy tạo hoặc tải bảng **Tuổi tồn kho theo lô**.")
-        normalized_question = normalize(question)
         if search_performance:
             if not search_performance.get("term_count"):
                 sections.append("Chưa có dữ liệu hiệu quả tìm kiếm. Hãy tạo hoặc tải bảng **Hiệu quả tìm kiếm**.")
@@ -861,7 +883,16 @@ class AgentRunner:
         if suppliers:
             best = suppliers["best_supplier"]
             slowest = suppliers["slowest_supplier"]
-            if best and slowest:
+            worst_on_time = suppliers.get("worst_on_time_supplier")
+            if "supplier_on_time_low" in (analysis_tags or set()) and worst_on_time:
+                sections.append(
+                    "Nhà cung cấp có tỷ lệ giao đúng hẹn thấp nhất là **{name}**: {rate:.1f}% trong {orders} đơn đã ghi.".format(
+                        name=worst_on_time["supplier_name"],
+                        rate=worst_on_time["on_time_delivery_rate_percent"],
+                        orders=worst_on_time["order_count"],
+                    )
+                )
+            elif best and slowest:
                 sections.append(
                     "Trong {count} nguồn đã ghi, {best} có tỷ lệ giao đúng hẹn {best_rate:.1f}% và lỗi {best_defect:.1f}%; nguồn có thời gian giao lâu nhất là {slowest} ({days:.1f} ngày). {limitation}".format(
                         count=suppliers["supplier_count"], best=best["supplier_name"],
@@ -1067,6 +1098,17 @@ class AgentRunner:
                 "Theo dõi riêng tỷ lệ đơn mua lại, đánh giá thấp và chi phí ưu đãi trước khi mở rộng; không có biện pháp nào bảo đảm khách sẽ quay lại."
             )
         if "funnel_view_action" in analysis_tags:
+            weak = product_funnel.get("weak_view_to_cart_product") if product_funnel else None
+            if weak:
+                return (
+                    "Sản phẩm có nhiều lượt xem nhưng tỷ lệ thêm giỏ thấp nhất là **{name}**: {views} lượt xem, "
+                    "{carts} lượt thêm giỏ, tỷ lệ {rate:.2f}%. "
+                    "Lượt xem cao nhưng ít thêm giỏ là tín hiệu cần kiểm tra, chưa chứng minh nguyên nhân. "
+                    "Hãy lần lượt thử ảnh đầu, giá hiển thị, mô tả lợi ích, biến thể, đánh giá và phí giao; mỗi lần chỉ đổi một yếu tố rồi đo lại tỷ lệ xem sang thêm giỏ."
+                ).format(
+                    name=weak["product_name"], views=weak["views"], carts=weak["add_to_cart_count"],
+                    rate=weak["view_to_cart_rate_percent"] or 0,
+                )
             return (
                 "Lượt xem cao nhưng ít thêm giỏ là tín hiệu cần kiểm tra, chưa chứng minh nguyên nhân. Hãy lần lượt thử ảnh đầu, giá hiển thị, mô tả lợi ích, biến thể, đánh giá và phí giao; "
                 "mỗi lần chỉ đổi một yếu tố rồi đo tỷ lệ xem sang thêm giỏ."
@@ -1113,7 +1155,7 @@ class AgentRunner:
                 )
             return (
                 "**Hai lô tồn lâu nhất đã ghi nhận:**\n\n"
-                + "\n".join(lines)
+                + "\n\n".join(lines)
                 + "\n\n**Cần kiểm tra trước:** đối chiếu tồn thực tế, tình trạng hàng và tốc độ bán của đúng SKU. "
                 "Tuổi tồn là tín hiệu ưu tiên kiểm tra, không tự chứng minh cần giảm giá hay xả hàng."
             )
@@ -1140,9 +1182,18 @@ class AgentRunner:
                 + batch_text
             )
         if "inventory" in analysis_tags and "sap het" in normalized:
+            alerts = list(inventory.get("alerts", [])) if inventory else []
+            if not alerts:
+                return "Chưa có SKU nào chạm ngưỡng nhập thêm trong bảng tồn kho hiện tại."
+            rows = "; ".join(
+                "**{name}** (còn {available}, ngưỡng {threshold})".format(
+                    name=item["product_name"], available=item["available_units"], threshold=item["reorder_point"],
+                )
+                for item in alerts[:3]
+            )
             return (
-                "Cảnh báo sắp hết hàng dựa trên **tồn khả dụng = tồn thực tế − số đã giữ chỗ**, rồi so với ngưỡng nhập thêm của từng SKU. "
-                "Đây là tín hiệu để kiểm tra tốc độ bán và đơn đang về, không phải lệnh tự động phải nhập hàng."
+                f"Sản phẩm sắp hết hàng cần kiểm tra trước: {rows}. "
+                "Cảnh báo dựa trên tồn khả dụng so với ngưỡng nhập thêm; đây không phải lệnh tự động phải nhập hàng."
             )
         if "strategy" in analysis_tags:
             if "combo_strategy" in analysis_tags:

@@ -1256,6 +1256,7 @@ class ShopDataTool:
             "period": period or "all_available_periods",
             "supplier_count": len(suppliers),
             "best_supplier": suppliers[0] if suppliers else None,
+            "worst_on_time_supplier": min(suppliers, key=lambda item: item["on_time_delivery_rate_percent"]) if suppliers else None,
             "slowest_supplier": max(suppliers, key=lambda item: item["average_lead_time_days"]) if suppliers else None,
             "suppliers": suppliers,
             "limitation": "So sánh chỉ dựa trên các đơn và lô đã ghi; không đủ để khẳng định nhà cung cấp nào luôn tốt hơn.",
