@@ -37,7 +37,7 @@ class SellerFacingUiTests(unittest.TestCase):
 
         question_buttons = [button for button in app.button if button.key and button.key.startswith("learner_question_")]
         self.assertEqual(len(question_buttons), 15)
-        self.assertTrue(any("Bạn muốn biết gì?" in item.value for item in app.markdown))
+        self.assertTrue(any("15 câu hỏi cho người mới" in item.value for item in app.markdown))
         app.button(key="learner_question_0").click().run()
         self.assertEqual(
             app.session_state["seller_messages"][0]["content"],

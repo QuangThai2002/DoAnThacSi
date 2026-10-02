@@ -1066,41 +1066,24 @@ def render_learner_question_bank() -> None:
     is_vietnamese = language == "vi"
     group_key = "group_vi" if is_vietnamese else "group_en"
     question_key = "question_vi" if is_vietnamese else "question_en"
-    left, right = st.columns([3, 2], vertical_alignment="top")
-    with left:
-        with st.container(border=True, height=520):
-            st.markdown("#### " + ui_text("15 câu hỏi cho người mới", "15 questions for new sellers"))
-            st.caption(ui_text("Bấm một câu để hỏi ngay trong chat.", "Tap a question to ask it in this chat immediately."))
-            last_group = ""
-            for index, item in enumerate(LEARNER_QUESTION_BANK):
-                group = item[group_key]
-                if group != last_group:
-                    st.markdown(f"**{group}**")
-                    last_group = group
-                if st.button(
-                    item[question_key],
-                    key=f"learner_question_{index}",
-                    icon=":material/help:",
-                    width="stretch",
-                ):
-                    st.session_state.seller_pending_main_prompt = item[question_key]
-                    st.session_state.seller_learner_question_bank_open = False
-                    st.rerun()
-    with right:
-        with st.container(border=True):
-            st.markdown("#### " + ui_text("Bạn muốn biết gì?", "What would you like to learn?"))
-            st.write(ui_text(
-                "Nếu bạn muốn biết cần chuẩn bị gì, đăng sản phẩm thế nào, tính giá ra sao, xử lý đơn hay tránh đánh giá thấp, hãy chọn câu tương ứng ở bên trái.",
-                "To learn what to prepare, how to list a product, set a price, process an order, or avoid low ratings, choose the matching question on the left.",
-            ))
-            st.caption(ui_text(
-                "Các câu này là hướng dẫn cơ bản, không cần tải dữ liệu shop. Khi muốn phân tích doanh thu, tồn kho hoặc quảng cáo của chính shop, hãy dùng bộ dữ liệu demo hoặc dữ liệu của bạn.",
-                "These are basic guidance questions and do not need shop data. For revenue, inventory, or advertising analysis of a specific shop, use demo data or your own data.",
-            ))
-            st.markdown(ui_text(
-                "**Cách dùng:** bấm một câu → Eslabong tự gửi câu hỏi vào chat và trả lời ngay.",
-                "**How it works:** tap a question → Eslabong sends it to chat and answers it immediately.",
-            ))
+    with st.container(border=True, height=480):
+        st.markdown("#### " + ui_text("15 câu hỏi cho người mới", "15 questions for new sellers"))
+        st.caption(ui_text("Bấm một câu để hỏi ngay trong chat.", "Tap a question to ask it in this chat immediately."))
+        last_group = ""
+        for index, item in enumerate(LEARNER_QUESTION_BANK):
+            group = item[group_key]
+            if group != last_group:
+                st.markdown(f"**{group}**")
+                last_group = group
+            if st.button(
+                item[question_key],
+                key=f"learner_question_{index}",
+                icon=":material/help:",
+                width="stretch",
+            ):
+                st.session_state.seller_pending_main_prompt = item[question_key]
+                st.session_state.seller_learner_question_bank_open = False
+                st.rerun()
 
 
 def open_chat_view() -> None:
