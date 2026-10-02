@@ -506,6 +506,27 @@ class AgentRunner:
         return not bool(analysis_tags & focused_topics)
 
     @staticmethod
+    def _casual_answer(question: str) -> str:
+        """Respond naturally to brief social messages without inventing data."""
+        normalized = normalize(question)
+        if any(normalized == phrase or normalized.startswith(f"{phrase} ") for phrase in ("cam on", "thanks", "thank you")):
+            return "Rất vui được hỗ trợ. Khi cần, bạn cứ hỏi dữ liệu hoặc chính sách bán hàng của shop nhé."
+        capability_phrases = {
+            "ban la ai", "eslabong la gi", "ban co the lam gi", "ban lam duoc gi",
+            "eslabong co the lam gi", "ban co the giup gi",
+        }
+        if any(normalized == phrase or normalized.startswith(f"{phrase} ") for phrase in capability_phrases):
+            return (
+                "Mình là Eslabong, trợ lý hỗ trợ người bán. Mình có thể giúp xem doanh thu, tồn kho, "
+                "quảng cáo, đánh giá, vận chuyển, đối soát và giải thích chính sách Shopee có nguồn. "
+                "Bạn muốn xem phần nào?"
+            )
+        return (
+            "Chào bạn, mình là Eslabong. Mình hỗ trợ các câu hỏi về vận hành shop và chính sách Shopee; "
+            "bạn cần mình giúp gì?"
+        )
+
+    @staticmethod
     def _compose_answer(
         question: str,
         plan: AgentPlan,
@@ -544,6 +565,8 @@ class AgentRunner:
         analysis_tags: set[str] | None = None,
         wants_detail: bool = False,
     ) -> str:
+        if plan.intent == "casual":
+            return AgentRunner._casual_answer(question)
         if plan.intent == "out_of_scope":
             return (
                 "Câu hỏi này nằm ngoài phạm vi Agent hiện tại. Agent chỉ hỗ trợ "

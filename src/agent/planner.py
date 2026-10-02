@@ -271,6 +271,15 @@ class Planner:
         "gia vang",
         "chung khoan",
     )
+    # Small-talk is intentionally narrow.  This keeps Eslabong approachable
+    # without turning it into a general-purpose assistant or bypassing the
+    # evidence rules for shop questions.
+    CASUAL_ONLY_PHRASES = (
+        "chao", "xin chao", "hello", "hi", "alo", "cam on", "thanks", "thank you",
+        "ban khoe khong", "ban la ai", "eslabong la gi", "ban co the lam gi",
+        "ban lam duoc gi", "eslabong co the lam gi", "ban co the giup gi",
+        "giup toi voi", "toi can giup do",
+    )
 
     def plan(self, question: str) -> AgentPlan:
         normalized = normalize(question)
@@ -282,6 +291,22 @@ class Planner:
                 period=period,
                 needs_private_shop_data=False,
                 rationale=("Câu hỏi nằm ngoài phạm vi chính sách và vận hành Shopee.",),
+            )
+        has_shop_or_policy_signal = any(
+            term in normalized
+            for term in (*self.SHOP_TERMS, *self.POLICY_TERMS, *self.CALCULATION_TERMS)
+        )
+        is_casual_request = any(
+            normalized == phrase or normalized.startswith(f"{phrase} ")
+            for phrase in self.CASUAL_ONLY_PHRASES
+        )
+        if is_casual_request and not has_shop_or_policy_signal:
+            return AgentPlan(
+                intent="casual",
+                tools=(),
+                period=None,
+                needs_private_shop_data=False,
+                rationale=("Lời chào hoặc câu hỏi giao tiếp cơ bản không cần truy hồi dữ liệu.",),
             )
         is_definition_question = (
             any(term in normalized for term in self.BUSINESS_TERM_DEFINITION_TERMS)

@@ -46,6 +46,12 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(plan.intent, "out_of_scope")
         self.assertEqual(plan.tools, ())
 
+    def test_basic_greeting_uses_a_no_tool_casual_plan(self) -> None:
+        plan = Planner().plan("Xin chào")
+        self.assertEqual(plan.intent, "casual")
+        self.assertEqual(plan.tools, ())
+        self.assertFalse(plan.needs_private_shop_data)
+
     def test_cost_question_routes_to_shop_data_and_calculator(self) -> None:
         plan = Planner().plan("Khoản chi phí nào ảnh hưởng nhiều nhất trong tháng 8 năm 2026?")
         self.assertEqual(plan.period, "2026-08")
@@ -415,6 +421,16 @@ class CalculatorAndRunnerTests(unittest.TestCase):
         result = AgentRunner().run("Tháng 8 năm 2026 shop tôi có doanh thu bao nhiêu?")
         self.assertEqual(result["data_source"], "mock_shop_data")
         self.assertEqual(result["plan"]["tools"], ("shop_data", "calculator"))
+
+    def test_runner_handles_greeting_and_capability_question_without_retrieval(self) -> None:
+        greeting = AgentRunner().run("Chào bạn")
+        capability = AgentRunner().run("Bạn có thể làm gì?")
+
+        self.assertEqual(greeting["plan"]["intent"], "casual")
+        self.assertEqual(greeting["trace"], [])
+        self.assertIn("mình là Eslabong", greeting["answer"])
+        self.assertIn("doanh thu", capability["answer"])
+        self.assertIn("Bạn muốn xem phần nào?", capability["answer"])
 
     def test_default_demo_includes_the_core_sku_and_inventory_answers(self) -> None:
         """The out-of-box demo must cover the questions used in a defense."""
