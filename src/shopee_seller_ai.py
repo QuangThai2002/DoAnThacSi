@@ -19,7 +19,6 @@ import pandas as pd
 import streamlit as st
 
 SRC_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SRC_DIR.parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
@@ -904,11 +903,6 @@ def open_market_intelligence() -> None:
 def open_strategy_workspace() -> None:
     """Open the business decision-support workspace."""
     st.session_state.seller_view = "strategy"
-
-
-def open_system_check() -> None:
-    """Open the compact, read-only defense readiness screen."""
-    st.session_state.seller_view = "system_check"
 
 
 def refresh_market_scenario() -> None:
@@ -2709,75 +2703,6 @@ ROAS = revenue attributed to ads ÷ ad spend. Example: 100,000 VND in ads produc
         ))
 
 
-@st.cache_data(show_spinner=False)
-def system_check_snapshot() -> dict[str, int | bool]:
-    """Read packaged evidence metadata without executing a benchmark in the UI."""
-    def jsonl_count(path: Path) -> int:
-        if not path.is_file():
-            return 0
-        return sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
-
-    agent_items = jsonl_count(PROJECT_ROOT / "src" / "evaluation" / "agent_benchmark_candidate_v1.jsonl")
-    rag_items = jsonl_count(PROJECT_ROOT / "src" / "evaluation" / "benchmark_candidate_v2.jsonl")
-    corpus_items = jsonl_count(PROJECT_ROOT / "data" / "processed" / "chunks.jsonl")
-    return {
-        "agent_items": agent_items,
-        "rag_items": rag_items,
-        "corpus_items": corpus_items,
-        "agent_audit_exists": (PROJECT_ROOT / "docs" / "agent_ai_audit.md").is_file(),
-        "rag_audit_exists": (PROJECT_ROOT / "docs" / "rag_test_source_audit.md").is_file(),
-    }
-
-
-def render_system_check() -> None:
-    """Show test scope and data readiness during a defense without overclaiming evidence."""
-    snapshot = system_check_snapshot()
-    st.markdown('<div class="seller-eyebrow">KIỂM TRA HỆ THỐNG</div>', unsafe_allow_html=True)
-    header, back = st.columns([8, 2], vertical_alignment="center")
-    with header:
-        st.title("Trạng thái bản demo")
-        st.caption("Màn hình chỉ đọc để kiểm tra nhanh phạm vi dữ liệu, nguồn và regression trước khi trình bày.")
-    with back:
-        st.button("Quay lại chat", key="system_check_back", icon=":material/chat:", width="stretch", on_click=open_chat_view)
-
-    data_state = conversation_data_label()
-    attached_rows = st.session_state.get("seller_uploaded_rows") or {}
-    with st.container(horizontal=True):
-        st.metric("Câu Agent đã audit", snapshot["agent_items"], border=True)
-        st.metric("Câu RAG ứng viên", snapshot["rag_items"], border=True)
-        st.metric("Đoạn nguồn trong corpus", snapshot["corpus_items"], border=True)
-        st.metric("Bảng đang gắn với chat", len(attached_rows), border=True)
-
-    with st.container(border=True):
-        st.subheader("Trạng thái cuộc trò chuyện hiện tại")
-        st.write(f"**Dữ liệu đang dùng:** {data_state}")
-        if attached_rows:
-            labels = ", ".join(sorted(attached_rows))
-            st.success(f"Đã gắn {len(attached_rows)} bảng: {labels}.", icon=":material/check_circle:")
-        else:
-            st.info("Chat này chưa gắn dữ liệu shop. Câu hỏi chính sách và hướng dẫn cơ bản vẫn trả lời được; câu số liệu sẽ yêu cầu bảng phù hợp.", icon=":material/info:")
-
-    with st.container(border=True):
-        st.subheader("Những gì có thể trình bày")
-        st.markdown(
-            "- Agent định tuyến câu hỏi vào **RAG**, **dữ liệu shop** và **máy tính** một cách minh bạch.\n"
-            "- Câu chính sách hiển thị nguồn truy hồi; câu số liệu nêu rõ dữ liệu mô phỏng hoặc file đang gắn.\n"
-            "- Câu ngoài phạm vi như thời tiết, y tế hoặc giá vàng được từ chối thay vì tự bịa.\n"
-            "- Câu hỏi nối tiếp ngắn được hiểu trong đúng cuộc trò chuyện đang mở."
-        )
-
-    with st.container(border=True):
-        st.subheader("Dấu vết kiểm thử")
-        agent_status = "Có" if snapshot["agent_audit_exists"] else "Thiếu"
-        rag_status = "Có" if snapshot["rag_audit_exists"] else "Thiếu"
-        st.write(f"- Audit Agent: **{agent_status}** · 32 câu được rà soát kỹ thuật.")
-        st.write(f"- Audit RAG: **{rag_status}** · nguồn được đối chiếu ở mức AI-assisted.")
-        st.warning(
-            "Đây là kiểm thử phát triển/regression và audit kỹ thuật. Bộ TEST chưa có nhãn xác nhận độc lập của người kiểm duyệt, nên không trình bày như kết quả thực nghiệm chính thức.",
-            icon=":material/fact_check:",
-        )
-
-
 def render_data_library() -> None:
     """The persistent local shop-data workspace, reached via the bookshelf."""
     st.markdown(f'<div class="seller-eyebrow">{ui_text("THƯ VIỆN DỮ LIỆU", "DATA LIBRARY")}</div>', unsafe_allow_html=True)
@@ -3259,7 +3184,6 @@ with st.sidebar:
         st.button(" ", key="compact_data_library", icon=":material/auto_stories:", help=ui_text("Thư viện dữ liệu", "Data library"), width="stretch", on_click=open_data_library)
         st.button(" ", key="compact_market_intelligence", icon=":material/insights:", help=ui_text("Phân tích thị trường", "Market analysis"), width="stretch", on_click=open_market_intelligence)
         st.button(" ", key="compact_strategy_workspace", icon=":material/rocket_launch:", help=ui_text("Chiến lược kinh doanh", "Business strategy"), width="stretch", on_click=open_strategy_workspace)
-        st.button(" ", key="compact_system_check", icon=":material/fact_check:", help="Kiểm tra hệ thống", width="stretch", on_click=open_system_check)
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = active_chat_type(conversation["mode"])
             label = f"{chat_type['name']} · {conversation['title']} · {conversation_data_label(conversation)}"
@@ -3284,7 +3208,6 @@ with st.sidebar:
         st.button(ui_text("Thư viện dữ liệu", "Data library"), key="open_data_library", icon=":material/auto_stories:", width="stretch", on_click=open_data_library)
         st.button(ui_text("Phân tích thị trường", "Market analysis"), key="open_market_intelligence", icon=":material/insights:", width="stretch", on_click=open_market_intelligence)
         st.button(ui_text("Chiến lược kinh doanh", "Business strategy"), key="open_strategy_workspace", icon=":material/rocket_launch:", width="stretch", on_click=open_strategy_workspace)
-        st.button("Kiểm tra hệ thống", key="open_system_check", icon=":material/fact_check:", width="stretch", on_click=open_system_check)
         st.caption(ui_text("Cuộc trò chuyện gần đây", "Recent chats"))
         for conversation in reversed(st.session_state.seller_conversations[-5:]):
             chat_type = active_chat_type(conversation["mode"])
@@ -3324,8 +3247,6 @@ elif st.session_state.seller_view == "market":
     render_market_intelligence()
 elif st.session_state.seller_view == "strategy":
     render_strategy_workspace()
-elif st.session_state.seller_view == "system_check":
-    render_system_check()
 else:
     render_assistant()
 
