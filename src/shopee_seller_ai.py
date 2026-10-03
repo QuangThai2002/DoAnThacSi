@@ -1253,13 +1253,23 @@ def missing_data_response(question: str) -> dict[str, Any]:
 
 
 def question_with_chat_context(question: str) -> str:
-    """Resolve short follow-ups such as “ví dụ” from the current chat only."""
+    """Resolve a short follow-up from the current chat only.
+
+    The Agent itself stays stateless and evidence-bound.  This small UI layer
+    therefore only carries the immediately preceding user question forward for
+    clearly referential wording; it never blends content across conversations.
+    """
     normalized = normalize(question)
     follow_up_starts = (
         "vi du", "cho vi du", "them vi du", "giai thich them", "tai sao",
-        "con cach nao", "cu the hon",
+        "con cach nao", "cu the hon", "the con", "con phi nao", "con khoan nao",
+        "no tinh sao", "no la gi", "cai nay la gi", "cai do la gi", "sao vay",
     )
-    if not any(normalized.startswith(prefix) for prefix in follow_up_starts):
+    is_short_reference = len(re.findall(r"\w+", normalized, flags=re.UNICODE)) <= 7 and any(
+        token in normalized.split()
+        for token in ("no", "nay", "do", "con", "the", "sao")
+    )
+    if not any(normalized.startswith(prefix) for prefix in follow_up_starts) and not is_short_reference:
         return question
     prior_questions = [
         str(message.get("content", "")).strip()
