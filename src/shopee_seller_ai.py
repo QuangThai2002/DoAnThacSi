@@ -10,6 +10,7 @@ from copy import deepcopy
 from datetime import datetime
 from io import BytesIO
 import random
+import re
 from pathlib import Path
 import sys
 from typing import Any
