@@ -1281,7 +1281,14 @@ def question_with_chat_context(question: str) -> str:
         prior_questions.pop()
     if not prior_questions:
         return question
-    return f"{prior_questions[-1]}\n\nNgười dùng hỏi tiếp: {question}"
+    prior_question = prior_questions[-1]
+    prior_normalized = normalize(prior_question)
+    # "Còn phí nào?" is an ellipsis, not a request to repeat the fixed-fee
+    # calculation.  Make that intent explicit before the deterministic agent
+    # rules inspect the combined question.
+    if normalized.startswith(("con phi nao", "con khoan phi nao")) and "phi" in prior_normalized:
+        return "Ngoài phí vừa giải thích, Shopee đang áp dụng những loại phí nào?"
+    return f"{prior_question}\n\nNgười dùng hỏi tiếp: {question}"
 
 
 def answer_question(question: str) -> dict[str, Any]:
