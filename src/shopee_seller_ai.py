@@ -97,20 +97,20 @@ st.markdown(
         -webkit-user-select: none !important;
       }
       /* Recent-chat controls deliberately have one compact, stable footprint. */
-      [class*="st-key-open_"] > div > button {
+      [data-testid="stSidebar"] [class*="st-key-open_"] > div > button {
         height: 56px !important; min-height: 56px !important; max-height: 56px !important;
         padding: .55rem .65rem !important; overflow: hidden !important; flex-wrap: nowrap !important;
       }
-      [class*="st-key-open_"] > div > button > div,
-      [class*="st-key-open_"] > div > button [data-testid="stMarkdownContainer"] {
+      [data-testid="stSidebar"] [class*="st-key-open_"] > div > button > div,
+      [data-testid="stSidebar"] [class*="st-key-open_"] > div > button [data-testid="stMarkdownContainer"] {
         min-width: 0 !important; overflow: hidden !important;
       }
-      [class*="st-key-open_"] > div > button p,
-      [class*="st-key-open_"] > div > button [data-testid="stMarkdownContainer"] p {
+      [data-testid="stSidebar"] [class*="st-key-open_"] > div > button p,
+      [data-testid="stSidebar"] [class*="st-key-open_"] > div > button [data-testid="stMarkdownContainer"] p {
         display: block !important; width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important;
         white-space: nowrap !important;
       }
-      [class*="st-key-open_"] > div > button * {
+      [data-testid="stSidebar"] [class*="st-key-open_"] > div > button * {
         user-select: none !important; -webkit-user-select: none !important;
       }
       [data-testid="stSidebar"] [data-testid="stRadio"] label { padding: .45rem .55rem; border-radius: 8px; }
