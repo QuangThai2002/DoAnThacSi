@@ -2,11 +2,14 @@
 
 Audit date: 2026-10-03
 
-Scope: 10 records in the `test` split of
-`src/evaluation/benchmark_candidate_v2.jsonl`. The assistant rendered and
-read the original PDF pages named by every record. This is an AI-assisted
-source audit, not a substitute for an independently signed human review;
-therefore every record remains `gold_verified=false`.
+Scope: all 34 records in `src/evaluation/benchmark_candidate_v2.jsonl`.
+The assistant checked every expected document/page against the original PDF.
+For the 10 TEST records, the cited pages were also rendered and visually
+inspected. A source-presence scan confirmed that 33 evidence excerpts occur
+on their expected original pages; the remaining listing-policy record uses a
+reviewed summary of the complete visual list on page 1. This is an
+AI-assisted source audit, not a substitute for an independently signed human
+review; therefore every record remains `gold_verified=false`.
 
 | Record(s) | Source and page inspected | Result |
 | --- | --- | --- |
