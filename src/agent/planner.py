@@ -336,12 +336,27 @@ class Planner:
                 "khong tai bang quang cao",
             )
         )
+        needs_policy = any(term in normalized for term in self.POLICY_TERMS)
         is_general_policy_question = (
             any(term in normalized for term in ("hop dong", "giao dich dien tu", "phap luat", "luat"))
             and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
         )
         is_general_policy_question = is_general_policy_question or (
             "mat hang nay" in normalized and "duoc ban" in normalized
+        )
+        # A general policy/process question such as return-refund guidance is
+        # not a request for this seller's return records.  Without a clear
+        # private-data cue, keep it on the cited policy path.
+        is_general_policy_question = is_general_policy_question or (
+            needs_policy
+            and not any(term in normalized for term in self.PRIVATE_DATA_CUES)
+            and not any(term in normalized for term in (
+                "doi soat", "tien shopee phai tra", "phi thuc te", "ngay nhan tien",
+            ))
+            and not any(term in normalized for term in (
+                "shop toi", "cua shop", "cua toi", "cua hang toi", "thang ",
+                "ky nay", "hien tai", "bao nhieu", "san pham nao",
+            ))
         )
         needs_cost_analysis = any(
             term in normalized for term in self.COST_ANALYSIS_TERMS
@@ -350,7 +365,6 @@ class Planner:
             any(term in normalized for term in self.SHOP_TERMS)
             or needs_cost_analysis
         ) and not (is_definition_question or is_general_policy_question or is_system_limit_question)
-        needs_policy = any(term in normalized for term in self.POLICY_TERMS)
         needs_calculation = any(term in normalized for term in self.CALCULATION_TERMS)
 
         tools: list[str] = []

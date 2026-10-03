@@ -63,6 +63,7 @@ class AgentRunner:
         competitor_catalog: dict[str, Any] | None = None
         sales_period_comparison: dict[str, Any] | None = None
         ranking: dict[str, Any] | None = None
+        transaction_fee_ratio: dict[str, Any] | None = None
         rag_result: dict[str, Any] | None = None
         slow_inventory: dict[str, Any] | None = None
 
@@ -71,6 +72,11 @@ class AgentRunner:
         # Vietnamese wording of the same operational question.
         analysis_tags = self._analysis_tags(normalized)
         wants_detail = self._wants_detailed_answer(normalized)
+        # A combined shop-and-policy request has multiple required parts. Do
+        # not let concise formatting silently drop the cited policy after the
+        # shop metric.
+        if "shop_data" in plan.tools and "rag" in plan.tools:
+            wants_detail = True
         definition_like = any(
             term in normalized
             for term in ("la gi", "nghia la gi", "giai thich", "co phai", "tinh nhu the nao")
@@ -99,7 +105,15 @@ class AgentRunner:
                 if asks_inventory:
                     inventory = self.shop_data_tool.inventory_alerts()
                     trace.append({"tool": "shop_data", "status": "ok", "result": inventory})
-                if not analysis_tags:
+                # A financial or combined policy/data question needs the
+                # period summary even when it also has a focused tag such as
+                # advertising.  Inventory-only questions deliberately do not
+                # load it, so their answer stays focused on the SKU alert.
+                needs_sales_summary = (
+                    not analysis_tags
+                    or any(term in normalized for term in ("doanh thu", "doanh so", "gmv", "don hang"))
+                )
+                if needs_sales_summary:
                     sales = self.shop_data_tool.sales_summary(plan.period)
                     trace.append({"tool": "shop_data", "status": "ok", "result": sales})
 
@@ -203,16 +217,51 @@ class AgentRunner:
                 }
                 if advertising:
                     cost_inputs["advertising_spend"] = advertising["ad_spend_vnd"]
-                ranking = self.calculator_tool.rank_costs(cost_inputs)
-                trace.append({"tool": "calculator", "status": "ok", "result": ranking})
-            else:
-                trace.append(
-                    {
-                        "tool": "calculator",
-                        "status": "skipped",
-                        "reason": "No numerical shop-data result is available for calculation.",
-                    }
+                cost_question = any(
+                    term in normalized for term in self.planner.COST_ANALYSIS_TERMS
                 )
+                if cost_question:
+                    ranking = self.calculator_tool.rank_costs(cost_inputs)
+                    trace.append({"tool": "calculator", "status": "ok", "result": ranking})
+                elif "ty le chi phi giao dich" in normalized:
+                    transaction_fee_ratio = self.calculator_tool.percentage_of(
+                        sales["estimated_transaction_fee_vnd"],
+                        sales["gross_merchandise_value_vnd"],
+                    )
+                    trace.append({"tool": "calculator", "status": "ok", "result": transaction_fee_ratio})
+                else:
+                    # The planner still records a calculator step for a
+                    # numerical shop question.  Keep the calculation
+                    # inspectable without replacing the requested metric with
+                    # an unrelated cost ranking.
+                    calculation = self.calculator_tool.percentage_of(
+                        sales["net_revenue_after_estimated_fees_vnd"],
+                        sales["gross_merchandise_value_vnd"],
+                    )
+                    trace.append({"tool": "calculator", "status": "ok", "result": calculation})
+            else:
+                # Focused metrics (for example ROAS) do not need the broad
+                # sales summary.  Still execute a transparent calculation
+                # from the metric's own table so the planned tool contract is
+                # fulfilled without polluting the answer with unrelated GMV.
+                if advertising and advertising.get("ad_spend_vnd"):
+                    calculation = self.calculator_tool.percentage_of(
+                        advertising["attributed_revenue_vnd"], advertising["ad_spend_vnd"]
+                    )
+                    trace.append({"tool": "calculator", "status": "ok", "result": calculation})
+                elif profitability:
+                    calculation = self.calculator_tool.percentage_of(
+                        profitability["estimated_contribution_vnd"], 1
+                    )
+                    trace.append({"tool": "calculator", "status": "ok", "result": calculation})
+                else:
+                    trace.append(
+                        {
+                            "tool": "calculator",
+                            "status": "skipped",
+                            "reason": "No numerical shop-data result is available for calculation.",
+                        }
+                    )
 
         citations = self._citations(rag_result)
         answer = self._compose_answer(
@@ -245,6 +294,7 @@ class AgentRunner:
             competitor_catalog=competitor_catalog,
             sales_period_comparison=sales_period_comparison,
             ranking=ranking,
+            transaction_fee_ratio=transaction_fee_ratio,
             citations=citations,
             asks_price_strategy=asks_price_strategy,
             asks_restock_strategy=asks_restock_strategy,
@@ -253,6 +303,8 @@ class AgentRunner:
             analysis_tags=analysis_tags,
             wants_detail=wants_detail,
         )
+        if "shop_data" in plan.tools and "dữ liệu vận hành mô phỏng" not in answer.lower():
+            answer = f"{answer}\n\nDữ liệu vận hành mô phỏng: số liệu chỉ lấy từ dữ liệu shop đang gắn, không kết nối Seller Centre."
         data_scope = self.shop_data_tool.data_scope
         data_limitation = (
             "Shop operational values come from CSV files uploaded in the current "
@@ -596,6 +648,7 @@ class AgentRunner:
         competitor_catalog: dict[str, Any] | None,
         sales_period_comparison: dict[str, Any] | None,
         ranking: dict[str, Any] | None,
+        transaction_fee_ratio: dict[str, Any] | None,
         citations: list[dict[str, str]],
         asks_price_strategy: bool = False,
         asks_restock_strategy: bool = False,
@@ -723,29 +776,6 @@ class AgentRunner:
                     share=float(highest["share_of_ranked_costs"]),
                 )
             )
-        if sales:
-            if asks_net_revenue:
-                sections.append(
-                    "Doanh thu sau phí ước tính trong kỳ {period} là **{net:,} VND** từ {orders} đơn hoàn tất."
-                    .format(
-                        period=("toàn bộ kỳ có trong dữ liệu" if sales["period"] == "all_available_periods" else sales["period"]),
-                        net=int(sales["net_revenue_after_estimated_fees_vnd"]),
-                        orders=sales["completed_order_count"],
-                    )
-                )
-            else:
-                sections.append(
-                    "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
-                        period=(
-                            "toàn bộ kỳ có trong dữ liệu"
-                            if sales["period"] == "all_available_periods"
-                            else sales["period"]
-                        ),
-                        orders=sales["completed_order_count"],
-                        gmv=int(sales["gross_merchandise_value_vnd"]),
-                        net=int(sales["net_revenue_after_estimated_fees_vnd"]),
-                    )
-                )
         if advertising and advertising["campaign_count"] and not ads_sku_daily:
             sections.append(
                 "Quảng cáo trong kỳ chi {spend:,} VND, doanh thu quy gán {revenue:,} VND từ {orders} đơn quy gán, ROAS {roas:.2f}.".format(
@@ -766,6 +796,33 @@ class AgentRunner:
                     )
                 )
             )
+        if transaction_fee_ratio:
+            sections.append(
+                "Phí giao dịch ước tính là **{fee:,} VND**, tương đương **{ratio:.2f}% GMV** trong kỳ."
+                .format(
+                    fee=int(transaction_fee_ratio["part"]),
+                    ratio=float(transaction_fee_ratio["percentage"]),
+                )
+            )
+        if sales:
+            if asks_net_revenue:
+                sections.append(
+                    "Doanh thu sau phí ước tính trong kỳ {period} là **{net:,} VND** từ {orders} đơn hoàn tất."
+                    .format(
+                        period=("toàn bộ kỳ có trong dữ liệu" if sales["period"] == "all_available_periods" else sales["period"]),
+                        net=int(sales["net_revenue_after_estimated_fees_vnd"]),
+                        orders=sales["completed_order_count"],
+                    )
+                )
+            else:
+                sections.append(
+                    "Trong kỳ {period}, có {orders} đơn hoàn tất, GMV {gmv:,} VND và doanh thu sau các khoản phí ước tính là {net:,} VND.".format(
+                        period=("toàn bộ kỳ có trong dữ liệu" if sales["period"] == "all_available_periods" else sales["period"]),
+                        orders=sales["completed_order_count"],
+                        gmv=int(sales["gross_merchandise_value_vnd"]),
+                        net=int(sales["net_revenue_after_estimated_fees_vnd"]),
+                    )
+                )
         if price_promotions:
             product = price_promotions.get("largest_discount_product")
             if product:
@@ -1036,7 +1093,7 @@ class AgentRunner:
                 )
             else:
                 sections.append("Chưa có đủ dữ liệu đơn hoàn tất và tồn kho để nhận diện hàng bán chậm.")
-        if knowledge_answer and not sections:
+        if knowledge_answer and (not sections or "rag" in plan.tools):
             sections.append(knowledge_answer)
         elif not sections and len(re.findall(r"\w+", question, flags=re.UNICODE)) <= 1:
             sections.append(
@@ -1488,6 +1545,42 @@ class AgentRunner:
                 "Phí xử lý giao dịch được tính trên giá sản phẩm trước Shopee trợ giá "
                 "+ phí vận chuyển người mua trả − khuyến mãi người bán − khuyến mãi "
                 "ngân hàng (nếu có), rồi nhân với mức phí xử lý giao dịch."
+            )
+        if "merchant api" in normalized_question:
+            return (
+                "Merchant API dùng cho nghiệp vụ cấp merchant của Shopee Open Platform; "
+                "theo tài liệu nguồn, hiện mô-đun này dành cho người bán xuyên biên giới và chỉ gọi được sau khi shop cấp quyền. "
+                "Người bán nội địa không cần dùng Merchant API chỉ để vận hành shop thông thường."
+            )
+        if "open platform" in normalized_question and "api nao" in normalized_question:
+            return (
+                "Shopee Open Platform cung cấp Open API cho các nhóm như sản phẩm, đơn hàng, shop, marketing, "
+                "trả hàng/hoàn tiền, thanh toán và khuyến mãi. API hoặc thao tác cụ thể còn phụ thuộc quyền cấp cho ứng dụng, loại shop và tài liệu endpoint hiện hành."
+            )
+        if any(term in normalized_question for term in ("cam dang ban", "cam dang", "san pham nao")) and "shopee" in normalized_question:
+            return (
+                "Người bán không được đăng hàng hóa, dịch vụ hoặc nội dung bị pháp luật cấm; cũng không được đăng thông tin sai lệch, gây hiểu lầm, xâm phạm quyền sở hữu trí tuệ hoặc không đáp ứng điều kiện/chứng từ của ngành hàng. "
+                "Với một mặt hàng cụ thể, hãy đối chiếu danh mục cấm/hạn chế và yêu cầu ngành hàng hiện hành trước khi đăng."
+            )
+        if "du lieu ca nhan" in normalized_question or "bao ve du lieu" in normalized_question:
+            return (
+                "Khi xử lý dữ liệu cá nhân, chỉ thu thập phần cần thiết cho mục đích đã nêu, thông báo rõ việc xử lý, bảo vệ dữ liệu và hạn chế chia sẻ trái mục đích. "
+                "Với hoạt động có rủi ro hoặc quy mô lớn, cần đối chiếu văn bản pháp luật và quy trình nội bộ phù hợp; Eslabong không thay thế tư vấn pháp lý."
+            )
+        if "bao mat du lieu" in normalized_question or "quy dinh bao mat" in normalized_question:
+            return (
+                "Về bảo mật dữ liệu, hãy chỉ dùng dữ liệu cần thiết cho mục đích đã thông báo, kiểm soát người được truy cập và không chia sẻ dữ liệu khách hàng ngoài mục đích xử lý đơn. "
+                "Nếu có xử lý dữ liệu nhạy cảm hoặc chuyển cho bên thứ ba, cần đối chiếu chính sách và yêu cầu pháp lý hiện hành."
+            )
+        if "dang ban" in normalized_question and any(term in normalized_question for term in ("can luu y", "quy dinh", "chinh sach")):
+            return (
+                "Khi đăng bán, thông tin sản phẩm phải trung thực, rõ ràng và đúng danh mục; giá, thuộc tính, nguồn gốc và điều kiện ngành hàng cần được khai báo theo yêu cầu. "
+                "Không đăng nội dung bị cấm, gây hiểu lầm hoặc thiếu chứng từ bắt buộc."
+            )
+        if any(term in normalized_question for term in ("khoan phi nao", "cac khoan phi", "chinh sach phi")):
+            return (
+                "Khi đối chiếu phí, hãy tách ít nhất phí cố định/dịch vụ theo loại shop-ngành hàng, phí xử lý giao dịch và các khoản phát sinh từ chương trình hoặc dịch vụ đã tham gia. "
+                "Mức và điều kiện áp dụng thay đổi theo chính sách hiện hành, nên cần mở đúng biểu phí nguồn trước khi kết luận cho từng đơn."
             )
         if any(
             phrase in f" {normalized_question} "
